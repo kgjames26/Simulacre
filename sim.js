@@ -27,7 +27,8 @@ const milestones = [
   {motor:125, life:30, cognition:9, play:12, social:20},
   {motor:170, life:48, cognition:12, play:25, social:35},
   {motor:220, life:70, cognition:15, play:40, social:55},
-  {motor:280, life:100, cognition:18, play:65, social:80}
+  {motor:280, life:100, cognition:18, play:65, social:80},
+  {motor:400, life:150, cognition:25, play:100, social:120}
 ];
 const landmarks = [
   ['tapis',-8,2],['baie',-1,1],['table',-5,-3],['cuisine',-2,-4],
@@ -692,8 +693,7 @@ function experience() {
         continue;
       }
     }else p.moving=false;
-    if(i<2&&age<7&&s%54<34){goalX=alex.x+(i===0?-.72:.72);goalZ=alex.z+(i===0?.55:-.55);p.activity='Va voir Néo';}
-    else p.activity='Se déplace';
+    p.activity='Se déplace';
     let goalX=p.homeX+Math.sin(s*.21+i)*1.1;
     let goalZ=p.homeZ+Math.cos(s*.18+i)*1.2;
     if(house&&i<3){
@@ -705,6 +705,7 @@ function experience() {
         goalZ=door.z+(door.passage&&cycle>24?.64:-.34);
       }
     }
+    if(i<2&&age<7&&s%54<34){goalX=alex.x+(i===0?-.72:.72);goalZ=alex.z+(i===0?.55:-.55);p.activity='Va voir Néo';}
     if(i>=3){
       p.age=age;
       if(records[4].mastered){
