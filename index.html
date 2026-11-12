@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111a18">
-<meta name="description" content="Suivez le monde et le développement d’Néo dans Simulacre.">
+<meta name="description" content="Suivez le monde et le développement de Néo dans Simulacre.">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/styles.css">
@@ -13,7 +13,18 @@
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}
 </script>
 </head>
-<body>\n<section id="welcome-screen" class="welcome-screen" aria-labelledby="welcome-title">\n  <div class="welcome-panel">\n    <p class="welcome-kicker">EXPÉRIENCE DE SIMULATION · INTELLIGENCE ARTIFICIELLE</p>\n    <h1 id="welcome-title">SIMULACRE</h1>\n    <h2>Une expérimentation d’autodéveloppement de l’intelligence artificielle</h2>\n    <p>Simulacre est une expérience de simulation de vie centrée sur Néo. Il commence avec une feuille blanche : il doit découvrir son environnement, apprendre, expérimenter, comprendre et construire ses propres objectifs.</p>\n    <p>Les autres personnages commencent avec des comportements et des connaissances scriptés. Les découvertes de Néo peuvent enrichir leurs propres connaissances et leur permettre d’évoluer à leur tour.</p>\n    <p>Le monde évolue à travers les interactions, les apprentissages, les relations et les expériences quotidiennes. Néo est le sujet central de cette expérimentation.</p>\n    <button id="enter-simulacre" type="button">Entrer dans l’expérience</button>\n  </div>\n</section>
+<body>
+<section id="welcome-screen" class="welcome-screen" aria-labelledby="welcome-title">
+  <div class="welcome-panel">
+    <p class="welcome-kicker">EXPÉRIENCE DE SIMULATION · INTELLIGENCE ARTIFICIELLE</p>
+    <h1 id="welcome-title">SIMULACRE</h1>
+    <h2>Une expérimentation d’autodéveloppement de l’intelligence artificielle</h2>
+    <p>Simulacre est une expérience de simulation de vie centrée sur Néo. Il commence avec une feuille blanche : il doit découvrir son environnement, apprendre, expérimenter, comprendre et construire ses propres objectifs.</p>
+    <p>Les autres personnages commencent avec des comportements et des connaissances scriptés. Les découvertes de Néo peuvent enrichir leurs propres connaissances et leur permettre d’évoluer à leur tour.</p>
+    <p>Le monde évolue à travers les interactions, les apprentissages, les relations et les expériences quotidiennes. Néo est le sujet central de cette expérimentation.</p>
+    <button id="enter-simulacre" type="button">Entrer dans l’expérience</button>
+  </div>
+</section>
 <header class="shell">
   <div class="masthead">
     <a class="brand" href="#ensemble"><img src="/icon.svg" alt=""><span>SIMULACRE<small>Le monde d’Néo</small></span></a>
@@ -40,8 +51,9 @@
       <div class="scene-top"><p id="scene-status" role="status">Chargement de la scène 3D…</p></div>
       <div id="labels"></div>
       <div class="camera-tools" role="group" aria-label="Caméra">
-        <div class="follow-tools"><button id="follow" type="button" aria-pressed="false">Suivi d’Néo</button><button id="choose-person" type="button" aria-controls="person-dialog" aria-label="Choisir le personnage à suivre">Néo ▾</button></div>
+        <div class="follow-tools"><button id="follow" type="button" aria-pressed="false">Suivi de Néo</button><button id="choose-person" type="button" aria-controls="person-dialog" aria-label="Choisir le personnage à suivre">Néo ▾</button></div>
         <div class="zoom-tools"><button id="zoom-out" type="button" aria-label="Dézoomer">−</button><output id="zoom-level">1×</output><button id="zoom-in" type="button" aria-label="Zoomer">+</button></div>
+        <button id="rotate-camera" type="button" aria-label="Changer l’angle de vue" title="Pivoter la vue">Angle de vue ↻</button>
       </div>
       <div class="scene-bottom"><div><small id="activity-person">Néo</small><strong id="activity">Se redresser</strong></div><div class="scene-actions"><button id="play-open" class="quiet" type="button">Objets</button><button id="speed" type="button" aria-pressed="false">Accélérer</button></div></div>
     </section>
