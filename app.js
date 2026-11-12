@@ -1,13 +1,13 @@
 import {bindPlayViews} from '/play-view.js';
 import {setupDashboard} from '/dashboard.js';
 const ui = id => document.getElementById(id);
-const ages = ['Bébé','Petit enfant','Enfant','Grand enfant','Petit ado','Ado','Jeune homme','Homme'];
+const ages = ['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
 const stages = ['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
 const format = new Intl.NumberFormat('fr-BE');
-const saveKey = 'alex-simulacre-v3';
+const saveKey = 'neo-simulacre-v4';
 const worker = new Worker('/sim.js');
 let snapshot, human = true, lastJournal = '', resetting=false, initialized=false;
-const personNames={alex:'Alex',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Françoise',rose:'Rose'};
+const personNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Lyra',rose:'Rose'};
 let lastDialogueId=0, lastDialoguePaint=0, voiceEnabled=false, conversationRows=[];
 const dashboard=setupDashboard(personNames);
 const voiceButton=ui('voice-toggle');
@@ -106,9 +106,9 @@ worker.onmessage = ({data}) => {
   ui('bar').value=score;
   const observed=following&&followedPerson!=='alex'?snapshot.people.find(person=>person.id===followedPerson):alex;
   ui('activity').textContent=observed?.activity||'Se déplace';
-  ui('activity-person').textContent=following?personNames[followedPerson]:'Alex';
+  ui('activity-person').textContent=following?personNames[followedPerson]:'Néo';
   ui('trials').textContent=format.format(trials);
-  ui('pecm').textContent=format.format(pecm);
+  ui('motor-progress').textContent=format.format(pecm);
   ui('hunger').textContent=Math.round(alex.hunger*100)+' %';
   ui('fatigue').textContent=Math.round(alex.fatigue*100)+' %';
   ui('pleasure').textContent=Math.round((alex.pleasure||0)*100)+' %';
@@ -127,7 +127,7 @@ ui('speed').onclick=()=>{
   ui('speed').textContent=human?'Accélérer':'Revenir à vitesse normale';
   ui('mode').textContent=human?'Vitesse normale · ×1':'Simulation accélérée';
 };
-if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);\n\nconst welcome=ui('welcome-screen');\nif(sessionStorage.getItem('simulacre-intro-seen')==='1')welcome.hidden=true;\nui('enter-simulacre').addEventListener('click',()=>{welcome.hidden=true;sessionStorage.setItem('simulacre-intro-seen','1');});
 
 async function unzipPlayground(blob) {
   const data=new Uint8Array(await blob.arrayBuffer());
@@ -523,7 +523,7 @@ async function showWorld(){
   renderer.toneMappingExposure=1.25;
   ui('view').append(renderer.domElement);
   const camera=new T.OrthographicCamera();
-  const offset=new T.Vector3(23,27,31);
+  const baseOffset=new T.Vector3(23,27,31);\n  const offset=baseOffset.clone();\n  let cameraQuarter=0;\n  ui('rotate-camera').onclick=()=>{cameraQuarter=(cameraQuarter+1)%4;offset.copy(baseOffset).applyAxisAngle(new T.Vector3(0,1,0),cameraQuarter*Math.PI/2);};
   const center=new T.Vector3();
   const manualCenter=new T.Vector3();
   const desiredCenter=new T.Vector3();
@@ -881,7 +881,7 @@ async function showWorld(){
       label.title='Suivre '+profile.name;label.onclick=()=>selectPerson(id);ui('labels').append(label);
       scene.add(root);actors.push({id,root,profile,label,rig,face});
     }
-    actors[0].ageProfiles=profiles.variants.slice(0,8);
+    actors[0].ageProfiles=Array.from({length:9},(_,i)=>profiles.variants[Math.min(7,Math.max(0,i-1))]);
   })());
   const assetURL='/assets/3d/';
   const readAsset=async file=>{
