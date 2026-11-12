@@ -31,11 +31,16 @@ let records = goals.map(()=>({best:-1e9,policy:[...initial],success:0,confirmed:
 let alex={x:-6.7,z:2.6,heading:0,phase:0,pose:0,tilt:0,effort:0,hunger:.1,fatigue:.05,activity:'Premiers mouvements'};
 let ball={x:9,z:7,vx:0,vz:0};
 let park=null;
+let house=null;
+const doorKnowledge={};
+const doorStates={};
+let trampolineCooldown=0;
+let membrane=0;
 let contact=null;
 const rope={angle:0,angular:0};
-const parkMemory={slide:0,rope:0};
-const equipmentSeen={slide:0,rope:0};
-const parkCooldown={slide:0,rope:0};
+const parkMemory={slide:0,rope:0,trampoline:0};
+const equipmentSeen={slide:0,rope:0,trampoline:0};
+const parkCooldown={slide:0,rope:0,trampoline:0};
 let explorationTarget=null, nextChoice=0;
 let eventClock=0, episode, lastWall=performance.now(), accumulator=0;
 function note(message) {
@@ -100,12 +105,66 @@ function learn(name, type) {
     note('Alex associe vision et contact · '+name);
   }
 }
+function doorRecord(mechanism){
+  return doorKnowledge[mechanism] ||= {seen:0,attempts:0,success:0,known:false,actions:[0,0,0]};
+}
+function validateDoor(mechanism,record){
+  if(record.known)return;
+  record.known=true;
+  counts.cognition++;
+  knowledge['ouverture '+mechanism]={visits:record.attempts+record.seen,senses:['vision','contact','mouvement'],type:'mécanisme'};
+  note(mechanism==='coulissante'?'Alex sait maintenant faire coulisser la porte.':'Alex sait maintenant ouvrir une porte à charnière.');
+}
+function useDoor(p,door,s) {
+  const state=doorStates[door.id];
+  const parent=p.id==='joseph'||p.id==='marie';
+  const record=doorRecord(door.mechanism);
+  if(!parent&&p!==alex&&!record.known)return;
+  if(s<(p.nextDoorTry||0)||state.amount>.2||state.until>s)return;
+  p.nextDoorTry=s+1.5;
+  if(p===alex&&!record.known){
+    record.attempts++;
+    const action=record.actions.indexOf(Math.min(...record.actions));
+    record.actions[action]++;
+    if(action!==door.action){
+      if(record.attempts<=2)note('Alex essaie une autre prise sur la '+door.name+'.');
+      return;
+    }
+    record.success++;
+    if(record.success>=2)validateDoor(door.mechanism,record);
+  }
+  state.until=s+4.2;
+  if(parent&&Math.hypot(alex.x-door.x,alex.z-door.z)<2.4&&!record.known){
+    record.seen++;
+    note((p.id==='joseph'?'Joseph':'Marie')+' montre à Alex comment ouvrir la '+door.name+'.');
+    if(record.seen>=2)validateDoor(door.mechanism,record);
+  }
+}
+function stepDoors(s){
+  if(!house)return;
+  for(const door of house.doors){
+    const state=doorStates[door.id];
+    const occupied=[alex,...people].some(p=>Math.abs(p.x-door.x)<door.width/2+.12&&Math.abs(p.z-door.z)<.28);
+    const target=state.until>s||occupied&&state.amount>.72?1:0;
+    state.amount+=clamp(target-state.amount,-DT*1.75,DT*1.75);
+  }
+}
 function move(p,x,z,speed) {
   const dx=x-p.x,dz=z-p.z,d=Math.hypot(dx,dz);
   if(d<.09)return d;
   const step=Math.min(d,speed*DT);
-  p.x=clamp(p.x+dx/d*step,-bounds.x+.5,bounds.x-.5);
-  p.z=clamp(p.z+dz/d*step,-bounds.z+.5,bounds.z-.5);
+  const nextX=clamp(p.x+dx/d*step,-bounds.x+.5,bounds.x-.5);
+  const nextZ=clamp(p.z+dz/d*step,-bounds.z+.5,bounds.z-.5);
+  for(const door of house?.doors||[]){
+    if(Math.abs(p.x-door.x)>door.width/2+.13||Math.abs(p.z-door.z)>.58)continue;
+    useDoor(p,door,ticks*DT);
+    if(door.passage&&doorStates[door.id].amount<.78){
+      const side=Math.sign(p.z-door.z)||1;
+      if(side*(nextZ-door.z)<.14&&Math.abs(nextZ-door.z)<Math.abs(p.z-door.z))return d;
+    }
+  }
+  p.x=nextX;
+  p.z=nextZ;
   p.heading=Math.atan2(dx,dz);
   p.phase+=step*8;
   return d;
@@ -127,11 +186,60 @@ function parkObservation(id,message) {
   counts.play++;
   if(parkMemory[id]===1) {
     counts.cognition++;
-    knowledge[id==='slide'?'toboggan':'corde']={visits:1,senses:['vision','contact','mouvement'],type:'jeu'};
+    knowledge[{slide:'toboggan',rope:'corde',trampoline:'trampoline'}[id]]={visits:1,senses:['vision','contact','mouvement'],type:'jeu'};
     note(message);
   }
 }
+function stepTrampoline(s){
+  if(contact?.kind!=='trampoline'){
+    membrane*=Math.exp(-DT*14);
+    return false;
+  }
+  const bed=house.trampoline;
+  const t=contact;
+  t.time+=DT;
+  if(t.mount){
+    const step=DT*.92;
+    alex.z=Math.min(bed.z,alex.z+step);
+    alex.y=Math.min(bed.y,(alex.y||0)+step*.9);
+    alex.activity='Monte sur le trampoline';
+    alex.pose=.27;
+    if(alex.z>=bed.z-.08){t.mount=false;alex.y=bed.y;t.velocity=2.6;t.time=0;}
+    return true;
+  }
+  const mass=12+age*6;
+  const compression=Math.max(0,bed.y-alex.y);
+  const reaction=compression>0?Math.max(0,3200*compression-62*t.velocity):0;
+  const previouslyInContact=t.touching;
+  t.touching=compression>0;
+  if(t.touching&&!previouslyInContact)t.landings++;
+  if(previouslyInContact&&!t.touching&&t.landings<5&&t.velocity>0)t.velocity+=1.15;
+  t.velocity+=(reaction/mass-9.81)*DT;
+  alex.y+=t.velocity*DT;
+  membrane=Math.min(.42,compression);
+  alex.activity=alex.y>bed.y+.1?'Saute sur le trampoline':'Rebondit sur la toile';
+  alex.pose=clamp(.12+compression*1.3,0,.72);
+  alex.tilt=0;
+  alex.effort=0;
+  if(t.landings>=5&&compression>0&&Math.abs(t.velocity)<.25||t.time>10){
+    if(t.landings>=2)parkObservation('trampoline','Alex découvre que la toile se tend sous son poids et le fait rebondir.');
+    trampolineCooldown=s+90;
+    contact={kind:'trampoline-exit'};
+  }
+  return true;
+}
+function leaveTrampoline(){
+  const bed=house.trampoline;
+  alex.z-=DT*.95;
+  alex.activity='Descend du trampoline';
+  if(alex.z<=bed.entryZ+.35)alex.y=Math.max(0,alex.y-DT*2.1);
+  membrane*=Math.exp(-DT*14);
+  if(alex.z<=bed.entryZ-.15&&alex.y<=0)contact=null;
+  return true;
+}
 function stepPark(s) {
+  if(contact?.kind==='trampoline-exit')return leaveTrampoline();
+  if(stepTrampoline(s))return true;
   if(!park)return false;
   const hanging=contact?.kind==='rope';
   const acceleration=-9.81/park.rope.length*Math.sin(rope.angle)-rope.angular*(hanging?.45:1.1);
@@ -176,9 +284,15 @@ function stepPark(s) {
   return true;
 }
 function tryEquipment(s) {
-  if(!park||alex.x<4)return null;
-  const bottom=park.slide.at(-1), end=ropeEnd();
-  const items=[{id:'slide',name:'toboggan',x:bottom.x,z:bottom.z},{id:'rope',name:'corde',x:end.x,z:end.z}];
+  const items=[];
+  if(park&&alex.x>=4){
+    const bottom=park.slide.at(-1),end=ropeEnd();
+    items.push({id:'slide',name:'toboggan',x:bottom.x,z:bottom.z},{id:'rope',name:'corde',x:end.x,z:end.z});
+  }
+  if(house&&s>=trampolineCooldown){
+    const bed=house.trampoline;
+    items.push({id:'trampoline',name:'trampoline',x:bed.x,z:bed.entryZ});
+  }
   let best=null;
   let bestScore=.04;
   for(const item of items){
@@ -186,7 +300,7 @@ function tryEquipment(s) {
     if(distance>4||s<parkCooldown[item.id])continue;
     if(equipmentSeen[item.id]===0){
       equipmentSeen[item.id]=1;
-      note('Alex remarque '+(item.id==='slide'?'le toboggan.':'la corde.'));
+      note('Alex remarque '+({slide:'le toboggan.',rope:'la corde.',trampoline:'le trampoline.'}[item.id]));
     }
     const value=(1+.25*Math.log1p(parkMemory[item.id]))/(1+distance*distance);
     if(value>bestScore){bestScore=value;best=item;}
@@ -194,7 +308,11 @@ function tryEquipment(s) {
   return best;
 }
 function beginEquipment(item,s){
-  if(item.id==='slide'){
+  if(item.id==='trampoline'){
+    contact={kind:'trampoline',mount:true,time:0,velocity:0,landings:0,touching:false};
+    alex.x=house.trampoline.x;alex.z=house.trampoline.entryZ;
+    alex.heading=0;
+  }else if(item.id==='slide'){
     contact={kind:'climb'};
     alex.x=park.slide.at(-1).x;
     alex.z=park.slide.at(-1).z;
@@ -208,14 +326,20 @@ function experience() {
   alex.hunger=clamp(alex.hunger+DT*.002,0,1);
   alex.fatigue=clamp(alex.fatigue+DT*.0015,0,1);
   const s=ticks*DT;
+  stepDoors(s);
   const usingEquipment=stepPark(s);
   if(!usingEquipment){
   alex.y=Math.max(0,(alex.y||0)-DT*2.8);
   if(skill===4 && records[4].confirmed>=12){
     if(!explorationTarget||s>=nextChoice){
       const weight = ([name,x,z]) => 1/(1+(knowledge[name]?.visits||0)*.22)/(1+Math.hypot(x-alex.x,z-alex.z)*.07);
-      let draw=Math.random()*landmarks.reduce((sum,target)=>sum+weight(target),0);
-      explorationTarget=landmarks.find(target=>(draw-=weight(target))<=0)||landmarks[0];
+      const options=house?[...landmarks,['terrasse',house.trampoline.x,house.trampoline.entryZ]]:landmarks;
+      let draw=Math.random()*options.reduce((sum,target)=>sum+weight(target),0);
+      explorationTarget=options.find(target=>(draw-=weight(target))<=0)||options[0];
+      if(house&&Math.random()<.25){
+        const door=house.doors[Math.floor(Math.random()*house.doors.length)];
+        explorationTarget=['poignée de '+door.name,door.x,door.z+(alex.z<door.z?-.24:.24)];
+      }
       nextChoice=s+17+Math.random()*19;
     }
     const target=explorationTarget;
@@ -236,6 +360,16 @@ function experience() {
       destinationX=alex.x;
       destinationZ=4;
     }else if(crossing)destinationZ=4;
+    const entrance=house?.doors.find(door=>door.passage);
+    if(entrance&&alex.x<-.5&&goal[1]<-.5){
+      const side=Math.sign(alex.z-entrance.z)||-1;
+      const targetSide=Math.sign(goal[2]-entrance.z)||side;
+      if((side!==targetSide||Math.abs(alex.z-entrance.z)<.30)&&Math.abs(goal[2]-entrance.z)>.3){
+        destinationX=entrance.x;
+        destinationZ=Math.abs(alex.x-entrance.x)>.17&&Math.abs(alex.z-entrance.z)>.15?
+          alex.z:entrance.z+targetSide*.48;
+      }
+    }
     const near=move(alex,destinationX,destinationZ,clamp(episode.vx*4,.24,1.35));
     if(category==='équipement'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.23) beginEquipment(equipment,s);
     if(category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock){
@@ -263,8 +397,16 @@ function experience() {
   }
   for(let i=0;i<people.length;i++){
     const p=people[i];
-    const goalX=p.homeX+Math.sin(s*.21+i)*1.1;
-    const goalZ=p.homeZ+Math.cos(s*.18+i)*1.2;
+    let goalX=p.homeX+Math.sin(s*.21+i)*1.1;
+    let goalZ=p.homeZ+Math.cos(s*.18+i)*1.2;
+    if(house&&i<3){
+      const cycle=(s+i*20)%95;
+      if(cycle<42){
+        const door=house.doors[(Math.floor((s+i*20)/95)+i)%house.doors.length];
+        goalX=door.x;
+        goalZ=door.z+(door.passage&&cycle>24?.64:-.34);
+      }
+    }
     move(p,goalX,goalZ,.75);
     if((i<2&&age>=5)||(i>=2&&Object.keys(knowledge).length>i))p.inherited=counts.cognition;
     if(i>=3 && Math.hypot(p.x-ball.x,p.z-ball.z)<.65 && Math.hypot(ball.vx,ball.vz)<1.1){
@@ -281,12 +423,16 @@ function experience() {
   }
 }
 function snapshot() {
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,validated:records[4].confirmed};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,validated:records[4].confirmed};
 }
 function save() {
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge};
 }
 onmessage=({data})=>{
+  if(data.type==='house'){
+    house=data.geometry;
+    for(const door of house.doors)doorStates[door.id]||={amount:0,until:0};
+  }
   if(data.type==='park'&&data.geometry.slide.length>1)park=data.geometry;
   if(data.type==='mode'){mode=data.mode;accumulator=0;lastWall=performance.now();}
   if(data.type==='restore'&&data.state){
@@ -295,6 +441,7 @@ onmessage=({data})=>{
     ({ticks,trials,pecm,skill,age,score,counts,journal,records,knowledge,eventClock}=s);
     Object.assign(alex,s.alex);
     Object.assign(parkMemory,s.parkMemory);
+    Object.assign(doorKnowledge,s.doorKnowledge);
     Object.assign(equipmentSeen,s.equipmentSeen);
     Object.assign(ball,s.ball);
     people.forEach((p,i)=>Object.assign(p,s.people[i]));

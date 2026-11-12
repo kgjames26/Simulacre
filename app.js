@@ -110,7 +110,7 @@ function softwareRenderer(T){
     for(const root of scene.children){
       if(root.userData.dynamic)continue;
       root.traverse(mesh=>{
-        if(!mesh.isMesh)return;
+        if(!mesh.isMesh||!mesh.visible)return;
         const position=mesh.geometry.getAttribute('position'), index=mesh.geometry.index;
         const count=Math.floor((index?.count||position.count)/3);
         const stride=Math.max(1,Math.ceil(count/1100));
@@ -149,9 +149,17 @@ function softwareRenderer(T){
       }
       context.drawImage(backdrop,0,0);
       for(const object of scene.children.filter(item=>item.userData.dynamic)){
+        object.updateMatrixWorld(true);
         const [x,y]=project(screen.copy(object.position).project(camera),camera);
         const style=object.userData;
         const factor=height/(camera.top-camera.bottom);
+        if(style.door){
+          const vertices=style.corners.map(corner=>project(screen.copy(corner).applyMatrix4(object.matrixWorld).project(camera),camera));
+          context.fillStyle=style.color;
+          context.beginPath();
+          vertices.forEach(([px,py],i)=>i?context.lineTo(px,py):context.moveTo(px,py));
+          context.closePath();context.fill();continue;
+        }
         if(style.rope){
           const [ax,ay]=project(screen.copy(style.anchor).project(camera),camera);
           const [bx,by]=project(screen.copy(style.end).project(camera),camera);
@@ -227,7 +235,8 @@ async function showWorld(){
   const ball=new T.Mesh(new T.SphereGeometry(.21,18,12),mat('#f9b650'));ball.userData={dynamic:true,ball:true};scene.add(ball);
   const parse=(loader,data)=>new Promise((resolve,reject)=>loader.parse(data,'',resolve,reject));
   const actors=[];
-  let physicalRope;
+  let physicalRope, trampolineMesh;
+  const houseDoors=[];
   const ropeUp=new T.Vector3(0,1,0);
   const failures=[];
   let ready=0;
@@ -240,8 +249,56 @@ async function showWorld(){
     const {scene:house}=await parse(new GLTFLoader(),await assets.loadHouseModel());
     house.scale.setScalar(.65);house.position.set(-3.65,.035,2.6);
     const cut=new T.Plane(new T.Vector3(0,-1,0),1.45);
-    house.traverse(o=>{if(o.isMesh)for(const m of [o.material].flat())m.clippingPlanes=[cut];});
     scene.add(house);
+    house.updateMatrixWorld(true);
+    const sourcePoint=(x,z,height)=>house.localToWorld(new T.Vector3(x,height,-z));
+    const trampoline=house.getObjectByName('Object_112');
+    house.traverse(o=>{
+      if(o.isMesh&&o!==trampoline)for(const m of [o.material].flat())m.clippingPlanes=[cut];
+    });
+    if(trampoline?.isMesh){
+      trampoline.geometry=trampoline.geometry.clone();
+      trampolineMesh={mesh:trampoline,original:trampoline.geometry.attributes.position.array.slice()};
+    }
+    const bed=sourcePoint(2.43,-6.88,.922);
+    const entry=sourcePoint(2.43,-4.7,0);
+    const doors=[];
+    function makeDoor(source,id,name,mechanism,left,right,z,top,action,select){
+      if(!source?.isMesh)return;
+      const geometry=source.geometry.clone();
+      if(select){
+        const index=geometry.index;
+        const positions=geometry.attributes.position;
+        const moving=[],fixed=[];
+        for(let i=0;i<index.count;i+=3){
+          const face=[index.getX(i),index.getX(i+1),index.getX(i+2)];
+          (face.every(vertex=>select(positions.getX(vertex),positions.getY(vertex)))?moving:fixed).push(...face);
+        }
+        if(!moving.length)return;
+        geometry.setIndex(moving);
+        source.geometry=source.geometry.clone().setIndex(fixed);
+      }else source.visible=false;
+      const hinge=id==='closet-right'?right:left;
+      const pivot=sourcePoint(hinge,z,0);
+      const center=sourcePoint((left+right)/2,z,0);
+      const width=(right-left)*.65;
+      geometry.applyMatrix4(source.matrixWorld).translate(-pivot.x,-pivot.y,-pivot.z);
+      const root=new T.Group();
+      root.position.copy(pivot);
+      const material=source.material.clone();
+      root.add(new T.Mesh(geometry,material));
+      const start=(left-hinge)*.65,end=(right-hinge)*.65;
+      root.userData={dynamic:true,door:true,color:material.color.getStyle(),
+        corners:[[start,0],[end,0],[end,top*.65],[start,top*.65]].map(([x,y])=>new T.Vector3(x,y,0))};
+      scene.add(root);
+      houseDoors.push({id,root,pivot,mechanism,width,sign:id==='closet-right'?-1:1});
+      doors.push({id,name,mechanism,x:center.x,z:center.z,width,action,passage:mechanism==='coulissante'});
+    }
+    makeDoor(house.getObjectByName('Object_93'),'breezeway','porte coulissante','coulissante',-3.495,-2.704,-3.979,2.128,1);
+    const closet=house.getObjectByName('Object_94');
+    makeDoor(closet,'closet-left','porte gauche du placard','charnière',-13.62,-12.93,.49,1.9,2,(x,z)=>x>=-13.62&&x<=-12.93&&z>.305);
+    makeDoor(closet,'closet-right','porte droite du placard','charnière',-12.50,-11.81,.49,1.9,2,(x,z)=>x>=-12.50&&x<=-11.81&&z>.305);
+    worker.postMessage({type:'house',geometry:{doors,trampoline:{x:bed.x,y:bed.y,z:bed.z,entryZ:entry.z}}});
   })());
   load('aire de jeux', (async()=>{
     const files=await unzipPlayground(await assets.loadPlaygroundSourceZip());
@@ -340,6 +397,23 @@ async function showWorld(){
     const dt=Math.min(.05,(now-last)/1000);last=now;
     if(snapshot){
       ball.position.set(snapshot.ball.x,.21,snapshot.ball.z);
+      for(const door of houseDoors){
+        const amount=snapshot.doors?.[door.id]?.amount||0;
+        if(door.mechanism==='coulissante')door.root.position.x=door.pivot.x+door.width*amount;
+        else door.root.rotation.y=door.sign*amount*1.5;
+      }
+      if(graphics&&trampolineMesh){
+        const {mesh,original}=trampolineMesh;
+        const positions=mesh.geometry.attributes.position;
+        const depth=snapshot.membrane||0;
+        for(let i=0;i<positions.count;i++){
+          const x=original[i*3],z=original[i*3+1],y=original[i*3+2];
+          if(y<.84||y>.94)continue;
+          const radius=((x-2.43)/2.79)**2+((z+6.88)/2.02)**2;
+          positions.setZ(i,y-depth/.65*Math.max(0,1-radius));
+        }
+        positions.needsUpdate=true;
+      }
       if(physicalRope){
         const {anchor,end}=physicalRope.userData;
         if(snapshot.ropeEnd)end.set(snapshot.ropeEnd.x,snapshot.ropeEnd.y,snapshot.ropeEnd.z);
