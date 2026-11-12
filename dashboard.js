@@ -2,7 +2,7 @@ const ui=id=>document.getElementById(id);
 const number=new Intl.NumberFormat('fr-BE');
 const fmt=value=>number.format(value??0);
 const percent=value=>value==null?'—':Math.round(value*100)+' %';
-const ageNames=['Bébé','Petit enfant','Enfant','Grand enfant','Petit ado','Ado','Jeune homme','Homme'];
+const ageNames=['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
 const motorNames=['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
 const countLabels={life:'Vie quotidienne',cognition:'Découvertes',play:'Expériences de jeu',social:'Interactions sociales'};
 const eventLabels={social:'Relation',play:'Jeu',food:'Repas',sleep:'Sommeil',object:'Objet ou porte'};
@@ -92,7 +92,7 @@ async function queryHistory(){
   const speaker=ui('speaker-filter').value, hearing=ui('hearing-filter').value;
   const before=historyBefore;
   const match=line=>line.id<before&&(!speaker||line.speaker===speaker)&&
-    (!hearing||line.speaker!=='alex'&&line.heardByAlex===(hearing==='heard'));
+    (!hearing||line.speaker!=='alex'&&line.heardByNéo===(hearing==='heard'));
   const entries=new Map([...recent.values()].reverse().filter(match).slice(0,pageSize+1).map(line=>[line.id,line]));
   if(archive){
     try{
@@ -127,7 +127,7 @@ async function renderTranscript(){
       const from=names[line.speaker]||line.speaker;
       const to=names[line.listener];
       item.append(node('strong',to?from+' → '+to:from),document.createTextNode(' · '+line.text));
-      const range=line.speaker==='alex'?'':line.heardByAlex?' · Entendue par Alex':' · Hors de portée d’Alex';
+      const range=line.speaker==='alex'?'':line.heardByNéo?' · Entendue par Néo':' · Hors de portée d’Néo';
       item.append(node('small',stamp(line.at)+range));
       return item;
     }):[node('li','Aucune réplique pour ce filtre.')]));
@@ -143,11 +143,11 @@ function resetHistoryPage(){
 function renderStats(state){
   const {counts,kitchen,activityData,dialogue}=state;
   ui('stats-grid').replaceChildren(...[
-    ['Essais moteurs',fmt(state.trials)],['PECM',fmt(state.pecm)],['Stabilité du dernier essai',state.score+' %'],
+    ['Essais moteurs',fmt(state.trials)],['Progrès moteurs confirmés',fmt(state.pecm)],['Stabilité du dernier essai',state.score+' %'],
     ['Marche · essais confirmés',fmt(state.validated)],
     ...Object.entries(countLabels).map(([key,label])=>[label,fmt(counts[key])]),
-    ['Répliques entendues par Alex',fmt(dialogue.audible)],['Mots associés',fmt(dialogue.known)],
-    ['Imitations d’Alex',fmt(dialogue.spoken)],['Temps simulé',stamp(state.ticks/120)]
+    ['Répliques entendues par Néo',fmt(dialogue.audible)],['Mots associés',fmt(dialogue.known)],
+    ['Imitations d’Néo',fmt(dialogue.spoken)],['Temps simulé',stamp(state.ticks/120)]
   ].map(([label,value])=>stat(label,value)));
   ui('fridge-stock').textContent=kitchen.ingredients+' / 8';
   ui('meal-stock').textContent=kitchen.meals;
@@ -194,7 +194,7 @@ function renderDevelopment(state){
   }));
   const gate=state.activityData.gate;
   const gates=gate?[
-    ['PECM',fmt(state.pecm)+' / '+fmt(gate.motor)],
+    ['Progrès moteurs confirmés',fmt(state.pecm)+' / '+fmt(gate.motor)],
     ...Object.entries(countLabels).filter(([key])=>gate[key]>0).map(([key,label])=>[label,fmt(state.counts[key])+' / '+fmt(gate[key])])
   ]:[['Stade final','Atteint']];
   ui('age-gates').replaceChildren(...gates.map(([label,value])=>row(label,value)));
@@ -209,15 +209,15 @@ function renderDevelopment(state){
     const item=node('li');
     item.append(node('strong',phrase.text),node('small',stamp(phrase.at)));
     return item;
-  }):[node('li','Alex n’a encore composé aucune phrase.')]));
+  }):[node('li','Néo n’a encore composé aucune phrase.')]));
 
 }
-function mood(person,isAlex){
+function mood(person,isNéo){
   if(person.lie>.8)return 'Au repos';
   if(person.pleasure>.18)return 'Content';
   if(person.fatigue>.7)return 'Fatigué';
   if(person.hunger>.65)return 'Affamé';
-  if(isAlex&&person.activity?.startsWith('Perd'))return 'Déconcentré';
+  if(isNéo&&person.activity?.startsWith('Perd'))return 'Déconcentré';
   if(person.activity?.includes('Explore'))return 'Curieux';
   return person.moving?'Actif':'Calme';
 }
@@ -285,7 +285,7 @@ function update(state,force=false){
   if(page==='relations')renderRelations(state);
   if(page==='conversations'){
     const {audible,known,spoken,lines}=state.dialogue;
-    ui('listening-summary').textContent=fmt(audible)+' répliques entendues par Alex · '+fmt(known)+' mots associés · '+fmt(spoken)+' imitations'+
+    ui('listening-summary').textContent=fmt(audible)+' répliques entendues par Néo · '+fmt(known)+' mots associés · '+fmt(spoken)+' imitations'+
       (archiveStatus==='unavailable'?' · Archive locale indisponible':'');
     const last=lines.at(-1)?.id||0;
     if(force||historyBefore===Infinity&&last!==lastLine)renderTranscript();
