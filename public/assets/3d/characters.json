@@ -161,5 +161,17 @@
     "parts": 106,
     "partBytes": 28000,
     "compression": "gzip"
+  },
+  "playgroundSourceArchive": {
+    "filename": "kids_playground._cyprus_v_1.1.zip",
+    "parts": 148,
+    "partBytes": 30000,
+    "bytes": 4431619,
+    "contents": [
+      "scene.gltf",
+      "scene.bin",
+      "textures/",
+      "license.txt"
+    ]
   }
 }

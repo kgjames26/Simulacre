@@ -25,3 +25,10 @@ export async function loadHouseModel(modelUrl='/assets/3d/big_housse.glb.gz',par
   const stream=new Blob([joined]).stream().pipeThrough(new DecompressionStream('gzip'));
   return new Response(stream).arrayBuffer();
 }
+
+export async function loadPlaygroundSourceZip(zipUrl='/assets/3d/kids_playground._cyprus_v_1.1.zip',partCount=148){
+  const chunks=await Promise.all(Array.from({length:partCount},(_,i)=>fetch(zipUrl+'/part-'+String(i).padStart(3,'0')+'.bin').then(r=>{if(!r.ok)throw new Error('Partie de l’archive du parc manquante: '+i);return r.arrayBuffer()})));
+  const total=chunks.reduce((n,c)=>n+c.byteLength,0),joined=new Uint8Array(total);let offset=0;
+  for(const chunk of chunks){joined.set(new Uint8Array(chunk),offset);offset+=chunk.byteLength}
+  return new Blob([joined],{type:'application/zip'});
+}
