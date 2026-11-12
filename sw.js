@@ -1,10 +1,10 @@
-const CACHE = 'alex-shell-__ALEX_VERSION__';
+const CACHE = 'neo-shell-neo-v4';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/styles.css', '/app.js', '/sim.js', '/dialogue.js', '/collision-map.js', '/navigation.js', '/home.js', '/dashboard.js', '/motor.js', '/social.js', '/play.js', '/french-words.js', '/play-view.js', '/toy-rails.js'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('alex-shell-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('neo-shell-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
