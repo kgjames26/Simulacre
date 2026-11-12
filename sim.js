@@ -768,9 +768,11 @@ function snapshot() {
     const vocabulary=dialogue.view().vocabulary.map(entry=>entry.word);
     const shared={skills:records.flatMap((record,i)=>record.mastered?[goals[i]]:[]),discoveries:names,vocabulary};
     for(const p of people){
-      if(playgroundFriends.includes(p.id))p.age=age;
+      if(playgroundFriends.includes(p.id)||p.id==='juliette')p.age=age;
       p.inherited=names.length+vocabulary.length;
-       p.learnedFromNeo=[...names,...vocabulary];
+      p.learnedFromNeo=[...names,...vocabulary];
+      p.inheritedSkills=shared.skills.slice();
+      if(familyLexicons[p.id])for(const word of vocabulary)familyLexicons[p.id].add(word);
       p.baseWords=familyLexicons[p.id]?.size||0;
     }
     activityData={equipment:parkMemory,gate:milestones[age],events:interactions,shared,
@@ -793,6 +795,8 @@ onmessage=({data})=>{
       trampoline:{x:trampoline.entryX,z:trampoline.entryZ}};
     for(const door of house.doors)doorStates[door.id]||={amount:0,until:0};
     for(const person of [...residents,...people.slice(3)])resetRestPosition(person);
+    const salon=navigation.nearest(-8,-2,0,null,1.2);
+    if(salon>=0){const start=navigation.point(salon);alex.x=start.x;alex.z=start.z;alex.y=0;}
     for(const item of Object.values(playItems)){
       if(navigation.isFree(item.x,item.z,0))continue;
       const nearest=navigation.nearest(item.x,item.z,0,null,1.2);
