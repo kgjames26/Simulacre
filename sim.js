@@ -705,7 +705,8 @@ function experience() {
         goalZ=door.z+(door.passage&&cycle>24?.64:-.34);
       }
     }
-    if(i<2&&age<7&&s%54<34){goalX=alex.x+(i===0?-.72:.72);goalZ=alex.z+(i===0?.55:-.55);p.activity='Va voir Néo';}
+    const child=i===0?alex:people[2];
+    if(i<2&&age<7&&s%54<34){goalX=child.x+(i===0?-.72:.72);goalZ=child.z+(i===0?.55:-.55);p.activity='Va voir '+(i===0?'Néo':'Juliette');}
     if(i>=3){
       p.age=age;
       if(records[4].mastered){
@@ -730,13 +731,13 @@ function experience() {
         }else{p.pose=1;p.tilt=1.1;p.activity='Observe le parc';}
       }
     }else move(p,goalX,goalZ,.75);
-    if(i<2&&age<7&&Math.hypot(p.x-alex.x,p.z-alex.z)<1.35&&s>=nextParentCare&&(alex.hunger>.24||alex.fatigue>.48||(alex.thirst||0)>.45)){
-      if(alex.hunger>.24){if(kitchen.meals>0)takeServing(alex);else alex.hunger=Math.max(.08,alex.hunger-.38);}
-      if(alex.fatigue>.48)alex.fatigue=Math.max(.12,alex.fatigue-.28);
-      if((alex.thirst||0)>.45)alex.thirst=Math.max(.1,alex.thirst-.35);
-      alex.pleasure=clamp((alex.pleasure||0)+.18,0,1);
-      p.activity='Prend soin de Néo';nextParentCare=s+18;
-      note(characterNames[p.id]+' prend soin de Néo.','care');
+    if(i<2&&age<7&&Math.hypot(p.x-child.x,p.z-child.z)<1.35&&s>=nextParentCare&&(child.hunger>.24||child.fatigue>.48||(child.thirst||0)>.45)){
+      if(child.hunger>.24){if(kitchen.meals>0)takeServing(child);else child.hunger=Math.max(.08,child.hunger-.38);}
+      if(child.fatigue>.48)child.fatigue=Math.max(.12,child.fatigue-.28);
+      if((child.thirst||0)>.45)child.thirst=Math.max(.1,child.thirst-.35);
+      child.pleasure=clamp((child.pleasure||0)+.18,0,1);
+      p.activity='Prend soin de '+(child===alex?'Néo':'Juliette');nextParentCare=s+18;
+      note(characterNames[p.id]+' prend soin de '+(child===alex?'Néo':'Juliette')+'.','care');
     }
     for(const id of ['football','softBall','bikePark','bikeHome','toy']){
       const item=playItems[id];
