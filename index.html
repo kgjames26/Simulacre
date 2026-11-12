@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#101920"><meta name="description" content="ALEX — simulation expérimentale d'une intelligence qui grandit en explorant son monde.">
+<meta name="theme-color" content="#101920"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg" type="image/svg+xml"><meta name="description" content="ALEX — simulation expérimentale d'une intelligence qui grandit en explorant son monde.">
 <title>ALEX — Simulacre</title>
 <style>
 :root{color-scheme:dark;--bg:#101920;--panel:#18242a;--line:#33434a;--muted:#97a9aa;--cream:#f1e7d1;--mint:#89e0bc;--gold:#ffd27a;--blue:#8cc8ff}
@@ -80,5 +80,6 @@ function setSpeed(v){speed=Number(v);$('speedrange').value=speed;document.queryS
 document.querySelectorAll('.speed').forEach(b=>b.addEventListener('click',()=>setSpeed(b.dataset.speed)));$('speedrange').addEventListener('input',e=>setSpeed(e.target.value));$('realbtn').addEventListener('click',()=>setSpeed(1));
 const popup=$('popup');let timer;document.querySelectorAll('.interactive').forEach(node=>{const activate=()=>{interactions++;const o=node.dataset.object;cog+=o.includes('Timéo')||o.includes('Nathan')?2:1;motor+=o.includes('balle')||o.includes('balançoire')?2:1;cogDay++;motorDay+=(o.includes('balle')||o.includes('balançoire'))?2:1;elapsed+=4;let message={balle:'La balle roule. Alex suit son mouvement.',balançoire:'La balançoire oscille. Alex observe le rythme.', 'blocs de lettres':'Alex touche un bloc et découvre une lettre.'}[o]||'Alex observe '+o+' et l’ajoute à sa mémoire.';popup.textContent=message;popup.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>popup.classList.remove('show'),2100);$('alex').setAttribute('transform','translate(483 350) translate('+(Math.random()*24-12)+' '+(Math.random()*12-6)+')');$('speech').setAttribute('opacity','1');$('speechtext').textContent=o==='blocs de lettres'?'A… une lettre !':'Qu’est-ce que '+o+' ?';log(message);while(cog+motor>=(stage+1)*100&&stage<stages.length-1){stage++;log('Évolution : Alex atteint le stade « '+stages[stage]+' ».')}update()};node.addEventListener('click',activate);node.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();activate()}})});
 setInterval(()=>{if(!speed)return;elapsed+=speed;const mins=Math.floor(elapsed%60);$('clock').textContent=String(Math.floor(elapsed/60)%24).padStart(2,'0')+':'+String(mins).padStart(2,'0');if(elapsed>=1440){elapsed=0;day++;cogDay=0;motorDay=0;if(day>365){day=1;year++}log('Une nouvelle journée commence. Alex continue d’explorer.')}update()},1000);update()})();
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}
 </script>
 </body></html>
