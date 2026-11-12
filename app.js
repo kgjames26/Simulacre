@@ -1,19 +1,15 @@
+import {setupDashboard} from '/dashboard.js';
 const ui = id => document.getElementById(id);
 const ages = ['Bébé','Petit enfant','Enfant','Grand enfant','Petit ado','Ado','Jeune homme','Homme'];
 const stages = ['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
 const format = new Intl.NumberFormat('fr-BE');
 const saveKey = 'alex-simulacre-v3';
 const worker = new Worker('/sim.js');
-let snapshot, human = true, lastJournal = '';
+let snapshot, human = true, lastJournal = '', resetting=false, initialized=false;
 const personNames={alex:'Alex',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Françoise',rose:'Rose'};
 let lastDialogueId=0, lastDialoguePaint=0, voiceEnabled=false, conversationRows=[];
-const conversation=ui('conversation-dialog');
+const dashboard=setupDashboard(personNames);
 const voiceButton=ui('voice-toggle');
-ui('open-conversation').onclick=()=>{
-  conversation.showModal();
-  const list=ui('conversation-lines');
-  list.scrollTop=list.scrollHeight;
-};
 if('speechSynthesis' in window){
   voiceButton.hidden=false;
   voiceButton.onclick=()=>{
@@ -28,31 +24,12 @@ function updateDialogue(state){
   const now=performance.now();
   if(!human&&now-lastDialoguePaint<250)return;
   lastDialoguePaint=now;
-  ui('words-known').textContent=format.format(state.known);
-  ui('listening-summary').textContent=state.heard
-    ? format.format(state.heard)+' répliques entendues · '+format.format(state.known)+' mots associés · '+format.format(state.spoken)+' imitations'
-    : 'Alex commence sans vocabulaire.';
   const latest=state.lines.at(-1);
   if(!latest||latest.id===lastDialogueId)return;
   const previousId=lastDialogueId;
   lastDialogueId=latest.id;
   conversationRows=state.lines;
   ui('latest-line').textContent=personNames[latest.speaker]+' · '+latest.text;
-  const list=ui('conversation-lines');
-  const atBottom=list.scrollHeight-list.scrollTop-list.clientHeight<35;
-  list.replaceChildren(...state.lines.map(line=>{
-    const row=document.createElement('li');
-    const speaker=document.createElement('strong');
-    speaker.textContent=personNames[line.speaker];
-    row.append(speaker,document.createTextNode(' · '+line.text));
-    if(line.speaker!=='alex'){
-      const detail=document.createElement('small');
-      detail.textContent=line.heardByAlex?'À portée d’Alex':'Hors de portée d’Alex';
-      row.append(detail);
-    }
-    return row;
-  }));
-  if(atBottom||!conversation.open)list.scrollTop=list.scrollHeight;
   if(voiceEnabled&&human&&previousId&&!speechSynthesis.speaking&&!speechSynthesis.pending){
     const speech=new SpeechSynthesisUtterance(latest.text);
     speech.lang='fr-FR';
@@ -85,20 +62,38 @@ for(const [id,name] of Object.entries(personNames)){
   ui('person-list').append(button);
 }
 ui('reset').onclick=()=>ui('reset-dialog').showModal();
-ui('reset-dialog').querySelector('form').addEventListener('submit',event=>{
+ui('reset-dialog').querySelector('form').addEventListener('submit',async event=>{
   if(event.submitter?.value!=='reset')return;
   event.preventDefault();
-  worker.terminate();
-  try { localStorage.removeItem(saveKey); } catch {}
-  location.reload();
+  if(resetting)return;
+  resetting=true;
+  try {
+    await dashboard.clearHistory();
+    worker.terminate();
+    try { localStorage.removeItem(saveKey); } catch {}
+    location.reload();
+  } catch {
+    resetting=false;
+    ui('reset-dialog').querySelector('p').textContent='Impossible d’effacer l’historique local. Réessayez.';
+  }
 });
-try { worker.postMessage({type:'restore',state:JSON.parse(localStorage.getItem(saveKey))}); } catch {}
+dashboard.archiveReady.then(archivedId=>{
+  let state;
+  try { state=JSON.parse(localStorage.getItem(saveKey)); } catch {}
+  if(state?.dialogue?.lines)dashboard.capture(state.dialogue.lines);
+  worker.postMessage({type:'restore',state,archivedId});
+  initialized=true;
+});
 worker.onmessage = ({data}) => {
-  if(data.type==='save'){
+  if(resetting)return;
+  if(data.type==='save'&&initialized){
     try { localStorage.setItem(saveKey,JSON.stringify(data.state)); } catch {}
     return;
   }
+  if(data.type!=='state')return;
   snapshot=data.state;
+  dashboard.capture(data.lines);
+  dashboard.update(snapshot);
   updateDialogue(snapshot.dialogue);
   const {ticks,age,skill,score,alex,trials,pecm,journal}=snapshot;
   const days=Math.floor(ticks/120/86400);
@@ -110,17 +105,12 @@ worker.onmessage = ({data}) => {
   ui('bar').value=score;
   const observed=following&&followedPerson!=='alex'?snapshot.people.find(person=>person.id===followedPerson):alex;
   ui('activity').textContent=observed?.activity||'Se déplace';
-  if(snapshot.kitchen){
-    ui('fridge-stock').textContent=snapshot.kitchen.ingredients+' / 8';
-    ui('meal-stock').textContent=snapshot.kitchen.meals;
-    ui('oven-temp').textContent=Math.round(snapshot.kitchen.ovenTemperature)+' °C';
-    ui('meal-quality').textContent=snapshot.kitchen.lastQuality==null?'—':Math.round(snapshot.kitchen.lastQuality*100)+' %';
-  }
+  ui('activity-person').textContent=following?personNames[followedPerson]:'Alex';
   ui('trials').textContent=format.format(trials);
   ui('pecm').textContent=format.format(pecm);
   ui('hunger').textContent=Math.round(alex.hunger*100)+' %';
-  ui('fatigue').textContent=observed?.fatigue==null?'—':Math.round(observed.fatigue*100)+' %';
-  ui('pleasure').textContent=Math.round((observed?.pleasure||0)*100)+' %';
+  ui('fatigue').textContent=Math.round(alex.fatigue*100)+' %';
+  ui('pleasure').textContent=Math.round((alex.pleasure||0)*100)+' %';
   const journalKey=journal.map(event=>event.ticks+' '+event.message).join('|');
   if(journalKey!==lastJournal){
     lastJournal=journalKey;
@@ -845,6 +835,7 @@ async function showWorld(){
   const point=new T.Vector3();
   let last=performance.now();
   renderer.setAnimationLoop(now=>{
+    if(ui('world-layout').hidden){last=now;return;}
     const dt=Math.min(.05,(now-last)/1000);last=now;
     const focus=following&&actors.find(actor=>actor.id===followedPerson);
     if(focus){

@@ -28,13 +28,16 @@ const ALEX_FILLER=new Set([
 ]);
 
 function createDialogue(){
-  const lines=[];
+  const lines=[], outgoing=[];
+  let turn=0;
   let id=0,next=2,pending=null,lastTopic=-1,imitation=null;
-  let heard=0,lexicon={},spoken=0,lastImitation=-1e9;
+  let heard=0,audibleCount=0,lexicon={},spoken=0,lastImitation=-1e9;
   const occurrence={};
   const heardTotal={};
-  function emit(s,speaker,text,heardByAlex){
-    lines.push({id:++id,at:s,speaker,text,heardByAlex});
+  function emit(s,speaker,text,heardByAlex,listener){
+    const line={id:++id,at:s,speaker,text,heardByAlex,listener};
+    lines.push(line);outgoing.push(line);
+    if(speaker!=='alex'&&heardByAlex)audibleCount++;
     if(lines.length>40)lines.shift();
   }
   function hear(text,cue,s,speaker){
@@ -53,12 +56,13 @@ function createDialogue(){
       }
     }
   }
-  function speak(s,speaker,alex,topicIndex,isReply){
+  const near=(a,b,range)=>(a.floor||0)===(b.floor||0)&&!a.lie&&!b.lie&&Math.hypot(a.x-b.x,a.z-b.z)<range;
+  function speak(s,speaker,alex,topicIndex,isReply,listener){
     const topic=ALEX_TOPICS[topicIndex];
     const forms=ALEX_PHRASES[topicIndex*10+(isReply?5:0)+Math.floor(Math.random()*5)];
     const text=forms[Math.floor(Math.random()*forms.length)];
-    const audible=Math.hypot(speaker.x-alex.x,speaker.z-alex.z)<=5.2;
-    emit(s,speaker.id,text,audible);
+    const audible=near(speaker,alex,5.2);
+    emit(s,speaker.id,text,audible,listener.id);
     if(audible){
       const visible=topic.x===null?Math.hypot(speaker.x-alex.x,speaker.z-alex.z)<3.2:
         Math.hypot(topic.x-alex.x,topic.z-alex.z)<4.5;
@@ -72,9 +76,38 @@ function createDialogue(){
     }
     next=s+Math.max(2.8,text.length*.095);
   }
+  const parkLines=[
+    ['On joue à la balle ?', 'Oui, je suis prêt.'],
+    ['On reste près des jeux ?', 'D’accord, je reste ici.'],
+    ['Tu as vu la balle ?', 'Oui, je la cherche aussi.'],
+    ['On se rejoint par ici ?', 'Oui, j’arrive.']
+  ];
+  const familyLines=[
+    ['Tu fais quoi ?', 'Je regarde autour de moi.'],
+    ['Tu restes dans cette pièce ?', 'Oui, encore un instant.'],
+    ['On se retrouve après ?', 'D’accord, à tout à l’heure.']
+  ];
+  function otherExchange(s,alex,people){
+    const groups=[people.slice(3),[people[2],...people.slice(0,2)]];
+    const ordered=turn%3===1?groups:groups.slice().reverse();
+    for(const group of ordered){
+      const outside=group.length===4;
+      const pairs=group.flatMap((person,i)=>group.slice(i+1)
+        .filter(other=>(outside||i===0)&&near(person,other,outside?4.5:3.5)).map(other=>[person,other]));
+      if(!pairs.length)continue;
+      const [first,second]=pairs[Math.floor(Math.random()*pairs.length)];
+      const bank=outside?parkLines:familyLines;
+      const [text,reply]=bank[Math.floor(Math.random()*bank.length)];
+      emit(s,first.id,text,near(first,alex,5.2),second.id);
+      pending={speaker:second,listener:first,reply};
+      next=s+Math.max(2.8,text.length*.095);
+      return true;
+    }
+    return false;
+  }
   return {
-    step(s,alex,parents){
-      if(imitation&&s>=imitation.at){
+    step(s,alex,people){
+      if(imitation&&s>=imitation.at&&!alex.lie){
         const {word}=imitation;
         lexicon[word].uses++;
         spoken++;
@@ -84,16 +117,25 @@ function createDialogue(){
         next=Math.max(next,s+1.7);
         return;
       }
-      if(s<next||imitation)return;
-      const [joseph,marie]=parents;
-      if(Math.hypot(joseph.x-marie.x,joseph.z-marie.z)>5.4){next=s+1.4;pending=null;return;}
+      if(s<next)return;
       if(pending){
-        const speaker=pending.speaker==='joseph'?joseph:marie;
-        speak(s,speaker,alex,pending.topic,true);
+        const {speaker,listener,reply,topic}=pending;
         pending=null;
-        next+=2+Math.random()*3.3;
-        return;
+        if(near(speaker,listener,5.4)){
+          if(reply){
+            emit(s,speaker.id,reply,near(speaker,alex,5.2),listener.id);
+            next=s+Math.max(3,reply.length*.1);
+          }else{
+            speak(s,speaker,alex,topic,true,listener);
+            next+=2+Math.random()*3.3;
+          }
+          return;
+        }
       }
+      const [joseph,marie]=people;
+      turn++;
+      if((turn%3!==0||!near(joseph,marie,5.4))&&otherExchange(s,alex,people))return;
+      if(!near(joseph,marie,5.4)){next=s+1.4;return;}
       const nearby=ALEX_TOPICS.map((topic,i)=>({topic,i})).filter(({topic})=>topic.x===null||
         Math.min(Math.hypot(topic.x-joseph.x,topic.z-joseph.z),Math.hypot(topic.x-marie.x,topic.z-marie.z))<3.6);
       const repeat=nearby.find(option=>option.i===lastTopic);
@@ -102,14 +144,16 @@ function createDialogue(){
       lastTopic=chosen.i;
       const speaker=Math.random()<.5?joseph:marie;
       const other=speaker===joseph?marie:joseph;
-      speak(s,speaker,alex,lastTopic,false);
-      pending={speaker:other.id,topic:lastTopic};
+      speak(s,speaker,alex,lastTopic,false,other);
+      pending={speaker:other,listener:speaker,topic:lastTopic};
     },
-    view(){return {lines,heard,known:Object.keys(lexicon).length,spoken};},
-    save(){return {id,lines,heard,lexicon,spoken,lastImitation,occurrence,heardTotal};},
+    takeNew(){return outgoing.splice(0);},
+    resumeAt(last){id=Math.max(id,last||0);},
+    view(){return {lines,heard,audible:audibleCount,known:Object.keys(lexicon).length,spoken};},
+    save(){return {id,lines,heard,audibleCount,lexicon,spoken,lastImitation,occurrence,heardTotal};},
     restore(data){
       if(!data)return;
-      id=data.id||0; heard=data.heard||0; spoken=data.spoken||0;
+      id=Math.max(id,data.id||0); heard=data.heard||0; audibleCount=data.audibleCount??heard; spoken=data.spoken||0;
       lexicon=data.lexicon||{};lastImitation=Number.isFinite(data.lastImitation)?data.lastImitation:-1e9;
       lines.push(...(data.lines||[]).slice(-40));
       Object.assign(occurrence,data.occurrence);

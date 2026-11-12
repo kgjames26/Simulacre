@@ -61,6 +61,7 @@ const landmarks = [
 let knowledge = {};
 let counts = {life:0,cognition:0,play:0,social:0};
 let journal = [];
+let interactions = [];
 let ticks=0, trials=0, pecm=0, skill=0, age=0, score=0, mode='human';
 let records=goals.map(emptyRecord);
 let alex={x:-6.7,z:2.6,heading:0,phase:0,pose:0,tilt:0,effort:0,hunger:.1,fatigue:.05,activity:'Premiers mouvements'};
@@ -95,10 +96,16 @@ let explorationTarget=null;
 let nextChoice=0;
 let progressAt=0, closestGoal=Infinity;
 const curiosity={};
-let eventClock=0, episode, lastWall=performance.now(), accumulator=0;
-function note(message) {
-  journal.unshift({message,ticks});
-  journal = journal.slice(0,6);
+let eventClock=0, episode, lastWall=performance.now(), accumulator=0, readyToRun=false;
+function note(message,kind) {
+  const event={message,ticks,kind};
+  journal.unshift(event);
+  if(journal.length>6)journal.pop();
+  if(kind)recordInteraction(message,kind);
+}
+function recordInteraction(message,kind){
+  interactions.unshift({message,ticks,kind});
+  if(interactions.length>100)interactions.pop();
 }
 function newEpisode() {
   const record=records[skill];
@@ -229,9 +236,8 @@ function useDoor(p,door,s) {
   state.until=s+4.2;
   if(parent&&(alex.floor||0)===(door.floor||0)&&Math.hypot(alex.x-door.x,alex.z-door.z)<2.4&&!record.known){
     record.seen++;
-    note((p.id==='joseph'?'Joseph':'Marie')+' ouvre la '+door.name+' sous les yeux d’Alex.');
-
-  }
+    note(characterNames[p.id]+' ouvre la '+door.name+' sous les yeux d’Alex.','object');
+  }else recordInteraction((characterNames[p.id]||'Alex')+' ouvre la '+door.name+'.','object');
 }
 function tryHouseObject(id,s){
   const record=objectLearning[id] ||= {attempts:0,success:0,next:0};
@@ -256,7 +262,7 @@ function tryHouseObject(id,s){
   if(++record.success===2){
     counts.cognition++;
     knowledge[item.name]={visits:2,senses:['vision','contact','effet'],type:'objet',action,effect:item.activity};
-    note('Alex découvre comment utiliser le matériel · '+item.name+'.');
+    note('Alex découvre comment utiliser le matériel · '+item.name+'.','object');
   }
 }
 function stepHouseObject(s){
@@ -341,7 +347,7 @@ function parkObservation(id,message) {
   if(parkMemory[id]===1) {
     counts.cognition++;
     knowledge[{slide:'toboggan',rope:'corde',trampoline:'trampoline'}[id]]={visits:1,senses:['vision','contact','mouvement'],type:'jeu'};
-    note(message);
+    note(message,'play');
   }
 }
 function stepTrampoline(s){
@@ -646,11 +652,13 @@ function experience() {
       }
       if(category==='social'){
         counts.social++; friend.bond++;
-        if(friend.id==='marie'||friend.id==='joseph') note('Un câlin apaise Alex.');
+        if(friend.id==='marie'||friend.id==='joseph') note('Un câlin apaise Alex.','social');
+        else note('Alex rencontre '+characterNames[friend.id]+'.','social');
       }
       if(category==='jeu'){
         counts.play++;
         ball.vx=Math.sin(alex.heading)*2;ball.vz=Math.cos(alex.heading)*2;
+        recordBallPlay('alex',s);
       }
     }
     alex.pose=0;
@@ -705,6 +713,7 @@ function experience() {
     if((i<2&&age>=5)||(i>=2&&Object.keys(knowledge).length>i))p.inherited=counts.cognition;
     if(i>=3 && Math.hypot(p.x-ball.x,p.z-ball.z)<.65 && Math.hypot(ball.vx,ball.vz)<1.1){
       ball.vx=Math.sin(p.heading)*1.7; ball.vz=Math.cos(p.heading)*1.7;
+      recordBallPlay(p.id,s);
     }
   }
   if(ticks%12===0)dialogue.step(s,alex,people);
@@ -717,11 +726,26 @@ function experience() {
     age++;note('Nouveau stade de développement · '+(age+1));
   }
 }
+const characterNames={alex:'Alex',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Françoise',rose:'Rose'};
+const nextBallEvent={};
+function recordBallPlay(id,s){
+  if(s<(nextBallEvent[id]||0))return;
+  nextBallEvent[id]=s+9;
+  note(characterNames[id]+' joue avec la balle.','play');
+}
+let activityData, nextActivitySnapshot=0;
 function snapshot() {
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view()};
+  if(!activityData||ticks>=nextActivitySnapshot){
+    const names=Object.keys(knowledge);
+    activityData={equipment:parkMemory,gate:milestones[age],events:interactions,
+      motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered})),
+      knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};
+    nextActivitySnapshot=ticks+36;
+  }
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),activityData};
 }
 function save() {
-  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,dialogue:dialogue.save()};
+  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -738,14 +762,19 @@ onmessage=({data})=>{
     }
   }
   if(data.type==='mode'){mode=data.mode;accumulator=0;lastWall=performance.now();}
-  if(data.type==='restore'&&data.state){
+  if(data.type==='restore'){
+    readyToRun=true;
+    dialogue.resumeAt(data.archivedId);
     const s=data.state;
+    if(!s)return;
     if(!Array.isArray(s.records)||s.records.length!==5||!Number.isFinite(s.ticks))return;
     ({ticks,trials,pecm,skill,age,score,counts,journal,records,knowledge,eventClock}=s);
     if(s.motorVersion!==MOTOR_VERSION)records=goals.map((_,i)=>({
       ...emptyRecord(), mastered:i<skill, confirmed:i<skill?(s.records[i]?.confirmed||0):0
     }));
     dialogue.restore(s.dialogue);
+    interactions=(s.interactions||[]).slice(0,100);
+    activityData=null;
     Object.assign(curiosity,s.curiosity);
     Object.assign(alex,s.alex);
     Object.assign(parkMemory,s.parkMemory);
@@ -766,6 +795,7 @@ note('Alex commence à explorer ses mouvements.');
 let lastPost=0,lastSave=0;
 function run(){
   const now=performance.now();
+  if(!readyToRun){lastWall=now;setTimeout(run,16);return;}
   accumulator+=Math.min(.1,(now-lastWall)/1000);
   lastWall=now;
   if(mode==='human'){
@@ -780,7 +810,10 @@ function run(){
       }
     }while(performance.now()<deadline);
   }
-  if(now-lastPost>32){postMessage({type:'state',state:snapshot()});lastPost=now;}
+  if(now-lastPost>32){
+    const lines=dialogue.takeNew();
+    postMessage({type:'state',state:snapshot(),lines});lastPost=now;
+  }
   if(now-lastSave>4500){postMessage({type:'save',state:save()});lastSave=now;}
   setTimeout(run,mode==='human'?8:0);
 }

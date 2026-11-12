@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#101b20">
-<meta name="description" content="ALEX, une simulation expérimentale du développement et de l’apprentissage moteur.">
+<meta name="theme-color" content="#111a18">
+<meta name="description" content="Suivez le monde et le développement d’Alex dans Simulacre.">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/styles.css">
@@ -14,34 +14,108 @@
 </script>
 </head>
 <body>
-<header><div class="brand"><img src="/icon.svg" alt=""><span>ALEX <small>SIMULACRE</small></span></div><div id="mode" class="live">Vitesse normale · ×1</div></header>
-<main>
-  <section class="scene" aria-label="Vue isométrique de la villa et du parc">
-    <div id="view"></div>
-    <div class="scene-top"><h1>Le monde d’Alex</h1><p id="scene-status" role="status">Chargement de la scène 3D…</p></div>
-    <div id="labels"></div>
-    <nav class="camera-tools" aria-label="Caméra">
-      <div class="follow-tools"><button id="follow" type="button" aria-pressed="false">Suivi d’Alex</button><button id="choose-person" type="button" aria-controls="person-dialog" aria-label="Choisir le personnage à suivre">Alex ▾</button></div>
-      <div class="zoom-tools"><button id="zoom-out" type="button" aria-label="Dézoomer">−</button><output id="zoom-level" aria-live="off">1×</output><button id="zoom-in" type="button" aria-label="Zoomer">+</button></div>
-    </nav>
-    <div class="scene-bottom"><div><small>OBJECTIF ACTUEL</small><strong id="activity">Se redresser</strong></div><button id="speed" type="button" aria-pressed="false">Accélérer</button></div>
-  </section>
-  <aside>
-    <section><h2>Développement</h2><div id="age" class="large">Bébé</div><div class="line"><span id="skill">Se redresser</span><span id="balance">0 %</span></div><progress id="bar" max="100" value="0" aria-label="Stabilité du dernier essai"></progress></section>
-    <section><h2>Apprentissage</h2><div class="metrics"><div><strong id="trials">0</strong><small>Essais moteurs</small></div><div><strong id="pecm">0</strong><small>PECM</small></div></div><div class="line time"><span id="year">Année fictive 1</span><span id="day">Jour 1</span></div></section>
-    <section><h2>Besoins</h2><div class="line"><span>Faim</span><span id="hunger">10 %</span></div><div class="line"><span>Fatigue</span><span id="fatigue">5 %</span></div><div class="line"><span>Plaisir</span><span id="pleasure">0 %</span></div><div class="line"><span>Frigo</span><span id="fridge-stock">8 / 8</span></div><div class="line"><span>Repas prêts</span><span id="meal-stock">0</span></div><div class="line"><span>Four</span><span id="oven-temp">22 °C</span></div><div class="line"><span>Goût du dernier plat</span><span id="meal-quality">—</span></div></section>
-    <section class="speech-panel"><h2>Conversations</h2><p id="latest-line">Joseph et Marie pourront parler à proximité d’Alex.</p><div class="line"><span>Mots associés à une situation</span><strong id="words-known">0</strong></div><button id="open-conversation" type="button">Ouvrir les conversations</button></section>
-    <section><h2>Mémoire d’Alex</h2><ul id="journal" aria-live="off"><li>Premiers mouvements.</li></ul></section>
-  </aside>
+<header class="shell">
+  <div class="masthead">
+    <a class="brand" href="#ensemble"><img src="/icon.svg" alt=""><span>SIMULACRE<small>Le monde d’Alex</small></span></a>
+    <div class="clock"><span id="year">Année fictive 1</span><span id="day">Jour 1</span></div>
+    <div id="mode" class="live" role="status">Vitesse normale · ×1</div>
+  </div>
+  <nav class="pages" aria-label="Pages de Simulacre">
+    <a href="#ensemble" aria-current="page">Vue d’ensemble</a>
+    <a href="#monde">Monde 3D</a>
+    <a href="#statistiques">Statistiques</a>
+    <a href="#conversations">Conversations</a>
+    <a href="#developpement">Développement</a>
+    <a href="#relations">Humeurs et liens</a>
+  </nav>
+</header>
+<main class="shell" id="main" data-page="ensemble">
+  <div class="page-head" aria-labelledby="page-title">
+    <h1 id="page-title">Vue d’ensemble</h1>
+    <a id="scene-link" class="button quiet" href="#monde">Agrandir le monde <span aria-hidden="true">↗</span></a>
+  </div>
+  <div class="overview" id="world-layout">
+    <section class="scene" aria-label="Vue isométrique de la villa et du parc">
+      <div id="view"></div>
+      <div class="scene-top"><p id="scene-status" role="status">Chargement de la scène 3D…</p></div>
+      <div id="labels"></div>
+      <div class="camera-tools" role="group" aria-label="Caméra">
+        <div class="follow-tools"><button id="follow" type="button" aria-pressed="false">Suivi d’Alex</button><button id="choose-person" type="button" aria-controls="person-dialog" aria-label="Choisir le personnage à suivre">Alex ▾</button></div>
+        <div class="zoom-tools"><button id="zoom-out" type="button" aria-label="Dézoomer">−</button><output id="zoom-level">1×</output><button id="zoom-in" type="button" aria-label="Zoomer">+</button></div>
+      </div>
+      <div class="scene-bottom"><div><small id="activity-person">Alex</small><strong id="activity">Se redresser</strong></div><button id="speed" type="button" aria-pressed="false">Accélérer</button></div>
+    </section>
+    <aside id="overview-details" class="overview-details" aria-label="État de la simulation">
+      <section class="card hero-card">
+        <div class="section-top"><h2>Alex</h2><a href="#developpement">Développement <span aria-hidden="true">↗</span></a></div>
+        <div id="age" class="display">Bébé</div>
+        <div class="line"><span id="skill">Se redresser</span><strong id="balance">0 %</strong></div>
+        <progress id="bar" max="100" value="0" aria-label="Stabilité du dernier essai"></progress>
+        <div class="metrics"><div><strong id="trials">0</strong><small>Essais moteurs</small></div><div><strong id="pecm">0</strong><small>PECM</small></div></div>
+      </section>
+      <section class="card">
+        <div class="section-top"><h2>Besoins d’Alex</h2><a href="#relations">Humeurs <span aria-hidden="true">↗</span></a></div>
+        <div class="line"><span>Faim</span><strong id="hunger">10 %</strong></div>
+        <div class="line"><span>Fatigue</span><strong id="fatigue">5 %</strong></div>
+        <div class="line"><span>Plaisir</span><strong id="pleasure">0 %</strong></div>
+      </section>
+      <section class="card">
+        <div class="section-top"><h2>Dernière réplique</h2><a href="#conversations">Transcription <span aria-hidden="true">↗</span></a></div>
+        <p class="quote" id="latest-line">Aucune conversation pour le moment.</p>
+      </section>
+      <section class="card">
+        <div class="section-top"><h2>Journal récent</h2><a href="#statistiques">Statistiques <span aria-hidden="true">↗</span></a></div>
+        <ul id="journal" class="journal"><li>Premiers mouvements.</li></ul>
+      </section>
+    </aside>
+  </div>
+
+  <div id="page-statistiques" class="page-content" hidden>
+    <div class="stat-grid" id="stats-grid"></div>
+    <div class="detail-grid">
+      <section class="card"><h2>Cuisine</h2>
+        <div class="line"><span>Stock du frigo</span><strong id="fridge-stock">8 / 8</strong></div>
+        <div class="line"><span>Portions prêtes</span><strong id="meal-stock">0</strong></div>
+        <div class="line"><span>Température du four</span><strong id="oven-temp">22 °C</strong></div>
+        <div class="line"><span>Goût du dernier plat</span><strong id="meal-quality">—</strong></div>
+      </section>
+      <section class="card"><h2>Équipements explorés</h2><div id="equipment-stats"></div></section>
+    </div>
+  </div>
+
+  <div id="page-conversations" class="page-content" hidden>
+    <section class="card transcript">
+      <div class="section-top"><h2>Transcription</h2><button id="voice-toggle" class="quiet" type="button" aria-pressed="false" hidden>Activer les voix</button></div>
+      <div class="filters">
+        <label>Locuteur<select id="speaker-filter"><option value="">Tous les personnages</option></select></label>
+        <label>Audibilité<select id="hearing-filter"><option value="">Toutes les répliques</option><option value="heard">Entendues par Alex</option><option value="unheard">Hors de portée d’Alex</option></select></label>
+      </div>
+      <p class="hint" id="listening-summary">Alex commence sans vocabulaire.</p>
+      <ol id="conversation-lines" class="feed" aria-label="Transcription des conversations"></ol>
+      <div class="feed-actions"><button class="quiet" id="older-lines" type="button" hidden>Voir les répliques précédentes</button><button class="quiet" id="live-lines" type="button" hidden>Revenir au direct</button></div>
+    </section>
+  </div>
+
+  <div id="page-developpement" class="page-content" hidden>
+    <section class="card"><h2>Étapes de la vie</h2><ol class="timeline" id="age-timeline"></ol></section>
+    <section class="card"><h2>Apprentissage moteur</h2><div class="motor-grid" id="motor-grid"></div></section>
+    <div class="detail-grid">
+      <section class="card"><h2>Conditions du prochain stade</h2><div id="age-gates"></div></section>
+      <section class="card"><h2>Langage et découvertes</h2><div id="language-stats"></div><ul class="journal" id="discoveries"></ul></section>
+    </div>
+  </div>
+
+  <div id="page-relations" class="page-content" hidden>
+    <section class="card"><div class="section-top"><h2>État des personnages</h2><small>Humeurs déduites des besoins et activités</small></div><div id="people-grid" class="people-grid"></div></section>
+    <section class="card">
+      <div class="section-top"><h2>Interactions récentes</h2><label class="inline-filter"><span class="sr-only">Type d’interaction</span><select id="interaction-filter"><option value="">Toutes les interactions</option><option value="social">Relations</option><option value="play">Jeu</option><option value="food">Repas</option><option value="sleep">Sommeil</option><option value="object">Objets et portes</option></select></label></div>
+      <ol id="interaction-lines" class="feed" aria-label="Interactions récentes"></ol>
+    </section>
+  </div>
 </main>
-<footer><span>Kid’s Playground Cyprus v1.1 · astroarch / Sketchfab</span><div><span id="version" title="Identifiant de la révision Git déployée">v. __ALEX_VERSION__</span><button id="reset" type="button">Réinitialiser le jeu</button></div></footer>
-<dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><h2 id="reset-title">Réinitialiser le jeu ?</h2><p>La progression, les essais et la mémoire de cette partie seront effacés.</p><div class="dialog-actions"><button value="cancel" autofocus>Annuler</button><button value="reset" class="danger">Réinitialiser</button></div></form></dialog>
-<dialog id="person-dialog" aria-labelledby="person-title"><form method="dialog"><h2 id="person-title">Personnage à suivre</h2><div id="person-list"></div><div class="dialog-actions"><button value="cancel" autofocus>Fermer</button></div></form></dialog>
-<dialog id="conversation-dialog" aria-labelledby="conversation-title">
-  <div class="conversation-heading"><h2 id="conversation-title">Conversations</h2><form method="dialog"><button aria-label="Fermer les conversations">Fermer</button></form></div>
-  <div class="conversation-meta"><span id="listening-summary">Alex commence sans vocabulaire.</span><button id="voice-toggle" type="button" aria-pressed="false" hidden>Activer les voix</button></div>
-  <ol id="conversation-lines" aria-label="Transcription des conversations" tabindex="0"></ol>
-</dialog>
+<footer class="shell"><span>Kid’s Playground Cyprus v1.1 · astroarch / Sketchfab</span><div><span id="version" title="Identifiant de la révision Git déployée">v. __ALEX_VERSION__</span><button class="quiet" id="reset" type="button">Réinitialiser le jeu</button></div></footer>
+<dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><h2 id="reset-title">Réinitialiser le jeu ?</h2><p>La progression, les conversations et la mémoire de cette partie seront effacées.</p><div class="dialog-actions"><button value="cancel" class="quiet" autofocus>Annuler</button><button value="reset" class="danger">Réinitialiser</button></div></form></dialog>
+<dialog id="person-dialog" aria-labelledby="person-title"><form method="dialog"><h2 id="person-title">Personnage à suivre</h2><div id="person-list"></div><div class="dialog-actions"><button value="cancel" class="quiet" autofocus>Fermer</button></div></form></dialog>
 <script type="module" src="/app.js"></script>
 </body>
 </html>

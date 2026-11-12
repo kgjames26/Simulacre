@@ -14,7 +14,7 @@ function takeServing(person){
     knowledge['goût du repas']={visits:(knowledge['goût du repas']?.visits||0)+1,
       senses:['goût','odorat'],type:'sensation',pleasure:quality};
   }
-  note(name+(quality>=.75?' apprécie le goût du repas bien cuisiné.':' mange le repas préparé.'));
+  note(name+(quality>=.75?' apprécie le goût du repas bien cuisiné.':' mange le repas préparé.'),'food');
   return true;
 }
 
@@ -85,7 +85,7 @@ function cookMeal(person,s){
   if(station==='serve'){
     kitchen.servings.push(cook.quality,cook.quality);
     kitchen.meals=kitchen.servings.length;
-    note(residentNames[person.id]+' prépare deux portions.');
+    note(residentNames[person.id]+' prépare deux portions.','food');
   }
   if(station==='dishwasher'){
     kitchen.washUntil=s+16;
@@ -183,14 +183,15 @@ function sleeping(person,s,canWalk=true){
     if(fraction===1){
       sleep.phase=rising?(bed.floor?'exit':'finished'):'sleep';
       sleep.until=s+(person===alex?42:35);
-      if(!rising)note(residentNames[id]+' s’endort dans un lit.');
+      if(!rising)note(residentNames[id]+' s’endort dans un lit.','sleep');
     }
   }else if(sleep.phase==='sleep'){
     person.activity='Dort dans son lit';
     person.fatigue=Math.max(.025,person.fatigue-DT*.028);
     if(s>=sleep.until){
       sleep.phase='rise';sleep.started=s;
-      if(person===alex){counts.life++;note('Alex se réveille reposé.');}
+      if(person===alex)counts.life++;
+      note(residentNames[id]+' se réveille.','sleep');
     }
   }else if(sleep.phase==='exit'){
     person.activity='Retourne à l’escalier';
