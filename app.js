@@ -93,13 +93,85 @@ function modernizePopo(buffer) {
   result.set(bin,20+padded);
   return result.buffer;
 }
+function softwareRenderer(T){
+  const canvas=document.createElement('canvas');
+  const backdrop=document.createElement('canvas');
+  const context=canvas.getContext('2d');
+  const base=backdrop.getContext('2d');
+  const screen=new T.Vector3(), point=new T.Vector3();
+  let width=1,height=1,lastChildren=-1,ratio=1;
+  function project(vector,camera){
+    return [(vector.x*.5+.5)*width,(.5-vector.y*.5)*height,vector.z];
+  }
+  function paintWorld(scene,camera){
+    base.fillStyle='#59766a';base.fillRect(0,0,width,height);
+    const triangles=[];
+    scene.updateMatrixWorld(true);camera.updateMatrixWorld(true);
+    for(const root of scene.children){
+      if(root.userData.dynamic)continue;
+      root.traverse(mesh=>{
+        if(!mesh.isMesh)return;
+        const position=mesh.geometry.getAttribute('position'), index=mesh.geometry.index;
+        const count=Math.floor((index?.count||position.count)/3);
+        const stride=Math.max(1,Math.ceil(count/1100));
+        const material=Array.isArray(mesh.material)?mesh.material[0]:mesh.material;
+        const cut=material.clippingPlanes?.length?1.45:Infinity;
+        const color=material.color||new T.Color('#b5b28a');
+        const style=color.getStyle();
+        for(let i=0;i<count;i+=stride){
+          const vertices=[];let visible=false;
+          for(let j=0;j<3;j++){
+            const k=index?index.getX(i*3+j):i*3+j;
+            point.fromBufferAttribute(position,k).applyMatrix4(mesh.matrixWorld);
+            visible||=point.y<cut;
+            point.y=Math.min(point.y,cut);
+            vertices.push(project(screen.copy(point).project(camera),camera));
+          }
+          if(visible)triangles.push({vertices,style,depth:vertices.reduce((sum,p)=>sum+p[2],0)});
+        }
+      });
+    }
+    triangles.sort((a,b)=>b.depth-a.depth);
+    for(const {vertices,style} of triangles){
+      base.beginPath();base.moveTo(vertices[0][0],vertices[0][1]);
+      base.lineTo(vertices[1][0],vertices[1][1]);base.lineTo(vertices[2][0],vertices[2][1]);
+      base.closePath();base.fillStyle=style;base.fill();
+    }
+  }
+  return {domElement:canvas,
+    setPixelRatio(value){ratio=Math.min(1.25,value);},
+    setSize(w,h){width=w*ratio;height=h*ratio;canvas.width=backdrop.width=width;canvas.height=backdrop.height=height;lastChildren=-1;},
+    setAnimationLoop(draw){requestAnimationFrame(function frame(time){draw(time);requestAnimationFrame(frame);});},
+    render(scene,camera){
+      if(lastChildren!==scene.children.length){
+        paintWorld(scene,camera);
+        lastChildren=scene.children.length;
+      }
+      context.drawImage(backdrop,0,0);
+      for(const object of scene.children.filter(item=>item.userData.dynamic)){
+        const [x,y]=project(screen.copy(object.position).project(camera),camera);
+        const style=object.userData;
+        const factor=height/(camera.top-camera.bottom);
+        if(style.ball){
+          context.fillStyle='#f9b650';context.beginPath();context.arc(x,y,Math.max(2,.21*factor),0,Math.PI*2);context.fill();continue;
+        }
+        const size=object.scale.x*factor;
+        context.strokeStyle=style.suit;context.lineWidth=Math.max(2,size*.19);context.lineCap='round';
+        context.beginPath();context.moveTo(x,y-size*.17);context.lineTo(x,y-size*.49);context.stroke();
+        context.fillStyle=style.skin;context.beginPath();context.arc(x,y-size*.62,Math.max(2,size*.16),0,Math.PI*2);context.fill();
+      }
+    }
+  };
+}
 async function showWorld(){
   const [T,{GLTFLoader},assets]=await Promise.all([
     import('three'),import('three/addons/loaders/GLTFLoader.js'),import('/assets/3d/load-character.js')
   ]);
   const scene=new T.Scene();
   scene.background=new T.Color('#59766a');
-  const renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  const canvas=document.createElement('canvas');
+  const graphics=canvas.getContext('webgl2')||canvas.getContext('webgl');
+  const renderer=graphics?new T.WebGLRenderer({canvas,context:graphics,antialias:true,powerPreference:'high-performance'}):softwareRenderer(T);
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.65));
   renderer.localClippingEnabled=true;
   renderer.toneMapping=T.ACESFilmicToneMapping;
@@ -146,14 +218,14 @@ async function showWorld(){
     const plaque=new T.Mesh(new T.PlaneGeometry(1.55,.36),new T.MeshBasicMaterial({map:texture}));
     plaque.position.set(x,.65,z);scene.add(plaque);
   }
-  const ball=new T.Mesh(new T.SphereGeometry(.21,18,12),mat('#f9b650'));scene.add(ball);
+  const ball=new T.Mesh(new T.SphereGeometry(.21,18,12),mat('#f9b650'));ball.userData={dynamic:true,ball:true};scene.add(ball);
   const parse=(loader,data)=>new Promise((resolve,reject)=>loader.parse(data,'',resolve,reject));
   const actors=[];
   const failures=[];
   let ready=0;
   function load(name, task){
     return task.then(()=>{ready++;}).catch(error=>{failures.push(name);console.error(name,error);}).finally(()=>{
-      ui('scene-status').textContent=failures.length?'Chargement indisponible · '+failures.join(', '):ready===3?'Villa et parc · Vue en coupe':'Chargement de la scène 3D…';
+      ui('scene-status').textContent=failures.length?'Chargement indisponible · '+failures.join(', '):ready===3?graphics?'Villa et parc · Vue en coupe':'Villa et parc · Rendu simplifié':'Chargement de la scène 3D…';
     });
   }
   load('villa', (async()=>{
@@ -199,6 +271,7 @@ async function showWorld(){
     for(const id of ['alex','joseph','marie','juliette','timeo','nathan','francoise','rose']){
       const profile=id==='alex'?profiles.variants[0]:profiles.variants.find(item=>item.id===id);
       const root=new T.Group();
+      root.userData={dynamic:true,suit:profile.suit,skin:profile.skin};
       const gait={value:0}, crouch={value:0};
       for(const {geometry,name} of geometries){
         const key=name.toLowerCase();
