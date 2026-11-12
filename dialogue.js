@@ -322,6 +322,14 @@ function createDialogue(){
           }
         }
       }
+      if(turn%7===0&&near(joseph,marie,5.4)){
+        const [text,reply]=mathLines[Math.floor(Math.random()*mathLines.length)];
+        emit(s,joseph.id,text,near(joseph,alex,5.2),marie.id);
+        if(near(joseph,alex,5.2))language.hear(text,observe(alex,joseph,scene),s,joseph.id);
+        pending={speaker:marie,listener:joseph,reply};
+        next=s+Math.max(3,text.length*.095);
+        return;
+      }
       if((turn%3!==0||!near(joseph,marie,5.4))&&otherExchange(s,alex,people,scene))return;
       if(!near(joseph,marie,5.4)){next=s+1.4;return;}
       const speaker=Math.random()<.5?joseph:marie;
