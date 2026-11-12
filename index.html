@@ -4,19 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111a18">
-<meta name="description" content="Suivez le monde et le développement d’Alex dans Simulacre.">
+<meta name="description" content="Suivez le monde et le développement d’Néo dans Simulacre.">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/styles.css">
-<title>ALEX — Simulacre</title>
+<title>SIMULACRE — Néo</title>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}
 </script>
 </head>
-<body>
+<body>\n<section id="welcome-screen" class="welcome-screen" aria-labelledby="welcome-title">\n  <div class="welcome-panel">\n    <p class="welcome-kicker">EXPÉRIENCE DE SIMULATION · INTELLIGENCE ARTIFICIELLE</p>\n    <h1 id="welcome-title">SIMULACRE</h1>\n    <h2>Une expérimentation d’autodéveloppement de l’intelligence artificielle</h2>\n    <p>Simulacre est une expérience de simulation de vie centrée sur Néo. Il commence avec une feuille blanche : il doit découvrir son environnement, apprendre, expérimenter, comprendre et construire ses propres objectifs.</p>\n    <p>Les autres personnages commencent avec des comportements et des connaissances scriptés. Les découvertes de Néo peuvent enrichir leurs propres connaissances et leur permettre d’évoluer à leur tour.</p>\n    <p>Le monde évolue à travers les interactions, les apprentissages, les relations et les expériences quotidiennes. Néo est le sujet central de cette expérimentation.</p>\n    <button id="enter-simulacre" type="button">Entrer dans l’expérience</button>\n  </div>\n</section>
 <header class="shell">
   <div class="masthead">
-    <a class="brand" href="#ensemble"><img src="/icon.svg" alt=""><span>SIMULACRE<small>Le monde d’Alex</small></span></a>
+    <a class="brand" href="#ensemble"><img src="/icon.svg" alt=""><span>SIMULACRE<small>Le monde d’Néo</small></span></a>
     <div class="clock"><span id="year">Année fictive 1</span><span id="day">Jour 1</span></div>
     <div id="mode" class="live" role="status">Vitesse normale · ×1</div>
   </div>
@@ -40,21 +40,21 @@
       <div class="scene-top"><p id="scene-status" role="status">Chargement de la scène 3D…</p></div>
       <div id="labels"></div>
       <div class="camera-tools" role="group" aria-label="Caméra">
-        <div class="follow-tools"><button id="follow" type="button" aria-pressed="false">Suivi d’Alex</button><button id="choose-person" type="button" aria-controls="person-dialog" aria-label="Choisir le personnage à suivre">Alex ▾</button></div>
+        <div class="follow-tools"><button id="follow" type="button" aria-pressed="false">Suivi d’Néo</button><button id="choose-person" type="button" aria-controls="person-dialog" aria-label="Choisir le personnage à suivre">Néo ▾</button></div>
         <div class="zoom-tools"><button id="zoom-out" type="button" aria-label="Dézoomer">−</button><output id="zoom-level">1×</output><button id="zoom-in" type="button" aria-label="Zoomer">+</button></div>
       </div>
-      <div class="scene-bottom"><div><small id="activity-person">Alex</small><strong id="activity">Se redresser</strong></div><div class="scene-actions"><button id="play-open" class="quiet" type="button">Objets</button><button id="speed" type="button" aria-pressed="false">Accélérer</button></div></div>
+      <div class="scene-bottom"><div><small id="activity-person">Néo</small><strong id="activity">Se redresser</strong></div><div class="scene-actions"><button id="play-open" class="quiet" type="button">Objets</button><button id="speed" type="button" aria-pressed="false">Accélérer</button></div></div>
     </section>
     <aside id="overview-details" class="overview-details" aria-label="État de la simulation">
       <section class="card hero-card">
-        <div class="section-top"><h2>Alex</h2><a href="#developpement">Développement <span aria-hidden="true">↗</span></a></div>
+        <div class="section-top"><h2>Néo</h2><a href="#developpement">Développement <span aria-hidden="true">↗</span></a></div>
         <div id="age" class="display">Bébé</div>
         <div class="line"><span id="skill">Se redresser</span><strong id="balance">0 %</strong></div>
         <progress id="bar" max="100" value="0" aria-label="Stabilité du dernier essai"></progress>
-        <div class="metrics"><div><strong id="trials">0</strong><small>Essais moteurs</small></div><div><strong id="pecm">0</strong><small>PECM</small></div></div>
+        <div class="metrics"><div><strong id="trials">0</strong><small>Essais moteurs</small></div><div><strong id="motor-progress">0</strong><small>Progrès moteurs confirmés</small></div></div>
       </section>
       <section class="card">
-        <div class="section-top"><h2>Besoins d’Alex</h2><a href="#relations">Humeurs <span aria-hidden="true">↗</span></a></div>
+        <div class="section-top"><h2>Besoins d’Néo</h2><a href="#relations">Humeurs <span aria-hidden="true">↗</span></a></div>
         <div class="line"><span>Faim</span><strong id="hunger">10 %</strong></div>
         <div class="line"><span>Fatigue</span><strong id="fatigue">5 %</strong></div>
         <div class="line"><span>Plaisir</span><strong id="pleasure">0 %</strong></div>
@@ -88,9 +88,9 @@
       <div class="section-top"><h2>Transcription</h2><button id="voice-toggle" class="quiet" type="button" aria-pressed="false" hidden>Activer les voix</button></div>
       <div class="filters">
         <label>Locuteur<select id="speaker-filter"><option value="">Tous les personnages</option></select></label>
-        <label>Audibilité<select id="hearing-filter"><option value="">Toutes les répliques</option><option value="heard">Entendues par Alex</option><option value="unheard">Hors de portée d’Alex</option></select></label>
+        <label>Audibilité<select id="hearing-filter"><option value="">Toutes les répliques</option><option value="heard">Entendues par Néo</option><option value="unheard">Hors de portée d’Néo</option></select></label>
       </div>
-      <p class="hint" id="listening-summary">Alex commence sans vocabulaire.</p>
+      <p class="hint" id="listening-summary">Néo commence sans vocabulaire.</p>
       <ol id="conversation-lines" class="feed" aria-label="Transcription des conversations"></ol>
       <div class="feed-actions"><button class="quiet" id="older-lines" type="button" hidden>Voir les répliques précédentes</button><button class="quiet" id="live-lines" type="button" hidden>Revenir au direct</button></div>
     </section>
@@ -107,10 +107,10 @@
       <div class="section-top"><h2>Mots compris <span class="hint" id="vocabulary-count"></span></h2>
         <label class="vocabulary-search"><span class="sr-only">Rechercher un mot</span><input type="search" id="vocabulary-search" placeholder="Rechercher un mot"></label>
       </div>
-      <p class="hint">Alex déduit le sens des mots en comparant les situations où il les entend.</p>
+      <p class="hint">Néo déduit le sens des mots en comparant les situations où il les entend.</p>
       <ul id="vocabulary-list" class="vocabulary-list"></ul>
     </section>
-    <section class="card"><h2>Phrases composées par Alex</h2><ol class="feed" id="composed-phrases"></ol></section>
+    <section class="card"><h2>Phrases composées par Néo</h2><ol class="feed" id="composed-phrases"></ol></section>
   </div>
 
   <div id="page-relations" class="page-content" hidden>
@@ -124,7 +124,7 @@
     </section>
   </div>
 </main>
-<footer class="shell"><span>Cyprus · astroarch · Ballon · RPSebb · Tricycle et jeu en bois · assetfactory</span><div><span id="version" title="Identifiant de la révision Git déployée">v. __ALEX_VERSION__</span><button class="quiet" id="reset" type="button">Réinitialiser le jeu</button></div></footer>
+<footer class="shell"><span>Cyprus · astroarch · Ballon · RPSebb · Tricycle et jeu en bois · assetfactory</span><div><span id="version" title="Identifiant de la révision Git déployée">v. __NÉO_VERSION__</span><button class="quiet" id="reset" type="button">Réinitialiser le jeu</button></div></footer>
 <dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><h2 id="reset-title">Réinitialiser le jeu ?</h2><p>La progression, les conversations et la mémoire de cette partie seront effacées.</p><div class="dialog-actions"><button value="cancel" class="quiet" autofocus>Annuler</button><button value="reset" class="danger">Réinitialiser</button></div></form></dialog>
 <dialog id="play-dialog" aria-labelledby="play-title"><form method="dialog">
   <h2 id="play-title">Objets interactifs</h2>
