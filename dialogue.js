@@ -125,10 +125,10 @@ function createDialogue(){
   let composed=0,lastComposition=-1e9,lastInvitation=-1e9;
   const phrases=[];
   const language=createLanguageMemory();
-  function emit(s,speaker,text,heardByAlex,listener){
-    const line={id:++id,at:s,speaker,text,heardByAlex,listener};
+  function emit(s,speaker,text,heardByNéo,listener){
+    const line={id:++id,at:s,speaker,text,heardByNéo,listener};
     lines.push(line);outgoing.push(line);
-    if(speaker!=='alex'&&heardByAlex)audibleCount++;
+    if(speaker!=='alex'&&heardByNéo)audibleCount++;
     if(lines.length>40)lines.shift();
   }
   const near=(a,b,range)=>(a.floor||0)===(b.floor||0)&&!a.lie&&!b.lie&&Math.hypot(a.x-b.x,a.z-b.z)<range;
