@@ -1,3 +1,5 @@
+importScripts('/dialogue.js');
+const dialogue=createDialogue();
 const DT = 1 / 120;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 // Motor commands are learned. Goals are used only to score the outcome.
@@ -705,6 +707,7 @@ function experience() {
       ball.vx=Math.sin(p.heading)*1.7; ball.vz=Math.cos(p.heading)*1.7;
     }
   }
+  if(ticks%12===0)dialogue.step(s,alex,people);
   ball.x+=ball.vx*DT;ball.z+=ball.vz*DT;
   if(ball.x>18.5||ball.x<5){ball.x=clamp(ball.x,5,18.5);ball.vx*=-.65;}
   if(Math.abs(ball.z)>11.5){ball.z=clamp(ball.z,-11.5,11.5);ball.vz*=-.65;}
@@ -715,10 +718,10 @@ function experience() {
   }
 }
 function snapshot() {
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view()};
 }
 function save() {
-  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity};
+  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -734,6 +737,7 @@ onmessage=({data})=>{
     if(s.motorVersion!==MOTOR_VERSION)records=goals.map((_,i)=>({
       ...emptyRecord(), mastered:i<skill, confirmed:i<skill?(s.records[i]?.confirmed||0):0
     }));
+    dialogue.restore(s.dialogue);
     Object.assign(curiosity,s.curiosity);
     Object.assign(alex,s.alex);
     Object.assign(parkMemory,s.parkMemory);

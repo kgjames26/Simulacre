@@ -6,6 +6,63 @@ const saveKey = 'alex-simulacre-v3';
 const worker = new Worker('/sim.js');
 let snapshot, human = true, lastJournal = '';
 const personNames={alex:'Alex',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Françoise',rose:'Rose'};
+let lastDialogueId=0, lastDialoguePaint=0, voiceEnabled=false, conversationRows=[];
+const conversation=ui('conversation-dialog');
+const voiceButton=ui('voice-toggle');
+ui('open-conversation').onclick=()=>{
+  conversation.showModal();
+  const list=ui('conversation-lines');
+  list.scrollTop=list.scrollHeight;
+};
+if('speechSynthesis' in window){
+  voiceButton.hidden=false;
+  voiceButton.onclick=()=>{
+    voiceEnabled=!voiceEnabled;
+    voiceButton.setAttribute('aria-pressed',String(voiceEnabled));
+    voiceButton.textContent=voiceEnabled?'Couper les voix':'Activer les voix';
+    if(!voiceEnabled)speechSynthesis.cancel();
+  };
+}
+function updateDialogue(state){
+  if(!state)return;
+  const now=performance.now();
+  if(!human&&now-lastDialoguePaint<250)return;
+  lastDialoguePaint=now;
+  ui('words-known').textContent=format.format(state.known);
+  ui('listening-summary').textContent=state.heard
+    ? format.format(state.heard)+' répliques entendues · '+format.format(state.known)+' mots associés · '+format.format(state.spoken)+' imitations'
+    : 'Alex commence sans vocabulaire.';
+  const latest=state.lines.at(-1);
+  if(!latest||latest.id===lastDialogueId)return;
+  const previousId=lastDialogueId;
+  lastDialogueId=latest.id;
+  conversationRows=state.lines;
+  ui('latest-line').textContent=personNames[latest.speaker]+' · '+latest.text;
+  const list=ui('conversation-lines');
+  const atBottom=list.scrollHeight-list.scrollTop-list.clientHeight<35;
+  list.replaceChildren(...state.lines.map(line=>{
+    const row=document.createElement('li');
+    const speaker=document.createElement('strong');
+    speaker.textContent=personNames[line.speaker];
+    row.append(speaker,document.createTextNode(' · '+line.text));
+    if(line.speaker!=='alex'){
+      const detail=document.createElement('small');
+      detail.textContent=line.heardByAlex?'À portée d’Alex':'Hors de portée d’Alex';
+      row.append(detail);
+    }
+    return row;
+  }));
+  if(atBottom||!conversation.open)list.scrollTop=list.scrollHeight;
+  if(voiceEnabled&&human&&previousId&&!speechSynthesis.speaking&&!speechSynthesis.pending){
+    const speech=new SpeechSynthesisUtterance(latest.text);
+    speech.lang='fr-FR';
+    const voices=speechSynthesis.getVoices().filter(voice=>voice.lang.toLowerCase().startsWith('fr'));
+    speech.voice=voices[latest.speaker==='joseph'?1:0]||voices[0]||null;
+    speech.pitch=latest.speaker==='alex'?1.35:latest.speaker==='marie'?1.13:.83;
+    speech.rate=latest.speaker==='alex'?.77:.91;
+    speechSynthesis.speak(speech);
+  }
+}
 let followedPerson='alex', following=false;
 function showFollowState(){
   const name=personNames[followedPerson];
@@ -42,6 +99,7 @@ worker.onmessage = ({data}) => {
     return;
   }
   snapshot=data.state;
+  updateDialogue(snapshot.dialogue);
   const {ticks,age,skill,score,alex,trials,pecm,journal}=snapshot;
   const days=Math.floor(ticks/120/86400);
   ui('year').textContent='Année fictive '+format.format(1+Math.floor(days/365));
@@ -69,6 +127,7 @@ worker.onmessage = ({data}) => {
 worker.onerror=()=>{ui('mode').textContent='Simulation interrompue';};
 ui('speed').onclick=()=>{
   human=!human;
+  if(!human&&voiceEnabled)speechSynthesis.cancel();
   worker.postMessage({type:'mode',mode:human?'human':'turbo'});
   ui('speed').setAttribute('aria-pressed',String(!human));
   ui('speed').textContent=human?'Accélérer':'Revenir à vitesse normale';
@@ -229,7 +288,24 @@ function softwareRenderer(T){
             if(size>43)for(const finger of side.fingers)stroke([side.wrist,finger.base,finger.tip],style.skin,.014);
           }
           const [hx,hy]=project(screen.set(0,.842,0).applyMatrix4(style.rig.trunk.matrixWorld).project(camera),camera);
-          context.fillStyle=style.skin;context.beginPath();context.arc(hx,hy,Math.max(2,size*.109),0,Math.PI*2);context.fill();
+          const face=style.face;
+          const radius=Math.max(2,size*.109);
+          context.fillStyle=style.skin;context.beginPath();
+          context.ellipse(hx,hy,radius*(face?.shape[0]||1),radius*(face?.shape[1]||1),0,0,Math.PI*2);context.fill();
+          if(face&&size>34){
+            context.fillStyle=face.hair;context.beginPath();
+            context.ellipse(hx,hy-radius*.33,radius*.96,radius*.73,0,Math.PI,Math.PI*2);context.fill();
+            if(face.style==='bun'||face.style==='tuft'){
+              context.beginPath();context.arc(hx+radius*(face.style==='bun'?.61:-.3),hy-radius*.93,radius*.32,0,Math.PI*2);context.fill();
+            }
+            for(const side of [-1,1]){
+              const eye=hx+side*radius*.37;
+              context.fillStyle=face.eyes;context.beginPath();context.arc(eye,hy,radius*.085,0,Math.PI*2);context.fill();
+              if(face.glasses){context.strokeStyle='#24374e';context.lineWidth=Math.max(1,radius*.05);context.beginPath();context.arc(eye,hy,radius*.24,0,Math.PI*2);context.stroke();}
+            }
+            context.strokeStyle=face.beard?face.hair:'#8b514b';context.lineWidth=Math.max(1,radius*(face.beard?.18:.055));
+            context.beginPath();context.ellipse(hx,hy+radius*.40,radius*.22*face.mouth,radius*.085,0,0,Math.PI);context.stroke();
+          }
           continue;
         }
         context.strokeStyle=style.suit;context.lineWidth=Math.max(2,size*.19);context.lineCap='round';
@@ -242,6 +318,80 @@ function softwareRenderer(T){
     }
   };
 }
+const faceProfiles={
+  alex:{shape:[1,1,1],hair:'#604332',style:'tuft',eyes:'#405a49',mouth:1},
+  joseph:{shape:[1.08,1.06,1],hair:'#382d28',style:'crop',eyes:'#584535',beard:true,mouth:.9},
+  marie:{shape:[.93,1.05,1],hair:'#56332c',style:'bun',eyes:'#476b63',mouth:1.19},
+  juliette:{shape:[.91,1.01,1],hair:'#795033',style:'bob',eyes:'#544733',mouth:1.08},
+  timeo:{shape:[.96,1.05,.98],hair:'#5b422f',style:'sweep',eyes:'#40555c',glasses:true,mouth:.86},
+  nathan:{shape:[1.1,.94,1],hair:'#956434',style:'tuft',eyes:'#654b35',freckles:true,mouth:1.14},
+  francoise:{shape:[1.01,1.06,.98],hair:'#2d2524',style:'curls',eyes:'#554133',mouth:1.22},
+  rose:{shape:[1.04,.98,1],hair:'#a14927',style:'bob',eyes:'#527b61',freckles:true,mouth:1}
+};
+function buildFace(T,rig,id,skin){
+  const profile=faceProfiles[id];
+  const head=new T.Group();
+  head.position.set(0,.842,0);
+  head.scale.set(...profile.shape);
+  rig.trunk.add(head);
+  const material=color=>new T.MeshStandardMaterial({color,roughness:.82});
+  const skinMaterial=material(skin);
+  const hairMaterial=material(profile.hair);
+  const whites=material('#f7f0e8');
+  const iris=material(profile.eyes);
+  const pupil=material('#171821');
+  const lip=material('#8b514b');
+  const sphere=new T.SphereGeometry(1,18,12);
+  function oval(mat,x,y,z,sx,sy,sz){
+    const mesh=new T.Mesh(sphere,mat);
+    mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);head.add(mesh);return mesh;
+  }
+  oval(skinMaterial,0,-.007,0,.107,.128,.094);
+  oval(skinMaterial,0,-.030,.091,.015,.020,.022);
+  const eyes=[];
+  for(const side of [-1,1]){
+    oval(skinMaterial,side*.103,-.022,.004,.021,.028,.019);
+    const eye=oval(whites,side*.041,.006,.083,.024,.017,.015);
+    oval(iris,side*.041,.006,.096,.012,.012,.006);
+    oval(pupil,side*.041,.006,.101,.006,.007,.003);
+    oval(whites,side*.041+.004,.011,.103,.003,.003,.002);
+    const brow=oval(hairMaterial,side*.043,.038,.084,.023,.0045,.005);
+    brow.rotation.z=side*(id==='joseph'?.16:.08);
+    eyes.push(eye);
+    if(profile.freckles)for(let i=0;i<3;i++)oval(lip,side*(.044+i*.01),-.027+(i%2)*.004,.088,.0027,.0025,.0028);
+  }
+  const mouth=oval(lip,0,-.065,.084,.025*profile.mouth,.006,.004);
+  if(profile.beard){
+    oval(hairMaterial,0,-.094,.043,.072,.032,.053);
+    for(const side of [-1,1])oval(hairMaterial,side*.018,-.052,.089,.020,.006,.004);
+  }
+  const cap=new T.Mesh(new T.SphereGeometry(1,24,14,0,Math.PI*2,0,Math.PI*.46),hairMaterial);
+  cap.position.set(0,.015,-.009);cap.scale.set(.112,.121,.103);head.add(cap);
+  if(profile.style==='bob'||profile.style==='bun'){
+    for(const side of [-1,1])oval(hairMaterial,side*.091,-.01,-.035,.034,.09,.053);
+  }
+  if(profile.style==='bun')oval(hairMaterial,.017,.074,-.094,.059,.057,.056);
+  if(profile.style==='sweep')oval(hairMaterial,-.037,.086,.055,.063,.025,.050).rotation.z=.32;
+  if(profile.style==='tuft'){
+    for(let i=0;i<3;i++)oval(hairMaterial,-.037+i*.028,.109+i*.006,.034,.029,.038,.040).rotation.z=.45;
+  }
+  if(profile.style==='curls'){
+    for(let i=0;i<9;i++){
+      const angle=i*Math.PI*2/9;
+      oval(hairMaterial,Math.sin(angle)*.077,.077+Math.cos(i*2)*.013,Math.cos(angle)*.063,.040,.040,.042);
+    }
+  }
+  if(profile.glasses){
+    const frame=material('#24374e');
+    for(const side of [-1,1]){
+      const ring=new T.Mesh(new T.TorusGeometry(.031,.0036,7,18),frame);
+      ring.position.set(side*.041,.006,.108);ring.scale.y=.77;head.add(ring);
+    }
+    oval(frame,0,.011,.109,.012,.0036,.0032);
+  }
+  return {head,mouth,eyes,profile};
+}
+
 function buildPopoRig(T,root,gloveMaterial){
   const bones=[];
   function joint(parent,x,y,z){
@@ -635,11 +785,12 @@ async function showWorld(){
       root.userData={dynamic:true,suit:profile.suit,skin:profile.skin};
       const rig=buildPopoRig(T,root,mat(profile.accent));
       root.userData.rig=rig;
+      const face=buildFace(T,rig,id,profile.skin);
+      root.userData.face=face.profile;
       for(const {geometry,name} of geometries){
         const key=name.toLowerCase();
-        const color=key.includes('head')?profile.skin:key.includes('glass')?'#9cdae6':key.includes('003')?profile.accent:profile.suit;
-        const material=mat(color);
-        if(key.includes('glass')){material.transparent=true;material.opacity=.34;material.depthWrite=false;}
+        if(key.includes('head')||key.includes('glass'))continue;
+        const material=mat(key.includes('003')?profile.accent:profile.suit);
         if(!geometry.hasAttribute('skinIndex'))skinPopoGeometry(T,geometry,rig);
         const mesh=new T.SkinnedMesh(geometry,material);
         mesh.frustumCulled=false;
@@ -650,7 +801,7 @@ async function showWorld(){
       const label=document.createElement('button');
       label.type='button';label.className='tag'+(id==='alex'?' alex':'');label.textContent=profile.name;
       label.title='Suivre '+profile.name;label.onclick=()=>selectPerson(id);ui('labels').append(label);
-      scene.add(root);actors.push({id,root,profile,label,rig});
+      scene.add(root);actors.push({id,root,profile,label,rig,face});
     }
     actors[0].ageProfiles=profiles.variants.slice(0,8);
   })());
@@ -725,6 +876,9 @@ async function showWorld(){
         const crouch=main?p.pose:0;
         posePopo(actor.rig,main?p.joints:null,crouch,gait,1-Math.exp(-dt*14));
         actor.root.userData.crouch=crouch;
+        const line=conversationRows.at(-1);
+        const talking=line?.speaker===actor.id&&snapshot.ticks/120-line.at<Math.max(1,line.text.length*.077);
+        actor.face.mouth.scale.y=talking?.008+Math.abs(Math.sin(now*.024))*.010:.006;
         point.copy(actor.root.position);point.y+=size*(1-crouch*.24)+.25;point.project(camera);
         actor.label.hidden=Math.abs(point.x)>1.04||Math.abs(point.y)>1.04;
         actor.label.style.left=(point.x*.5+.5)*100+'%';
