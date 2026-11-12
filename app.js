@@ -127,7 +127,11 @@ ui('speed').onclick=()=>{
   ui('speed').textContent=human?'Accélérer':'Revenir à vitesse normale';
   ui('mode').textContent=human?'Vitesse normale · ×1':'Simulation accélérée';
 };
-if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);\n\nconst welcome=ui('welcome-screen');\nif(sessionStorage.getItem('simulacre-intro-seen')==='1')welcome.hidden=true;\nui('enter-simulacre').addEventListener('click',()=>{welcome.hidden=true;sessionStorage.setItem('simulacre-intro-seen','1');});
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);
+
+const welcome=ui('welcome-screen');
+if(sessionStorage.getItem('simulacre-intro-seen')==='1')welcome.hidden=true;
+ui('enter-simulacre').addEventListener('click',()=>{welcome.hidden=true;sessionStorage.setItem('simulacre-intro-seen','1');});
 
 async function unzipPlayground(blob) {
   const data=new Uint8Array(await blob.arrayBuffer());
@@ -523,7 +527,10 @@ async function showWorld(){
   renderer.toneMappingExposure=1.25;
   ui('view').append(renderer.domElement);
   const camera=new T.OrthographicCamera();
-  const baseOffset=new T.Vector3(23,27,31);\n  const offset=baseOffset.clone();\n  let cameraQuarter=0;\n  ui('rotate-camera').onclick=()=>{cameraQuarter=(cameraQuarter+1)%4;offset.copy(baseOffset).applyAxisAngle(new T.Vector3(0,1,0),cameraQuarter*Math.PI/2);};
+  const baseOffset=new T.Vector3(23,27,31);
+  const offset=baseOffset.clone();
+  let cameraQuarter=0;
+  ui('rotate-camera').onclick=()=>{cameraQuarter=(cameraQuarter+1)%4;offset.copy(baseOffset).applyAxisAngle(new T.Vector3(0,1,0),cameraQuarter*Math.PI/2);};
   const center=new T.Vector3();
   const manualCenter=new T.Vector3();
   const desiredCenter=new T.Vector3();
