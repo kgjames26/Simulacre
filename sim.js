@@ -1,7 +1,16 @@
 const DT = 1 / 120;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-const initial = [18, 5, 0.36, 0.32, 3.7, 1.15];
-const limits = [[2, 55], [0.4, 18], [0.03, 0.85], [0.05, 0.8], [1, 8], [0.1, 2]];
+// Motor commands are learned. Goals are used only to score the outcome.
+const motorLimits=[[0,28],[-46,24],[-19,7],[-52,52],[-22,16],[0,1.6],[.8,7],[0,11]];
+const motorGoals=[
+  {height:.22,duration:2.7,distance:0,hold:.65,balance:.54},
+  {height:.18,duration:3.1,distance:.26,hold:.8,balance:.65},
+  {height:.44,duration:4.3,distance:0,hold:1.65,balance:.36},
+  {height:.45,duration:4.7,distance:.43,hold:1.6,balance:.39},
+  {height:.46,duration:5.3,distance:.83,hold:2,balance:.4}
+];
+const emptyRecord=()=>({champions:[],recent:[],confirmed:0,attempts:0,mastered:false});
+const MOTOR_VERSION=2;
 const goals = ['Se redresser', 'Ramper', 'Tenir debout', 'Faire ses premiers pas', 'Marcher'];
 const people = [
   ['joseph', -7, 1], ['marie', -4, 2], ['juliette', -5, -1],
@@ -26,8 +35,8 @@ const landmarks = [
 let knowledge = {};
 let counts = {life:0,cognition:0,play:0,social:0};
 let journal = [];
-let ticks=0, trials=0, pecm=0, skill=0, age=0, score=0, mode='turbo';
-let records = goals.map(()=>({best:-1e9,policy:[...initial],success:0,confirmed:0}));
+let ticks=0, trials=0, pecm=0, skill=0, age=0, score=0, mode='human';
+let records=goals.map(emptyRecord);
 let alex={x:-6.7,z:2.6,heading:0,phase:0,pose:0,tilt:0,effort:0,hunger:.1,fatigue:.05,activity:'Premiers mouvements'};
 let ball={x:9,z:7,vx:0,vz:0};
 let park=null;
@@ -55,56 +64,92 @@ const rope={angle:0,angular:0};
 const parkMemory={slide:0,rope:0,trampoline:0};
 const equipmentSeen={slide:0,rope:0,trampoline:0};
 const parkCooldown={slide:0,rope:0,trampoline:0};
-let explorationTarget=null, nextChoice=0;
+let explorationTarget=null;
+let nextChoice=0;
+let progressAt=0, closestGoal=Infinity;
+const curiosity={};
 let eventClock=0, episode, lastWall=performance.now(), accumulator=0;
 function note(message) {
   journal.unshift({message,ticks});
   journal = journal.slice(0,6);
 }
 function newEpisode() {
-  const record = records[skill];
-  const replay = skill===4 && trials%3!==0;
-  const noise = replay ? .025 : Math.max(.035,.24/(1+record.confirmed*.035));
-  const policy = record.policy.map((v,i)=>clamp(v*(1+(Math.random()*2-1)*noise),...limits[i]));
-  return {policy, time:0, theta:(Math.random()-.5)*(.7-skill*.09), angular:0, height:skill<2?.13:.39, vy:0,
-    vx:0, distance:0, energy:0, phase:Math.random()*Math.PI*2, standing:0, contact:false, replay};
+  const record=records[skill];
+  const parent=record.champions[Math.floor(Math.random()*Math.min(3,record.champions.length))];
+  const trial=record.attempts;
+  const replay=record.confirmed>0&&trial%3===0;
+  const noise=replay?.018:record.confirmed>0?.09:.21;
+  const policy=motorLimits.map(([min,max],i)=>{
+    if(!parent||(!replay&&trial%9===8))return min+Math.random()*(max-min);
+    return clamp(parent.policy[i]+(Math.random()+Math.random()-1)*(max-min)*noise,min,max);
+  });
+  // Every trial starts down low, with a different lean and contact.
+  const theta=(Math.random()<.5?-1:1)*(.22+Math.random()*.45);
+  return {policy,time:0,theta,angular:0,height:.09+Math.random()*.025,vy:0,
+    vx:0,distance:0,effort:0,phase:Math.random()*Math.PI*2,hold:0,longest:0,
+    quality:0,energy:0,fallen:false,settle:0,traction:.79+Math.random()*.2,
+    disturbance:(Math.random()-.5)*.85};
 }
-function motorStep() {
+function motorStep(){
   const e=episode;
-  const [gain,damping,stride,lift,frequency,power]=e.policy;
-  const targetHeight=[.25,.19,.43,.45,.47][skill];
-  const moving=skill===1 || skill>=3;
-  e.phase+=frequency*DT;
-  const drive=moving?Math.sin(e.phase):0;
-  const force=clamp((targetHeight-e.height)*220-e.vy*16+9.81,0,23);
-  const pulse=moving ? Math.max(0,drive) : 0;
-  const torque=clamp(-gain*e.theta-damping*e.angular+drive*stride*2,-11,11);
-  e.angular+=(9.81/targetHeight*Math.sin(e.theta)+torque*3)*DT;
-  e.theta+=e.angular*DT;
-  e.vy+=(force-9.81+pulse*lift)*DT;
-  e.height+=e.vy*DT;
-  if(e.height<.085){e.height=.085;e.vy=Math.max(0,-e.vy*.12);}
-  e.contact=Math.abs(e.theta)<.42 && Math.abs(e.height-targetHeight)<.1;
-  e.vx+=(e.contact && moving ? pulse*power*stride*8 : 0)*DT;
-  e.vx*=Math.exp(-DT*(e.contact?2.5:5));
-  e.distance+=e.vx*DT;
-  e.standing+=e.contact?DT:0;
-  e.energy+=(Math.abs(torque)*.08+force*.007)*DT;
+  const goal=motorGoals[skill];
+  const [push,heightFeedback,verticalFeedback,leanFeedback,turnFeedback,alternation,frequency,stride]=e.policy;
+  if(!e.fallen){
+    e.phase+=frequency*DT;
+    const rhythm=Math.sin(e.phase);
+    const force=clamp(push+heightFeedback*e.height+verticalFeedback*e.vy+rhythm*alternation,0,28);
+    const torque=clamp(leanFeedback*e.theta+turnFeedback*e.angular+rhythm*alternation,-15,15);
+    const planted=Math.abs(e.theta)<.93&&e.height<.54;
+    const rocking=9.81*Math.sin(e.theta)/(.27+e.height);
+    e.angular+=(rocking+(planted?torque*2.8:0)-e.angular*.38+e.disturbance)*DT;
+    e.theta+=e.angular*DT;
+    e.vy+=(planted?force-9.81:-9.81)*DT;
+    e.height+=e.vy*DT;
+    if(e.height<.085){e.height=.085;e.vy=Math.max(0,-e.vy*.07);}
+    if(e.height>.66){e.height=.66;e.vy=Math.min(0,e.vy);}
+    const grounded=planted&&Math.abs(e.theta)<.58&&e.height>.1;
+    e.vx+=((grounded?Math.max(0,rhythm)*stride*e.traction:0)-e.vx*(grounded?3.1:5.2))*DT;
+    e.distance+=e.vx*DT;
+    e.effort=rhythm*clamp(stride/7,0,1);
+    e.energy+=(force*.014+Math.abs(torque)*.025+stride*.014)*DT;
+    const heightError=Math.abs(goal.height-e.height);
+    e.quality+=Math.exp(-heightError*8-Math.abs(e.theta)*1.9)*DT;
+    const stable=heightError<(skill===1?.075:.10)&&Math.abs(e.theta)<goal.balance&&Math.abs(e.vy)<.34;
+    e.hold=stable?e.hold+DT:0;
+    e.longest=Math.max(e.longest,e.hold);
+    e.fallen=Math.abs(e.theta)>1.04&&e.time>.24;
+  }else{
+    e.vy-=9.81*DT;
+    e.height=Math.max(.085,e.height+e.vy*DT);
+    e.theta+=(Math.sign(e.theta)*1.49-e.theta)*DT*9;
+    e.effort=0;
+    e.settle+=DT;
+  }
   e.time+=DT;
-  const duration=[1.1,2.5,2.4,3.2,4.2][skill];
-  const fallen=e.time>.45 && Math.abs(e.theta)>1.15;
-  if(!fallen && e.time<duration)return;
+  if(e.fallen?e.settle<.75:e.time<goal.duration)return;
+  const record=records[skill];
+  const stable=e.longest>=goal.hold;
+  const valid=stable&&e.distance>=goal.distance&&!e.fallen;
+  const movement=goal.distance>0?Math.min(e.distance/goal.distance,1.45):0;
+  const reward=e.quality/goal.duration+Math.min(e.longest/goal.hold,1.6)*.58+
+    movement*.35+(valid?.65:0)-(e.fallen?.38:0)-e.energy*.018;
   trials++;
-  const reward=e.standing+e.distance*2.4-e.energy*.15-(fallen?1.6:0);
-  const r=records[skill];
-  const valid=!fallen && e.standing/duration>.72 && e.distance>=[0,.28,0,.45,.8][skill];
-  if(reward>r.best){r.best=reward;r.policy=e.policy;}
-  r.success=valid?r.success+1:Math.max(0,r.success-1);
-  if(valid){r.confirmed++;pecm+=1;}
-  score=Math.round(100*e.standing/duration);
-  if(skill<4 && r.success>=12 && r.confirmed>=[400,600,800,1000][skill]){
-    note(goals[skill]+' · acquis sur plusieurs essais');
-    skill++;
+  record.attempts++;
+  record.champions.push({policy:e.policy,reward,valid});
+  record.champions.sort((a,b)=>b.reward-a.reward);
+  record.champions.length=Math.min(9,record.champions.length);
+  record.recent.push(valid);
+  if(record.recent.length>8)record.recent.shift();
+  score=Math.round(clamp(e.longest/goal.hold,0,1)*100);
+  if(valid){
+    record.confirmed++;pecm++;
+    if(record.confirmed===1)note('Alex trouve un geste qui fonctionne · '+goals[skill]+'.');
+  }
+  if(!record.mastered&&record.recent.filter(Boolean).length>=6){
+    record.mastered=true;
+    knowledge['motricité · '+goals[skill]]={visits:record.attempts,senses:['position','effort','équilibre'],type:'geste'};
+    note('Alex a retrouvé et confirmé son geste · '+goals[skill]+'.');
+    if(skill<4)skill++;
   }
   episode=newEpisode();
 }
@@ -150,8 +195,8 @@ function useDoor(p,door,s) {
   state.until=s+4.2;
   if(parent&&Math.hypot(alex.x-door.x,alex.z-door.z)<2.4&&!record.known){
     record.seen++;
-    note((p.id==='joseph'?'Joseph':'Marie')+' montre à Alex comment ouvrir la '+door.name+'.');
-    if(record.seen>=2)validateDoor(door.mechanism,record);
+    note((p.id==='joseph'?'Joseph':'Marie')+' ouvre la '+door.name+' sous les yeux d’Alex.');
+
   }
 }
 function stepKitchen(s){
@@ -207,16 +252,21 @@ function tryHouseObject(id,s){
   record.next=s+20;
   // Alex tries actions independently. Success becomes knowledge only after repetition.
   const usableAction={sofa:0,tv:2,book:1,water:2,shower:2,dishwasher:2,fireplace:2}[id];
-  const action=record.success>=2?usableAction:(record.attempts-1)%3;
+  const actions=record.actions ||= [0,0,0];
+  const leastTried=Math.min(...actions);
+  const options=actions.map((tries,action)=>tries===leastTried?action:null).filter(action=>action!==null);
+  const action=Number.isInteger(record.successfulAction)?record.successfulAction:options[Math.floor(Math.random()*options.length)];
+  actions[action]++;
   if(action!==usableAction){
     if(record.attempts===1)note('Alex essaie de comprendre '+item.name+'.');
     return;
   }
+  record.successfulAction=action;
   objectContact={id,until:s+item.duration};
   household[id]=1;
   if(++record.success===2){
     counts.cognition++;
-    knowledge[item.name]={visits:2,senses:['vision','contact','effet'],type:'objet'};
+    knowledge[item.name]={visits:2,senses:['vision','contact','effet'],type:'objet',action,effect:item.activity};
     note('Alex découvre comment utiliser le matériel · '+item.name+'.');
   }
 }
@@ -419,6 +469,56 @@ function beginEquipment(item,s){
     contact={kind:'rope',release:s+2.3};
   }
 }
+function makeGoalOptions(){
+  const options=landmarks.map(([name,x,z])=>({name,x,z,category:'exploration'}));
+  if(house){
+    options.push({name:'terrasse',x:house.trampoline.x,z:house.trampoline.entryZ,category:'exploration'});
+    for(const [id,point] of Object.entries(house.objects)){
+      options.push({...point,name:HOUSE_EFFECTS[id].name,id,category:'objet'});
+    }
+    for(const door of house.doors){
+      options.push({name:'poignée de '+door.name,x:door.x,z:door.z+(alex.z<door.z?-.24:.24),category:'exploration'});
+    }
+  }
+  for(const person of people){
+    options.push({name:person.id,x:person.x,z:person.z,category:'social',person});
+  }
+  if(alex.x>4)options.push({name:'balle',x:ball.x,z:ball.z,category:'jeu'});
+  return options;
+}
+function curiosityRecord(name){
+  return curiosity[name] ||= {choices:0,completed:0,blocked:0,retryAt:0};
+}
+function chooseGoal(s){
+  const options=makeGoalOptions();
+  let candidates=options.filter(goal=>
+    Math.hypot(goal.x-alex.x,goal.z-alex.z)<(age>2?14:9)&&curiosityRecord(goal.name).retryAt<=s);
+  if(!candidates.length)candidates=options.filter(goal=>curiosityRecord(goal.name).retryAt<=s);
+  if(!candidates.length)return null;
+  const interest=goal=>{
+    const record=curiosityRecord(goal.name);
+    const observations=knowledge[goal.name]?.visits||0;
+    const novelty=1.7/(1+observations+record.completed);
+    const unfinished=record.choices>0&&record.completed===0?.32:0;
+    const distance=Math.hypot(goal.x-alex.x,goal.z-alex.z);
+    return (novelty+unfinished+.23)/(1+distance*.115+record.blocked*.12);
+  };
+  let pick=Math.random()*candidates.reduce((sum,goal)=>sum+interest(goal),0);
+  const selected=candidates.find(goal=>(pick-=interest(goal))<=0)||candidates[0];
+  curiosityRecord(selected.name).choices++;
+  nextChoice=s+46;
+  progressAt=s;
+  closestGoal=Infinity;
+  return selected;
+}
+function finishGoal(s,completed){
+  if(!explorationTarget)return;
+  const record=curiosityRecord(explorationTarget.name);
+  if(completed)record.completed++;
+  else record.blocked++;
+  record.retryAt=s+(completed?50:20);
+  explorationTarget=null;
+}
 function experience() {
   alex.hunger=clamp(alex.hunger+DT*.002,0,1);
   alex.fatigue=clamp(alex.fatigue+DT*.0015,0,1);
@@ -430,22 +530,21 @@ function experience() {
   const usingEquipment=stepHouseObject(s)||stepPark(s);
   if(!usingEquipment){
   alex.y=Math.max(0,(alex.y||0)-DT*2.8);
-  if(skill===4 && records[4].confirmed>=12){
-    if(!explorationTarget||s>=nextChoice){
-      const weight = ([name,x,z]) => 1/(1+(knowledge[name]?.visits||0)*.22)/(1+Math.hypot(x-alex.x,z-alex.z)*.07);
-      const options=house?[...landmarks,['terrasse',house.trampoline.x,house.trampoline.entryZ],
-        ...Object.entries(house.objects).map(([id,p])=>[HOUSE_EFFECTS[id].name,p.x,p.z,id])]:landmarks;
-      let draw=Math.random()*options.reduce((sum,target)=>sum+weight(target),0);
-      explorationTarget=options.find(target=>(draw-=weight(target))<=0)||options[0];
-      if(house&&Math.random()<.25){
-        const door=house.doors[Math.floor(Math.random()*house.doors.length)];
-        explorationTarget=['poignée de '+door.name,door.x,door.z+(alex.z<door.z?-.24:.24)];
-      }
-      nextChoice=s+17+Math.random()*19;
+  if(skill===4 && records[4].mastered){
+    if(explorationTarget&&explorationTarget.person){
+      explorationTarget.x=explorationTarget.person.x;
+      explorationTarget.z=explorationTarget.person.z;
     }
-    const target=explorationTarget;
-    const friend=people[Math.floor(s/13)%people.length];
-    let goal=target, category='exploration';
+    if(explorationTarget?.category==='jeu'){
+      explorationTarget.x=ball.x;
+      explorationTarget.z=ball.z;
+    }
+    if(explorationTarget&&s>=nextChoice)finishGoal(s,false);
+    explorationTarget ||= chooseGoal(s);
+    const intention=explorationTarget;
+    const friend=intention?.person;
+    let goal=intention?[intention.name,intention.x,intention.z,intention.id]:['observe',alex.x,alex.z];
+    let category=intention?.category||'observation';
     const equipment=tryEquipment(s);
     const objects=house?.objects;
     if(alex.hunger>.66&&house?.kitchen&&kitchen.meals>0){
@@ -459,11 +558,6 @@ function experience() {
     }else if(alex.hunger>.86&&!house){goal=['repas',-2,-4];category='repas';}
     else if(alex.fatigue>.74){goal=['repos',-7,2];category='repos';}
     else if(equipment){goal=[equipment.name,equipment.x,equipment.z];category='équipement';}
-    else if(Math.floor(s/10)%4===2){goal=[friend.id,friend.x,friend.z];category='social';}
-    else if(alex.x>5 && Math.hypot(alex.x-ball.x,alex.z-ball.z)<2.8){
-      goal=['balle',ball.x,ball.z];category='jeu';
-    }
-    if(category==='exploration'&&goal[3])category='objet';
     alex.activity=category==='objet'?'Explore · '+goal[0]:category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category==='équipement'?'Observe · '+goal[0]:category;
     let [destinationX,destinationZ]=goal.slice(1);
     const crossing=(alex.x<-.5)!==(destinationX<-.5);
@@ -481,12 +575,23 @@ function experience() {
           alex.z:entrance.z+targetSide*.48;
       }
     }
-    const near=move(alex,destinationX,destinationZ,clamp(episode.vx*4,.24,1.35));
+    const learnedStride=records[4].champions.find(candidate=>candidate.valid)?.policy[7]||0;
+    const near=move(alex,destinationX,destinationZ,clamp(learnedStride*.17,.24,1.35));
     if(category==='équipement'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.23) beginEquipment(equipment,s);
-    if(category==='objet'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.22)tryHouseObject(goal[3],s);
-    if(category!=='objet'&&category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock){
+    const pursuingIntention=intention&&goal[0]===intention.name&&category===intention.category;
+    if(pursuingIntention){
+      const distance=Math.hypot(alex.x-goal[1],alex.z-goal[2]);
+      if(distance<closestGoal-.16){closestGoal=distance;progressAt=s;}
+      if(distance>1&&s-progressAt>22)finishGoal(s,false);
+    }
+    if(category==='objet'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.22){
+      tryHouseObject(goal[3],s);
+      if(objectContact&&pursuingIntention)finishGoal(s,true);
+    }
+    if(category!=='observation'&&category!=='objet'&&category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock){
       eventClock=s+3;
       learn(goal[0],category);
+      if(pursuingIntention)finishGoal(s,true);
       if(category==='repas'||category==='repos'){
         counts.life++;
         if(category==='repas'){
@@ -505,11 +610,21 @@ function experience() {
         ball.vx=Math.sin(alex.heading)*2;ball.vz=Math.cos(alex.heading)*2;
       }
     }
-  } else alex.activity=goals[skill];
-  alex.pose=skill===0?clamp(1-episode.height*2.5,.25,1):skill===1?.83:0;
-  alex.tilt=episode.theta;
-  alex.effort=skill>=3||skill===1?Math.sin(episode.phase)*.75:0;
-  if(skill<4)alex.phase=episode.phase;
+    alex.pose=0;
+    alex.tilt=0;
+    alex.effort=Math.sin(alex.phase)*.65;
+  }else{
+    alex.activity=episode.fallen?'Perd l’équilibre · recommence ensuite':goals[skill];
+    alex.pose=clamp(1-(episode.height-.085)/.40,0,1);
+    alex.tilt=episode.fallen?Math.sign(episode.theta)*1.25:episode.theta;
+    alex.effort=episode.effort;
+    alex.phase=episode.phase;
+    if((skill===1||skill>=3)&&!episode.fallen){
+      const center=alex.practiceZ??=alex.z;
+      if(!episode.direction)episode.direction=alex.z>=center?-1:1;
+      alex.z=clamp(alex.z+episode.direction*Math.min(.42,episode.vx)*DT,Math.max(-11.5,center-.8),Math.min(11.5,center+.8));
+    }
+  }
   }
   for(let i=0;i<people.length;i++){
     const p=people[i];
@@ -544,7 +659,7 @@ function snapshot() {
   return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed};
 }
 function save() {
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill};
+  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -557,6 +672,10 @@ onmessage=({data})=>{
     const s=data.state;
     if(!Array.isArray(s.records)||s.records.length!==5||!Number.isFinite(s.ticks))return;
     ({ticks,trials,pecm,skill,age,score,counts,journal,records,knowledge,eventClock}=s);
+    if(s.motorVersion!==MOTOR_VERSION)records=goals.map((_,i)=>({
+      ...emptyRecord(), mastered:i<skill, confirmed:i<skill?(s.records[i]?.confirmed||0):0
+    }));
+    Object.assign(curiosity,s.curiosity);
     Object.assign(alex,s.alex);
     Object.assign(parkMemory,s.parkMemory);
     Object.assign(doorKnowledge,s.doorKnowledge);

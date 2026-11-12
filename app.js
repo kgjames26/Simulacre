@@ -4,7 +4,7 @@ const stages = ['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
 const format = new Intl.NumberFormat('fr-BE');
 const saveKey = 'alex-simulacre-v3';
 const worker = new Worker('/sim.js');
-let snapshot, human = false, lastJournal = '';
+let snapshot, human = true, lastJournal = '';
 const personNames={alex:'Alex',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Françoise',rose:'Rose'};
 let followedPerson='alex', following=false;
 function showFollowState(){
@@ -70,9 +70,9 @@ worker.onerror=()=>{ui('mode').textContent='Simulation interrompue';};
 ui('speed').onclick=()=>{
   human=!human;
   worker.postMessage({type:'mode',mode:human?'human':'turbo'});
-  ui('speed').setAttribute('aria-pressed',String(human));
-  ui('speed').textContent=human?'Réaccélérer':'Passer en temps réel';
-  ui('mode').textContent=human?'Temps réel · ×1':'Simulation accélérée';
+  ui('speed').setAttribute('aria-pressed',String(!human));
+  ui('speed').textContent=human?'Accélérer':'Revenir à vitesse normale';
+  ui('mode').textContent=human?'Vitesse normale · ×1':'Simulation accélérée';
 };
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);
 
@@ -215,8 +215,11 @@ function softwareRenderer(T){
         }
         const size=object.scale.x*factor;
         context.strokeStyle=style.suit;context.lineWidth=Math.max(2,size*.19);context.lineCap='round';
-        context.beginPath();context.moveTo(x,y-size*.17);context.lineTo(x,y-size*.49);context.stroke();
-        context.fillStyle=style.skin;context.beginPath();context.arc(x,y-size*.62,Math.max(2,size*.16),0,Math.PI*2);context.fill();
+        const lean=object.rotation.x, crouch=style.crouch||0;
+        const reach=size*(1-crouch*.52);
+        const leanX=Math.sin(lean)*reach*.45, upright=Math.cos(lean)*reach;
+        context.beginPath();context.moveTo(x,y-upright*.17);context.lineTo(x+leanX,y-upright*.49);context.stroke();
+        context.fillStyle=style.skin;context.beginPath();context.arc(x+leanX*1.3,y-upright*.62,Math.max(2,size*.16),0,Math.PI*2);context.fill();
       }
     }
   };
@@ -601,10 +604,11 @@ async function showWorld(){
         actor.root.scale.setScalar(size);
         actor.root.position.lerp(point.set(p.x,p.y||0,p.z),1-Math.exp(-dt*(human?22:12)));
         actor.root.rotation.y=p.heading;
-        actor.root.rotation.x=main?Math.max(-.45,Math.min(.45,p.tilt)):0;
+        actor.root.rotation.x=main?Math.max(-1.25,Math.min(1.25,p.tilt)):0;
         followTime+=main?dt:0;
-        actor.gait.value=main&&snapshot.skill<3?p.effort:Math.sin(human?p.phase:followTime*7+actor.profile.scale*8)*.6;
+        actor.gait.value=main?p.effort:Math.sin(human?p.phase:followTime*7+actor.profile.scale*8)*.6;
         actor.crouch.value=main?p.pose:0;
+        actor.root.userData.crouch=actor.crouch.value;
         point.copy(actor.root.position);point.y+=size*(1-actor.crouch.value*.43)+.25;point.project(camera);
         actor.label.hidden=Math.abs(point.x)>1.04||Math.abs(point.y)>1.04;
         actor.label.style.left=(point.x*.5+.5)*100+'%';
