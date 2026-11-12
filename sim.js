@@ -39,7 +39,8 @@ let knowledge = {};
 let counts = {life:0,cognition:0,play:0,social:0};
 let journal = [];
 let interactions = [];
-let ticks=0, trials=0, pecm=0, skill=0, age=0, score=0, mode='human';\nlet nextParentCare=0;
+let ticks=0, trials=0, pecm=0, skill=0, age=0, score=0, mode='human';
+let nextParentCare=0;
 let records=goals.map(emptyRecord);
 let alex={x:-8,z:-2,heading:0,phase:0,pose:0,tilt:0,effort:0,hunger:.1,fatigue:.05,activity:'Découvre le salon'};
 const ball=playItems.football;
@@ -691,7 +692,8 @@ function experience() {
         continue;
       }
     }else p.moving=false;
-    p.activity='Se déplace';
+    if(i<2&&age<7&&s%54<34){goalX=alex.x+(i===0?-.72:.72);goalZ=alex.z+(i===0?.55:-.55);p.activity='Va voir Néo';}
+    else p.activity='Se déplace';
     let goalX=p.homeX+Math.sin(s*.21+i)*1.1;
     let goalZ=p.homeZ+Math.cos(s*.18+i)*1.2;
     if(house&&i<3){
@@ -727,6 +729,14 @@ function experience() {
         }else{p.pose=1;p.tilt=1.1;p.activity='Observe le parc';}
       }
     }else move(p,goalX,goalZ,.75);
+    if(i<2&&age<7&&Math.hypot(p.x-alex.x,p.z-alex.z)<1.35&&s>=nextParentCare&&(alex.hunger>.24||alex.fatigue>.48||(alex.thirst||0)>.45)){
+      if(alex.hunger>.24){if(kitchen.meals>0)takeServing(alex);else alex.hunger=Math.max(.08,alex.hunger-.38);}
+      if(alex.fatigue>.48)alex.fatigue=Math.max(.12,alex.fatigue-.28);
+      if((alex.thirst||0)>.45)alex.thirst=Math.max(.1,alex.thirst-.35);
+      alex.pleasure=clamp((alex.pleasure||0)+.18,0,1);
+      p.activity='Prend soin de Néo';nextParentCare=s+18;
+      note(characterNames[p.id]+' prend soin de Néo.','care');
+    }
     for(const id of ['football','softBall','bikePark','bikeHome','toy']){
       const item=playItems[id];
       if(Math.hypot(p.x-item.x,p.z-item.z)<.49)tryPlayObject(p,id,s);
@@ -757,7 +767,8 @@ function snapshot() {
     const shared={skills:records.flatMap((record,i)=>record.mastered?[goals[i]]:[]),discoveries:names,vocabulary};
     for(const p of people){
       if(playgroundFriends.includes(p.id))p.age=age;
-      p.inherited=names.length+vocabulary.length;\n       p.learnedFromNeo=[...names,...vocabulary];
+      p.inherited=names.length+vocabulary.length;
+       p.learnedFromNeo=[...names,...vocabulary];
       p.baseWords=familyLexicons[p.id]?.size||0;
     }
     activityData={equipment:parkMemory,gate:milestones[age],events:interactions,shared,
