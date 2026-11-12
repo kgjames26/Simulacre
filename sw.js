@@ -1,4 +1,4 @@
-const CACHE = 'alex-shell-v4';
+const CACHE = 'alex-shell-v5';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/styles.css', '/app.js', '/sim.js'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

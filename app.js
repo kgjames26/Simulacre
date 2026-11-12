@@ -152,6 +152,12 @@ function softwareRenderer(T){
         const [x,y]=project(screen.copy(object.position).project(camera),camera);
         const style=object.userData;
         const factor=height/(camera.top-camera.bottom);
+        if(style.rope){
+          const [ax,ay]=project(screen.copy(style.anchor).project(camera),camera);
+          const [bx,by]=project(screen.copy(style.end).project(camera),camera);
+          context.strokeStyle='#6a4b32';context.lineWidth=Math.max(2,.045*factor);
+          context.beginPath();context.moveTo(ax,ay);context.lineTo(bx,by);context.stroke();continue;
+        }
         if(style.ball){
           context.fillStyle='#f9b650';context.beginPath();context.arc(x,y,Math.max(2,.21*factor),0,Math.PI*2);context.fill();continue;
         }
@@ -221,6 +227,8 @@ async function showWorld(){
   const ball=new T.Mesh(new T.SphereGeometry(.21,18,12),mat('#f9b650'));ball.userData={dynamic:true,ball:true};scene.add(ball);
   const parse=(loader,data)=>new Promise((resolve,reject)=>loader.parse(data,'',resolve,reject));
   const actors=[];
+  let physicalRope;
+  const ropeUp=new T.Vector3(0,1,0);
   const failures=[];
   let ready=0;
   function load(name, task){
@@ -246,11 +254,39 @@ async function showWorld(){
     const manager=new T.LoadingManager();
     manager.setURLModifier(url=>urls.get(decodeURIComponent(url.replace(/^\.\//,'')))||url);
     try{
-      const {scene:park}=await parse(new GLTFLoader(manager),new TextDecoder().decode(files.get('scene.gltf')));
+      const {scene:park,parser}=await parse(new GLTFLoader(manager),new TextDecoder().decode(files.get('scene.gltf')));
       const bounds=new T.Box3().setFromObject(park), span=bounds.getSize(new T.Vector3()), center=bounds.getCenter(new T.Vector3());
       const s=12/Math.max(span.x,span.z);
       park.scale.setScalar(s);park.position.set(10-center.x*s,.05-bounds.min.y*s,3-center.z*s);
       scene.add(park);
+      park.updateMatrixWorld(true);
+      const worldPoint=(x,z,height)=>park.localToWorld(new T.Vector3(x,height,-z));
+      // Surface sampled down the center of Cyprus mesh 27.
+      const heights=[59.2,59.2,55.7,51.1,47.6,45.1,42.6,39.3,35.6,30.8,25.3,20.5,15.8,12,8.5,5.7,3.8];
+      const slide=heights.map((height,i)=>worldPoint(190+5*i,-34.6,height).toArray());
+      const anchor=worldPoint(58.1,-21.14,98.43);
+      const end=worldPoint(58.1,-21.14,4.71);
+      const length=anchor.distanceTo(end);
+      // Replace this strand in the rendered copy. Keep the rest of the rope mesh.
+      park.traverse(mesh=>{
+        if(!mesh.isMesh||parser.associations.get(mesh)?.meshes!==13)return;
+        const geometry=mesh.geometry.clone();
+        const positions=geometry.getAttribute('position');
+        const index=geometry.index;
+        if(!index)return;
+        const indices=[];
+        for(let i=0;i<index.count;i+=3){
+          const triangle=[index.getX(i),index.getX(i+1),index.getX(i+2)];
+          if(triangle.every(vertex=>positions.getX(vertex)>57&&positions.getX(vertex)<60))continue;
+          indices.push(...triangle);
+        }
+        geometry.setIndex(indices);
+        mesh.geometry=geometry;
+      });
+      physicalRope=new T.Mesh(new T.CylinderGeometry(.035,.035,1,9),mat('#6a4b32'));
+      physicalRope.userData={dynamic:true,rope:true,anchor,end};
+      scene.add(physicalRope);
+      worker.postMessage({type:'park',geometry:{slide:slide.map(([x,y,z])=>({x,y,z})),rope:{x:anchor.x,y:anchor.y,z:anchor.z,length}}});
     }finally{for(const url of urls.values())URL.revokeObjectURL(url);}
   })());
   load('personnages', (async()=>{
@@ -304,18 +340,26 @@ async function showWorld(){
     const dt=Math.min(.05,(now-last)/1000);last=now;
     if(snapshot){
       ball.position.set(snapshot.ball.x,.21,snapshot.ball.z);
+      if(physicalRope){
+        const {anchor,end}=physicalRope.userData;
+        if(snapshot.ropeEnd)end.set(snapshot.ropeEnd.x,snapshot.ropeEnd.y,snapshot.ropeEnd.z);
+        physicalRope.position.copy(anchor).lerp(end,.5);
+        const direction=point.copy(anchor).sub(end);
+        physicalRope.scale.y=direction.length();
+        physicalRope.quaternion.setFromUnitVectors(ropeUp,direction.normalize());
+      }
       for(const actor of actors){
         const p=actor.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===actor.id);
         const main=actor.id==='alex';
         const size=(main?actor.ageProfiles[snapshot.age].scale:actor.profile.scale)*1.85;
         actor.root.scale.setScalar(size);
-        actor.root.position.lerp(point.set(p.x,0,p.z),1-Math.exp(-dt*(human?22:12)));
+        actor.root.position.lerp(point.set(p.x,p.y||0,p.z),1-Math.exp(-dt*(human?22:12)));
         actor.root.rotation.y=p.heading;
         actor.root.rotation.x=main?Math.max(-.45,Math.min(.45,p.tilt)):0;
         followTime+=main?dt:0;
         actor.gait.value=main&&snapshot.skill<3?p.effort:Math.sin(human?p.phase:followTime*7+actor.profile.scale*8)*.6;
         actor.crouch.value=main?p.pose:0;
-        point.copy(actor.root.position);point.y=size*(1-actor.crouch.value*.43)+.25;point.project(camera);
+        point.copy(actor.root.position);point.y+=size*(1-actor.crouch.value*.43)+.25;point.project(camera);
         actor.label.style.left=(point.x*.5+.5)*100+'%';
         actor.label.style.top=(.5-point.y*.5)*100+'%';
       }

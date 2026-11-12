@@ -21,7 +21,7 @@ const landmarks = [
   ['tapis',-8,2],['baie',-1,1],['table',-5,-3],['cuisine',-2,-4],
   ['salon',-8,-2],['couloir',-7,0],['lettre A',-8,3],['lettre L',-5,1],['lettre E',-3,2],
   ['lettre X',-1,2],['jardin',3,4],['chemin',5,3],['parc',8,5],['gravier',11,5],
-  ['bordure',14,5],['corde',10,3],['bois',12,4],['toboggan',13,2]
+  ['bordure',14,5],['bois',12,4]
 ];
 let knowledge = {};
 let counts = {life:0,cognition:0,play:0,social:0};
@@ -30,6 +30,12 @@ let ticks=0, trials=0, pecm=0, skill=0, age=0, score=0, mode='turbo';
 let records = goals.map(()=>({best:-1e9,policy:[...initial],success:0,confirmed:0}));
 let alex={x:-6.7,z:2.6,heading:0,phase:0,pose:0,tilt:0,effort:0,hunger:.1,fatigue:.05,activity:'Premiers mouvements'};
 let ball={x:9,z:7,vx:0,vz:0};
+let park=null;
+let contact=null;
+const rope={angle:0,angular:0};
+const parkMemory={slide:0,rope:0};
+const equipmentSeen={slide:0,rope:0};
+const parkCooldown={slide:0,rope:0};
 let explorationTarget=null, nextChoice=0;
 let eventClock=0, episode, lastWall=performance.now(), accumulator=0;
 function note(message) {
@@ -104,10 +110,107 @@ function move(p,x,z,speed) {
   p.phase+=step*8;
   return d;
 }
+function slideSurface(x) {
+  const points=park.slide;
+  const i=points.findIndex(point=>point.x>=x);
+  const right=points[Math.max(1,i<0?points.length-1:i)];
+  const left=points[Math.max(0,i<0?points.length-2:i-1)];
+  const slope=(right.y-left.y)/(right.x-left.x);
+  return {y:left.y+slope*(x-left.x),slope};
+}
+function ropeEnd() {
+  const {x,y,z,length}=park.rope;
+  return {x:x+Math.sin(rope.angle)*length,y:y-Math.cos(rope.angle)*length,z};
+}
+function parkObservation(id,message) {
+  parkMemory[id]++;
+  counts.play++;
+  if(parkMemory[id]===1) {
+    counts.cognition++;
+    knowledge[id==='slide'?'toboggan':'corde']={visits:1,senses:['vision','contact','mouvement'],type:'jeu'};
+    note(message);
+  }
+}
+function stepPark(s) {
+  if(!park)return false;
+  const hanging=contact?.kind==='rope';
+  const acceleration=-9.81/park.rope.length*Math.sin(rope.angle)-rope.angular*(hanging?.45:1.1);
+  rope.angular+=acceleration*DT;
+  rope.angle+=rope.angular*DT;
+  if(!contact)return false;
+  if(contact.kind==='rope'){
+    const end=ropeEnd();
+    alex.x=end.x;alex.z=end.z;alex.y=Math.max(0,end.y-.21);
+    alex.activity='Se suspend à la corde';
+    alex.pose=.17;alex.tilt=-rope.angle;alex.effort=0;
+    if(s>=contact.release){
+      parkObservation('rope','Alex découvre que son poids fait osciller la corde.');
+      parkCooldown.rope=s+28;
+      contact=null;
+    }
+    return true;
+  }
+  const top=park.slide[0], bottom=park.slide.at(-1);
+  if(contact.kind==='climb'){
+    alex.activity='Remonte la pente du toboggan';
+    alex.x=Math.max(top.x,alex.x-DT*.52);
+    alex.heading=-Math.PI/2;
+    alex.phase+=DT*7;
+    if(alex.x<=top.x)contact={kind:'slide',velocity:.25};
+  }else{
+    alex.activity='Glisse sur le toboggan';
+    const {slope}=slideSurface(alex.x);
+    const normal=Math.hypot(1,slope);
+    contact.velocity=Math.max(.12,contact.velocity+DT*(-9.81*slope/normal-.18*9.81/normal));
+    alex.x=Math.min(bottom.x,alex.x+contact.velocity/normal*DT);
+    alex.heading=Math.PI/2;
+    if(alex.x>=bottom.x){
+      parkObservation('slide','Alex découvre que la pente accélère sa descente.');
+      parkCooldown.slide=s+33;
+      contact=null;
+    }
+  }
+  alex.z=bottom.z;alex.y=slideSurface(alex.x).y;
+  alex.pose=contact?.kind==='climb'?.38:.66;
+  alex.tilt=0;alex.effort=0;
+  return true;
+}
+function tryEquipment(s) {
+  if(!park||alex.x<4)return null;
+  const bottom=park.slide.at(-1), end=ropeEnd();
+  const items=[{id:'slide',name:'toboggan',x:bottom.x,z:bottom.z},{id:'rope',name:'corde',x:end.x,z:end.z}];
+  let best=null;
+  let bestScore=.04;
+  for(const item of items){
+    const distance=Math.hypot(item.x-alex.x,item.z-alex.z);
+    if(distance>4||s<parkCooldown[item.id])continue;
+    if(equipmentSeen[item.id]===0){
+      equipmentSeen[item.id]=1;
+      note('Alex remarque '+(item.id==='slide'?'le toboggan.':'la corde.'));
+    }
+    const value=(1+.25*Math.log1p(parkMemory[item.id]))/(1+distance*distance);
+    if(value>bestScore){bestScore=value;best=item;}
+  }
+  return best;
+}
+function beginEquipment(item,s){
+  if(item.id==='slide'){
+    contact={kind:'climb'};
+    alex.x=park.slide.at(-1).x;
+    alex.z=park.slide.at(-1).z;
+  }else{
+    const direction=Math.sin(alex.heading)||1;
+    rope.angular+=direction*.87;
+    contact={kind:'rope',release:s+2.3};
+  }
+}
 function experience() {
   alex.hunger=clamp(alex.hunger+DT*.002,0,1);
   alex.fatigue=clamp(alex.fatigue+DT*.0015,0,1);
   const s=ticks*DT;
+  const usingEquipment=stepPark(s);
+  if(!usingEquipment){
+  alex.y=Math.max(0,(alex.y||0)-DT*2.8);
   if(skill===4 && records[4].confirmed>=12){
     if(!explorationTarget||s>=nextChoice){
       const weight = ([name,x,z]) => 1/(1+(knowledge[name]?.visits||0)*.22)/(1+Math.hypot(x-alex.x,z-alex.z)*.07);
@@ -118,13 +221,15 @@ function experience() {
     const target=explorationTarget;
     const friend=people[Math.floor(s/13)%people.length];
     let goal=target, category='exploration';
+    const equipment=tryEquipment(s);
     if(alex.hunger>.66){goal=['repas',-2,-4];category='repas';}
     else if(alex.fatigue>.74){goal=['repos',-7,2];category='repos';}
+    else if(equipment){goal=[equipment.name,equipment.x,equipment.z];category='équipement';}
     else if(Math.floor(s/10)%4===2){goal=[friend.id,friend.x,friend.z];category='social';}
     else if(alex.x>5 && Math.hypot(alex.x-ball.x,alex.z-ball.z)<2.8){
       goal=['balle',ball.x,ball.z];category='jeu';
     }
-    alex.activity=category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category;
+    alex.activity=category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category==='équipement'?'Observe · '+goal[0]:category;
     let [destinationX,destinationZ]=goal.slice(1);
     const crossing=(alex.x<-.5)!==(destinationX<-.5);
     if(crossing&&Math.abs(alex.z-4)>.45){
@@ -132,7 +237,8 @@ function experience() {
       destinationZ=4;
     }else if(crossing)destinationZ=4;
     const near=move(alex,destinationX,destinationZ,clamp(episode.vx*4,.24,1.35));
-    if(near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock){
+    if(category==='équipement'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.23) beginEquipment(equipment,s);
+    if(category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock){
       eventClock=s+3;
       learn(goal[0],category);
       if(category==='repas'||category==='repos'){
@@ -154,6 +260,7 @@ function experience() {
   alex.tilt=episode.theta;
   alex.effort=skill>=3||skill===1?Math.sin(episode.phase)*.75:0;
   if(skill<4)alex.phase=episode.phase;
+  }
   for(let i=0;i<people.length;i++){
     const p=people[i];
     const goalX=p.homeX+Math.sin(s*.21+i)*1.1;
@@ -174,18 +281,21 @@ function experience() {
   }
 }
 function snapshot() {
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,validated:records[4].confirmed};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,validated:records[4].confirmed};
 }
 function save() {
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen};
 }
 onmessage=({data})=>{
+  if(data.type==='park'&&data.geometry.slide.length>1)park=data.geometry;
   if(data.type==='mode'){mode=data.mode;accumulator=0;lastWall=performance.now();}
   if(data.type==='restore'&&data.state){
     const s=data.state;
     if(!Array.isArray(s.records)||s.records.length!==5||!Number.isFinite(s.ticks))return;
     ({ticks,trials,pecm,skill,age,score,counts,journal,records,knowledge,eventClock}=s);
     Object.assign(alex,s.alex);
+    Object.assign(parkMemory,s.parkMemory);
+    Object.assign(equipmentSeen,s.equipmentSeen);
     Object.assign(ball,s.ball);
     people.forEach((p,i)=>Object.assign(p,s.people[i]));
     episode=newEpisode();
