@@ -1,4 +1,4 @@
-importScripts('/dialogue.js');
+importScripts('/dialogue.js','/collision-map.js','/navigation.js');
 const dialogue=createDialogue();
 const DT = 1 / 120;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -39,7 +39,7 @@ function stepJoints(e,rhythm){
 }
 const goals = ['Se redresser', 'Ramper', 'Tenir debout', 'Faire ses premiers pas', 'Marcher'];
 const people = [
-  ['joseph', -7, 1], ['marie', -4, 2], ['juliette', -5, -1],
+  ['joseph', -7, 1], ['marie', -4, 2], ['juliette', -5, 1.45],
   ['timeo', 8, 4], ['nathan', 10, 6], ['francoise', 12, 3], ['rose', 14, 5]
 ].map(([id,x,z])=>({id,x,z,homeX:x,homeZ:z,heading:0,phase:0,bond:0,inherited:0}));
 const bounds = {x:19,z:12};
@@ -67,7 +67,7 @@ let alex={x:-6.7,z:2.6,heading:0,phase:0,pose:0,tilt:0,effort:0,hunger:.1,fatigu
 let ball={x:9,z:7,vx:0,vz:0};
 let park=null;
 let house=null;
-const kitchen={ingredients:8,meals:0,fridge:0,oven:0};
+const kitchen={ingredients:8,meals:0,servings:[],fridge:0,oven:0,ovenTemperature:22,lastQuality:null};
 const household={};
 const objectLearning={};
 const cooks={};
@@ -83,6 +83,7 @@ const HOUSE_EFFECTS={
 };
 const doorKnowledge={};
 const doorStates={};
+importScripts('/home.js');
 let trampolineCooldown=0;
 let membrane=0;
 let contact=null;
@@ -226,56 +227,11 @@ function useDoor(p,door,s) {
     if(record.success>=2)validateDoor(door.mechanism,record);
   }
   state.until=s+4.2;
-  if(parent&&Math.hypot(alex.x-door.x,alex.z-door.z)<2.4&&!record.known){
+  if(parent&&(alex.floor||0)===(door.floor||0)&&Math.hypot(alex.x-door.x,alex.z-door.z)<2.4&&!record.known){
     record.seen++;
     note((p.id==='joseph'?'Joseph':'Marie')+' ouvre la '+door.name+' sous les yeux d’Alex.');
 
   }
-}
-function stepKitchen(s){
-  if(!house?.kitchen)return;
-  if(s>=nextRefill){
-    kitchen.ingredients=Math.min(8,kitchen.ingredients+1);
-    nextRefill=s+19;
-  }
-  const wantsFridge=Object.values(cooks).some(cook=>cook.phase==='take');
-  const wantsOven=Object.values(cooks).some(cook=>cook.phase==='cook');
-  kitchen.fridge+=clamp((wantsFridge?1:0)-kitchen.fridge,-DT*2,DT*2);
-  kitchen.oven=wantsOven?1:0;
-}
-function cookMeal(person,s){
-  if(!house?.kitchen)return false;
-  const cook=cooks[person.id] ||= {phase:'idle',next:s+(person.id==='joseph'?2:20)};
-  const {fridge,stove}=house.kitchen;
-  if(cook.phase==='idle'){
-    if(s<cook.next||kitchen.ingredients===0||kitchen.meals>=5)return false;
-    cook.phase='fetch';
-  }
-  if(cook.phase==='fetch'){
-    person.activity='Va chercher des ingrédients';
-    if(move(person,fridge.x,fridge.z,.95)<.16){
-      cook.phase='take';
-      cook.until=s+2.1;
-    }
-  }else if(cook.phase==='take'){
-    person.activity='Ouvre le frigo';
-    if(s>=cook.until){
-      if(kitchen.ingredients>0){kitchen.ingredients--;cook.phase='stove';}
-      else {cook.phase='idle';cook.next=s+8;}
-    }
-  }else if(cook.phase==='stove'){
-    person.activity='Apporte les ingrédients au plan de travail';
-    if(move(person,stove.x,stove.z,.95)<.16){cook.phase='cook';cook.until=s+10;}
-  }else{
-    person.activity='Prépare le repas';
-    if(s>=cook.until){
-      kitchen.meals=Math.min(6,kitchen.meals+2);
-      note((person.id==='joseph'?'Joseph':'Marie')+' prépare deux portions dans la cuisine.');
-      cook.phase='idle';
-      cook.next=s+29;
-    }
-  }
-  return true;
 }
 function tryHouseObject(id,s){
   const record=objectLearning[id] ||= {attempts:0,success:0,next:0};
@@ -324,30 +280,48 @@ function stepDoors(s){
   if(!house)return;
   for(const door of house.doors){
     const state=doorStates[door.id];
-    const occupied=[alex,...people].some(p=>Math.abs(p.x-door.x)<door.width/2+.12&&Math.abs(p.z-door.z)<.28);
+    const occupied=[alex,...people].some(p=>doorNear(p,door,.28,.12));
     const target=state.until>s||occupied&&state.amount>.72?1:0;
     state.amount+=clamp(target-state.amount,-DT*1.75,DT*1.75);
   }
 }
-function move(p,x,z,speed) {
-  const dx=x-p.x,dz=z-p.z,d=Math.hypot(dx,dz);
-  if(d<.09)return d;
-  const step=Math.min(d,speed*DT);
-  const nextX=clamp(p.x+dx/d*step,-bounds.x+.5,bounds.x-.5);
-  const nextZ=clamp(p.z+dz/d*step,-bounds.z+.5,bounds.z-.5);
+function doorNear(p,door,depth,padding){
+  if((p.floor||0)!==(door.floor||0))return false;
+  const across=door.axis==='x';
+  return Math.abs(across?p.x-door.x:p.z-door.z)<depth&&
+    Math.abs(across?p.z-door.z:p.x-door.x)<door.width/2+padding;
+}
+function walkStep(p,x,z){
+  if(!navigation.clear(p.x,p.z,x,z,p.floor||0))return false;
   for(const door of house?.doors||[]){
-    if(Math.abs(p.x-door.x)>door.width/2+.13||Math.abs(p.z-door.z)>.58)continue;
+    if(!doorNear(p,door,.49,.10))continue;
     useDoor(p,door,ticks*DT);
-    if(door.passage&&doorStates[door.id].amount<.78){
-      const side=Math.sign(p.z-door.z)||1;
-      if(side*(nextZ-door.z)<.14&&Math.abs(nextZ-door.z)<Math.abs(p.z-door.z))return d;
-    }
+    if(!door.passage||doorStates[door.id].amount>=.84)continue;
+    const across=door.axis==='x';
+    const current=across?p.x-door.x:p.z-door.z;
+    const next=across?x-door.x:z-door.z;
+    if((Math.sign(current)||1)*next<.18&&Math.abs(next-current)>1e-7&&
+      Math.abs(next)<Math.abs(current)+Math.abs(next-current)*.1){askDoorHelp(p,door);return false;}
   }
-  p.x=nextX;
-  p.z=nextZ;
-  p.heading=Math.atan2(dx,dz);
-  p.phase+=step*8;
-  return d;
+  p.x=x;p.z=z;
+  return true;
+}
+function move(p,x,z,speed) {
+  x=clamp(x,-bounds.x+.5,bounds.x-.5);
+  z=clamp(z,-bounds.z+.5,bounds.z-.5);
+  const distance=Math.hypot(x-p.x,z-p.z);
+  if(distance<.072)return distance;
+  const target=navigation.next(p,x,z,p.floor||0,ticks*DT);
+  if(!target)return distance;
+  const dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);
+  if(d<.001)return distance;
+  const step=Math.min(d,speed*DT);
+  if(walkStep(p,p.x+dx/d*step,p.z+dz/d*step)){
+    p.heading=Math.atan2(dx,dz);
+    p.phase+=step*8;
+    p.moving=true;
+  }
+  return distance;
 }
 function slideSurface(x) {
   const points=park.slide;
@@ -380,11 +354,12 @@ function stepTrampoline(s){
   t.time+=DT;
   if(t.mount){
     const step=DT*.92;
-    alex.z=Math.min(bed.z,alex.z+step);
-    alex.y=Math.min(bed.y,(alex.y||0)+step*.9);
+    alex.x=Math.max(bed.x,alex.x-step);
+    alex.z=bed.z;
+    alex.y=bed.y*clamp((bed.entryX-alex.x)*2.2,0,1);
     alex.activity='Monte sur le trampoline';
     alex.pose=.27;
-    if(alex.z>=bed.z-.08){t.mount=false;alex.y=bed.y;t.velocity=2.6;t.time=0;}
+    if(alex.x<=bed.x+.08){t.mount=false;alex.y=bed.y;t.velocity=2.6;t.time=0;}
     return true;
   }
   const mass=12+age*6;
@@ -410,15 +385,26 @@ function stepTrampoline(s){
 }
 function leaveTrampoline(){
   const bed=house.trampoline;
-  alex.z-=DT*.95;
+  alex.x+=DT*.95;
   alex.activity='Descend du trampoline';
-  if(alex.z<=bed.entryZ+.35)alex.y=Math.max(0,alex.y-DT*2.1);
+  if(alex.x>=bed.entryX-.42)alex.y=Math.max(0,alex.y-DT*2.1);
   membrane*=Math.exp(-DT*14);
-  if(alex.z<=bed.entryZ-.15&&alex.y<=0)contact=null;
+  if(alex.x>=bed.entryX&&alex.y<=0)contact=null;
   return true;
 }
 function stepPark(s) {
   if(contact?.kind==='trampoline-exit')return leaveTrampoline();
+  if(contact?.kind==='park-exit'){
+    const destination=contact.destination;
+    const d=Math.hypot(alex.x-destination.x,alex.z-destination.z);
+    const fraction=Math.min(1,DT*.78/Math.max(.001,d));
+    alex.x+=(destination.x-alex.x)*fraction;
+    alex.z+=(destination.z-alex.z)*fraction;
+    alex.y=Math.max(0,alex.y-DT*1.8);
+    alex.activity='Reprend appui au sol';
+    if(d<.015&&alex.y===0)contact=null;
+    return true;
+  }
   if(stepTrampoline(s))return true;
   if(!park)return false;
   const hanging=contact?.kind==='rope';
@@ -454,11 +440,21 @@ function stepPark(s) {
     if(s>=contact.release){
       parkObservation('rope','Alex découvre que son poids fait osciller la corde.');
       parkCooldown.rope=s+28;
-      contact=null;
+      contact={kind:'park-exit',destination:park.approaches.rope};
     }
     return true;
   }
   const top=park.slide[0], bottom=park.slide.at(-1);
+  if(contact.kind==='slide-entry'){
+    const d=Math.hypot(alex.x-bottom.x,alex.z-bottom.z);
+    const fraction=Math.min(1,DT*.65/Math.max(.001,d));
+    alex.x+=(bottom.x-alex.x)*fraction;
+    alex.z+=(bottom.z-alex.z)*fraction;
+    alex.y=Math.min(bottom.y,(alex.y||0)+DT*.45);
+    alex.activity='Prend appui sur le toboggan';
+    if(d<.015)contact={kind:'climb'};
+    return true;
+  }
   if(contact.kind==='climb'){
     alex.activity='Remonte la pente du toboggan';
     alex.x=Math.max(top.x,alex.x-DT*.52);
@@ -475,7 +471,7 @@ function stepPark(s) {
     if(alex.x>=bottom.x){
       parkObservation('slide','Alex découvre que la pente accélère sa descente.');
       parkCooldown.slide=s+33;
-      contact=null;
+      contact={kind:'park-exit',destination:park.approaches.slide};
     }
   }
   alex.z=bottom.z;alex.y=slideSurface(alex.x).y;
@@ -486,12 +482,13 @@ function stepPark(s) {
 function tryEquipment(s) {
   const items=[];
   if(park&&alex.x>=4){
-    const bottom=park.slide.at(-1),end=ropeEnd();
-    items.push({id:'slide',name:'toboggan',x:bottom.x,z:bottom.z},{id:'rope',name:'corde',x:end.x,z:end.z});
+    for(const [id,name] of [['slide','toboggan'],['rope','corde']]){
+      if(park.approaches[id])items.push({id,name,...park.approaches[id]});
+    }
   }
   if(house&&s>=trampolineCooldown){
     const bed=house.trampoline;
-    items.push({id:'trampoline',name:'trampoline',x:bed.x,z:bed.entryZ});
+    items.push({id:'trampoline',name:'trampoline',x:bed.entryX,z:bed.entryZ});
   }
   let best=null;
   let bestScore=.04;
@@ -510,12 +507,10 @@ function tryEquipment(s) {
 function beginEquipment(item,s){
   if(item.id==='trampoline'){
     contact={kind:'trampoline',mount:true,time:0,velocity:0,landings:0,touching:false};
-    alex.x=house.trampoline.x;alex.z=house.trampoline.entryZ;
+    alex.z=house.trampoline.entryZ;
     alex.heading=0;
   }else if(item.id==='slide'){
-    contact={kind:'climb'};
-    alex.x=park.slide.at(-1).x;
-    alex.z=park.slide.at(-1).z;
+    contact={kind:'slide-entry'};
   }else{
     const joints=neutralJoints();
     joints[0]=.28;joints[1]=.86;
@@ -530,15 +525,18 @@ function beginEquipment(item,s){
 function makeGoalOptions(){
   const options=landmarks.map(([name,x,z])=>({name,x,z,category:'exploration'}));
   if(house){
-    options.push({name:'terrasse',x:house.trampoline.x,z:house.trampoline.entryZ,category:'exploration'});
+    options.push({name:'terrasse',x:house.trampoline.entryX,z:house.trampoline.entryZ,category:'exploration'});
     for(const [id,point] of Object.entries(house.objects)){
       options.push({...point,name:HOUSE_EFFECTS[id].name,id,category:'objet'});
     }
-    for(const door of house.doors){
-      options.push({name:'poignée de '+door.name,x:door.x,z:door.z+(alex.z<door.z?-.24:.24),category:'exploration'});
+    for(const door of house.doors.filter(door=>!door.floor)){
+      const side=(door.axis==='x'?alex.x-door.x:alex.z-door.z)<0?-.26:.26;
+      options.push({name:'poignée de '+door.name,x:door.x+(door.axis==='x'?side:0),
+        z:door.z+(door.axis==='x'?0:side),category:'exploration'});
     }
   }
   for(const person of people){
+    if(person.floor||person.lie)continue;
     options.push({name:person.id,x:person.x,z:person.z,category:'social',person});
   }
   if(alex.x>4)options.push({name:'balle',x:ball.x,z:ball.z,category:'jeu'});
@@ -586,10 +584,15 @@ function experience() {
   alex.thirst=clamp((alex.thirst??.15)+DT*.002,0,1);
   alex.hygiene=clamp((alex.hygiene??.9)-DT*.00065,0,1);
   alex.joints=null;
-  const usingEquipment=stepHouseObject(s)||stepPark(s);
+  for(const person of residents){
+    person.moving=false;
+    person.pleasure=Math.max(0,(person.pleasure||0)-DT*.001);
+  }
+  const usingEquipment=stepHouseObject(s)||stepPark(s)||sleeping(alex,s,skill===4&&records[4].mastered);
   if(!usingEquipment){
   alex.y=Math.max(0,(alex.y||0)-DT*2.8);
   if(skill===4 && records[4].mastered){
+    if(explorationTarget?.person?.floor)finishGoal(s,false);
     if(explorationTarget&&explorationTarget.person){
       explorationTarget.x=explorationTarget.person.x;
       explorationTarget.z=explorationTarget.person.z;
@@ -607,35 +610,16 @@ function experience() {
     const equipment=tryEquipment(s);
     const objects=house?.objects;
     if(alex.hunger>.66&&house?.kitchen&&kitchen.meals>0){
-      goal=['repas',house.kitchen.stove.x,house.kitchen.stove.z];category='repas';
+      goal=['repas',house.kitchen.table.x,house.kitchen.table.z];category='repas';
     }else if(alex.thirst>.7&&objects?.water&&(objectLearning.water?.next||0)<=s){
       goal=['eau',objects.water.x,objects.water.z,'water'];category='objet';
-    }else if(alex.fatigue>.74&&objects?.sofa&&(objectLearning.sofa?.next||0)<=s){
-      goal=['canapé',objects.sofa.x,objects.sofa.z,'sofa'];category='objet';
     }else if(alex.hygiene<.25&&objects?.shower&&(objectLearning.shower?.next||0)<=s){
       goal=['douche',objects.shower.x,objects.shower.z,'shower'];category='objet';
     }else if(alex.hunger>.86&&!house){goal=['repas',-2,-4];category='repas';}
-    else if(alex.fatigue>.74){goal=['repos',-7,2];category='repos';}
     else if(equipment){goal=[equipment.name,equipment.x,equipment.z];category='équipement';}
     alex.activity=category==='objet'?'Explore · '+goal[0]:category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category==='équipement'?'Observe · '+goal[0]:category;
-    let [destinationX,destinationZ]=goal.slice(1);
-    const crossing=(alex.x<-.5)!==(destinationX<-.5);
-    if(crossing&&Math.abs(alex.z-4)>.45){
-      destinationX=alex.x;
-      destinationZ=4;
-    }else if(crossing)destinationZ=4;
-    const entrance=house?.doors.find(door=>door.id==='breezeway');
-    if(entrance&&alex.x<-.5&&goal[1]<-.5){
-      const side=Math.sign(alex.z-entrance.z)||-1;
-      const targetSide=Math.sign(goal[2]-entrance.z)||side;
-      if((side!==targetSide||Math.abs(alex.z-entrance.z)<.30)&&Math.abs(goal[2]-entrance.z)>.3){
-        destinationX=entrance.x;
-        destinationZ=Math.abs(alex.x-entrance.x)>.17&&Math.abs(alex.z-entrance.z)>.15?
-          alex.z:entrance.z+targetSide*.48;
-      }
-    }
     const learnedStride=records[4].champions.find(candidate=>candidate.valid)?.policy[7]||0;
-    const near=move(alex,destinationX,destinationZ,clamp(learnedStride*.17,.24,1.35));
+    const near=move(alex,goal[1],goal[2],clamp(learnedStride*.17,.24,1.35));
     if(category==='équipement'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.23) beginEquipment(equipment,s);
     const pursuingIntention=intention&&goal[0]===intention.name&&category===intention.category;
     if(pursuingIntention){
@@ -647,7 +631,7 @@ function experience() {
       tryHouseObject(goal[3],s);
       if(objectContact&&pursuingIntention)finishGoal(s,true);
     }
-    if(category!=='observation'&&category!=='objet'&&category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock){
+    if(category!=='observation'&&category!=='objet'&&category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock && (category!=='social'||navigation.clear(alex.x,alex.z,friend.x,friend.z,0))){
       eventClock=s+3;
       learn(goal[0],category);
       if(pursuingIntention)finishGoal(s,true);
@@ -655,10 +639,10 @@ function experience() {
         counts.life++;
         if(category==='repas'){
           if(house&&kitchen.meals===0)return;
-          if(house)kitchen.meals--;
-          alex.hunger=.08;
+          if(house)takeServing(alex);
+          else alex.hunger=.08;
         }else alex.fatigue=.06;
-        note(category==='repas'?'Alex prend un repas.':'Alex se repose.');
+        if(!house)note('Alex prend un repas.');
       }
       if(category==='social'){
         counts.social++; friend.bond++;
@@ -683,20 +667,36 @@ function experience() {
     if((skill===1||skill>=3)&&!episode.fallen){
       const center=alex.practiceZ??=alex.z;
       if(!episode.direction)episode.direction=alex.z>=center?-1:1;
-      alex.z=clamp(alex.z+episode.direction*Math.min(.42,episode.vx)*DT,Math.max(-11.5,center-.8),Math.min(11.5,center+.8));
+      const z=clamp(alex.z+episode.direction*Math.min(.42,episode.vx)*DT,Math.max(-11.5,center-.8),Math.min(11.5,center+.8));
+      if(!walkStep(alex,alex.x,z))episode.direction*=-1;
     }
   }
   }
   for(let i=0;i<people.length;i++){
     const p=people[i];
+    if(i<3){
+      p.fatigue=clamp((p.fatigue??(.14+i*.06))+DT*.0023,0,1);
+      p.hunger=clamp((p.hunger??.42)+DT*.0021,0,1);
+      const carrying=sleeps.get(alex);
+      if(carrying?.carrier===p&&['pickup','bed','settle'].includes(carrying.phase))continue;
+      if(i<2&&assistAtDoor(p,s))continue;
+      if(sleeping(p,s))continue;
+      if(i<2&&cookMeal(p,s))continue;
+      if(p.hunger>.62&&house?.kitchen&&kitchen.meals){
+        const table=house.kitchen.table;
+        p.activity='Va prendre un repas';
+        if(move(p,table.x,table.z,.75)<.18)takeServing(p);
+        continue;
+      }
+    }else p.moving=false;
     p.activity='Se déplace';
-    if(i<2&&cookMeal(p,s))continue;
     let goalX=p.homeX+Math.sin(s*.21+i)*1.1;
     let goalZ=p.homeZ+Math.cos(s*.18+i)*1.2;
     if(house&&i<3){
       const cycle=(s+i*20)%95;
       if(cycle<42){
-        const door=house.doors[(Math.floor((s+i*20)/95)+i)%house.doors.length];
+        const doors=house.doors.filter(door=>!door.floor);
+        const door=doors[(Math.floor((s+i*20)/95)+i)%doors.length];
         goalX=door.x;
         goalZ=door.z+(door.passage&&cycle>24?.64:-.34);
       }
@@ -727,8 +727,16 @@ onmessage=({data})=>{
   if(data.type==='house'){
     house=data.geometry;
     for(const door of house.doors)doorStates[door.id]||={amount:0,until:0};
+    for(const person of [...residents,...people.slice(3)])resetRestPosition(person);
   }
-  if(data.type==='park'&&data.geometry.slide.length>1)park=data.geometry;
+  if(data.type==='park'&&data.geometry.slide.length>1){
+    park=data.geometry;
+    park.approaches={};
+    for(const [id,target] of [['slide',park.slide.at(-1)],['rope',park.rope]]){
+      const safe=navigation.nearest(target.x,target.z,0,null,1.25);
+      if(safe>=0)park.approaches[id]=navigation.point(safe);
+    }
+  }
   if(data.type==='mode'){mode=data.mode;accumulator=0;lastWall=performance.now();}
   if(data.type==='restore'&&data.state){
     const s=data.state;
@@ -743,11 +751,13 @@ onmessage=({data})=>{
     Object.assign(parkMemory,s.parkMemory);
     Object.assign(doorKnowledge,s.doorKnowledge);
     Object.assign(kitchen,s.kitchen);
+    if(!s.kitchen?.servings)kitchen.servings=Array(kitchen.meals).fill(.62);
     Object.assign(objectLearning,s.objectLearning);
     nextRefill=Number.isFinite(s.nextRefill)?s.nextRefill:0;
     Object.assign(equipmentSeen,s.equipmentSeen);
     Object.assign(ball,s.ball);
     people.forEach((p,i)=>Object.assign(p,s.people[i]));
+    if(house)for(const person of [...residents,...people.slice(3)])resetRestPosition(person);
     episode=newEpisode();
   }
 };
@@ -759,13 +769,13 @@ function run(){
   accumulator+=Math.min(.1,(now-lastWall)/1000);
   lastWall=now;
   if(mode==='human'){
-    while(accumulator>=DT){ticks++;motorStep();experience();accumulator-=DT;}
+    while(accumulator>=DT){ticks++;if(!sleeps.has(alex))motorStep();experience();accumulator-=DT;}
   }else{
     accumulator=0;
     const deadline=performance.now()+11;
     do {
       for(let n=0;n<96;n++){
-        ticks++;motorStep();
+        ticks++;if(!sleeps.has(alex))motorStep();
         if(ticks%4===0)for(let j=0;j<4;j++)experience();
       }
     }while(performance.now()<deadline);

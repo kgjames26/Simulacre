@@ -113,11 +113,14 @@ worker.onmessage = ({data}) => {
   if(snapshot.kitchen){
     ui('fridge-stock').textContent=snapshot.kitchen.ingredients+' / 8';
     ui('meal-stock').textContent=snapshot.kitchen.meals;
+    ui('oven-temp').textContent=Math.round(snapshot.kitchen.ovenTemperature)+' °C';
+    ui('meal-quality').textContent=snapshot.kitchen.lastQuality==null?'—':Math.round(snapshot.kitchen.lastQuality*100)+' %';
   }
   ui('trials').textContent=format.format(trials);
   ui('pecm').textContent=format.format(pecm);
   ui('hunger').textContent=Math.round(alex.hunger*100)+' %';
-  ui('fatigue').textContent=Math.round(alex.fatigue*100)+' %';
+  ui('fatigue').textContent=observed?.fatigue==null?'—':Math.round(observed.fatigue*100)+' %';
+  ui('pleasure').textContent=Math.round((observed?.pleasure||0)*100)+' %';
   const journalKey=journal.map(event=>event.ticks+' '+event.message).join('|');
   if(journalKey!==lastJournal){
     lastJournal=journalKey;
@@ -193,7 +196,7 @@ function softwareRenderer(T){
   const context=canvas.getContext('2d');
   const base=backdrop.getContext('2d');
   const screen=new T.Vector3(), point=new T.Vector3();
-  let width=1,height=1,lastChildren=-1,ratio=1, overviewOrigin=null;
+  let width=1,height=1,lastChildren=-1,ratio=1, overviewOrigin=null,lastCut=null;
   function project(vector,camera){
     return [(vector.x*.5+.5)*width,(.5-vector.y*.5)*height,vector.z];
   }
@@ -209,7 +212,7 @@ function softwareRenderer(T){
         const count=Math.floor((index?.count||position.count)/3);
         const stride=Math.max(1,Math.ceil(count/1100));
         const material=Array.isArray(mesh.material)?mesh.material[0]:mesh.material;
-        const cut=material.clippingPlanes?.length?1.45:Infinity;
+        const cut=material.clippingPlanes?.[0]?.constant??Infinity;
         const color=material.color||new T.Color('#b5b28a');
         const style=color.getStyle();
         for(let i=0;i<count;i+=stride){
@@ -237,7 +240,7 @@ function softwareRenderer(T){
     setSize(w,h){width=w*ratio;height=h*ratio;canvas.width=backdrop.width=width;canvas.height=backdrop.height=height;lastChildren=-1;},
     setAnimationLoop(draw){requestAnimationFrame(function frame(time){draw(time);requestAnimationFrame(frame);});},
     render(scene,camera){
-      if(lastChildren!==scene.children.length){
+      if(lastChildren!==scene.children.length||lastCut!==scene.userData.floorCut){
         const overview=camera.clone();
         overview.position.set(23,27,31);
         overview.lookAt(0,0,0);
@@ -245,13 +248,13 @@ function softwareRenderer(T){
         overview.updateProjectionMatrix();
         paintWorld(scene,overview);
         overviewOrigin=project(screen.set(0,0,0).project(overview),overview);
-        lastChildren=scene.children.length;
+        lastChildren=scene.children.length;lastCut=scene.userData.floorCut;
       }
       const origin=project(screen.set(0,0,0).project(camera),camera);
       context.fillStyle='#59766a';
       context.fillRect(0,0,width,height);
       context.drawImage(backdrop,origin[0]-overviewOrigin[0]*camera.zoom,origin[1]-overviewOrigin[1]*camera.zoom,width*camera.zoom,height*camera.zoom);
-      for(const object of scene.children.filter(item=>item.userData.dynamic)){
+      for(const object of scene.children.filter(item=>item.userData.dynamic&&item.visible)){
         object.updateMatrixWorld(true);
         const [x,y]=project(screen.copy(object.position).project(camera),camera);
         const style=object.userData;
@@ -352,12 +355,13 @@ function buildFace(T,rig,id,skin){
   for(const side of [-1,1]){
     oval(skinMaterial,side*.103,-.022,.004,.021,.028,.019);
     const eye=oval(whites,side*.041,.006,.083,.024,.017,.015);
-    oval(iris,side*.041,.006,.096,.012,.012,.006);
-    oval(pupil,side*.041,.006,.101,.006,.007,.003);
-    oval(whites,side*.041+.004,.011,.103,.003,.003,.002);
+    const details=[oval(iris,side*.041,.006,.096,.012,.012,.006),oval(pupil,side*.041,.006,.101,.006,.007,.003),
+      oval(whites,side*.041+.004,.011,.103,.003,.003,.002)];
+    const closed=oval(lip,side*.041,.006,.094,.023,.0027,.003);
+    closed.visible=false;
     const brow=oval(hairMaterial,side*.043,.038,.084,.023,.0045,.005);
     brow.rotation.z=side*(id==='joseph'?.16:.08);
-    eyes.push(eye);
+    eyes.push({open:[eye,...details],closed});
     if(profile.freckles)for(let i=0;i<3;i++)oval(lip,side*(.044+i*.01),-.027+(i%2)*.004,.088,.0027,.0025,.0028);
   }
   const mouth=oval(lip,0,-.065,.084,.025*profile.mouth,.006,.004);
@@ -599,7 +603,7 @@ async function showWorld(){
   const actors=[];
   let physicalRope, trampolineMesh;
   const houseDoors=[];
-  let interiorVisuals;
+  let interiorVisuals, houseCut;
   const ropeUp=new T.Vector3(0,1,0);
   const failures=[];
   let ready=0;
@@ -611,7 +615,7 @@ async function showWorld(){
   load('villa', (async()=>{
     const {scene:house}=await parse(new GLTFLoader(),await assets.loadHouseModel());
     house.scale.setScalar(.65);house.position.set(-3.65,.035,2.6);
-    const cut=new T.Plane(new T.Vector3(0,-1,0),1.45);
+    const cut=houseCut=new T.Plane(new T.Vector3(0,-1,0),1.45);
     scene.add(house);
     house.updateMatrixWorld(true);
     const sourcePoint=(x,z,height)=>house.localToWorld(new T.Vector3(x,height,-z));
@@ -624,7 +628,7 @@ async function showWorld(){
       trampolineMesh={mesh:trampoline,original:trampoline.geometry.attributes.position.array.slice()};
     }
     const bed=sourcePoint(2.43,-6.88,.922);
-    const entry=sourcePoint(2.43,-4.7,0);
+    const entry=sourcePoint(6.65,-6.88,0);
     const doors=[];
     function makeDoor(source,id,name,mechanism,left,right,z,top,action,select,options={}){
       if(!source?.isMesh)return;
@@ -643,7 +647,7 @@ async function showWorld(){
       }else source.visible=false;
       const hinge=id==='closet-right'?right:left;
       const alongDepth=options.axis==='x';
-      const at=(edge)=>alongDepth?sourcePoint(z,edge,0):sourcePoint(edge,z,0);
+      const at=(edge)=>alongDepth?sourcePoint(z,edge,options.base||0):sourcePoint(edge,z,options.base||0);
       const pivot=at(hinge);
       const center=at((left+right)/2);
       const width=(right-left)*.65;
@@ -656,9 +660,9 @@ async function showWorld(){
       root.userData={dynamic:true,door:true,color:material.color.getStyle(),
         corners:[[start,0],[end,0],[end,top*.65],[start,top*.65]].map(([x,y])=>alongDepth?new T.Vector3(0,y,-x):new T.Vector3(x,y,0))};
       scene.add(root);
-      houseDoors.push({id,root,pivot,mechanism,width,sign:id==='closet-right'?-1:1});
+      houseDoors.push({id,root,pivot,mechanism,width,floor:options.base?1:0,sign:id==='closet-right'?-1:1});
       if(!options.appliance){
-        doors.push({id,name,mechanism,x:center.x,z:center.z,width,action,passage:options.passage??mechanism==='coulissante'});
+        doors.push({id,name,mechanism,x:center.x,z:center.z,width,action,axis:options.axis,floor:options.base?1:0,passage:options.passage??mechanism==='coulissante'});
       }
     }
     makeDoor(house.getObjectByName('Object_93'),'breezeway','porte coulissante','coulissante',-3.495,-2.704,-3.979,2.128,1);
@@ -673,8 +677,37 @@ async function showWorld(){
       (x,z,y)=>x>=-1.57&&x<=-1.04&&z>=-2.912&&z<=-2.875&&y<=2.07,{passage:true});
     makeDoor(house.getObjectByName('Object_99'),'fridge','porte du frigo','charnière',2.87,3.88,4.22,2.05,2,null,
       {axis:'x',appliance:true});
-    const points=(x,z)=>{const p=sourcePoint(x,z,0);return {x:p.x,z:p.z};};
-    const kitchen={fridge:points(3.75,3.37),stove:points(3.55,6.35)};
+    const selectLeaf=(x1,x2,z1,z2,y1,y2)=>(x,z,y)=>x>=x1&&x<=x2&&z>=z1&&z<=z2&&y>=y1&&y<=y2;
+    makeDoor(house.getObjectByName('Object_6'),'bedroom-ground','porte de la chambre','charnière',-9.843,-8.943,.332,2,2,
+      selectLeaf(-9.845,-8.941,.305,.359,-.01,2.005),{passage:true});
+    makeDoor(innerDoor,'bedroom-east','porte latérale de la chambre','charnière',6.86,7.67,-8.22,2.15,2,
+      selectLeaf(-8.256,-8.183,6.864,7.667,-.01,2.155),{axis:'x',passage:true});
+    makeDoor(innerDoor,'front','porte d’entrée','charnière',-1.84,-1.08,8.666,2.14,2,
+      selectLeaf(-1.841,-1.079,8.635,8.698,-.01,2.142),{passage:true});
+    const upperDoor=house.getObjectByName('Object_17');
+    for(const [id,left,right] of [['upper-bedroom',-8.84,-7.965],['upper-landing',-1.913,-1.038]]){
+      makeDoor(upperDoor,id,'porte de l’étage','charnière',left,right,.609,2.16,2,
+        selectLeaf(left-.002,right+.002,.582,.636,2.947,5.108),{base:2.95,passage:true});
+    }
+    makeDoor(upperDoor,'upper-bathroom','porte de la salle de bain','charnière',7.26,8.14,-9.633,2.16,2,
+      selectLeaf(-9.66,-9.606,7.259,8.138,2.947,5.108),{base:2.95,axis:'x',passage:true});
+    const points=(x,z,height=0)=>{const p=sourcePoint(x,z,height);return {x:p.x,y:p.y,z:p.z};};
+    const station=(x,z,heading=Math.PI/2)=>({...points(x,z),heading});
+    const kitchen={
+      fridge:station(3.75,3.37),cupboard:station(3.68,7.48,Math.PI),sink:station(3.21,7.53,Math.PI),
+      drawer:station(3.83,5.87),counter:station(3.82,4.43),hob:station(3.87,6.47),
+      oven:station(3.75,6.47),serve:station(3.81,4.94),dishwasher:station(3.78,5.39),
+      table:station(-1.30,4.45,-Math.PI/2)
+    };
+    const beds=[
+      {...points(-12.39,5.85,.55),floor:0,heading:Math.PI,approach:points(-12.39,5.05)},
+      {...points(-4.18,-2.50,3.54),floor:1,heading:-Math.PI/2,approach:points(-3.52,-2.50)},
+      {...points(-12.49,-.64,3.84),floor:1,heading:0,approach:points(-10.88,-1.22)}
+    ];
+    const stairs=[[.15,.86,-.054],[-.05,.19,.18],[.03,-.22,.38],[.16,-.44,.54],[.39,-.46,.86],
+      [.7,-.46,1.02],[1.05,-.46,1.26],[1.43,-.46,1.50],[1.83,-.46,1.72],[2.23,-.46,1.93],
+      [2.65,-.46,2.14],[2.99,-.46,2.30],[3.50,-.42,2.62],[3.75,-.23,2.78],
+      [3.85,.13,2.95],[4.10,.40,2.95]].map(([x,z,y])=>points(x,z,y));
     const objects={
       sofa:points(-10.15,-1.5),tv:points(-6.25,-2.3),book:points(-5.75,-2.9),
       water:points(-8.9,-5.23),shower:points(-1.16,-3.53),dishwasher:points(3.79,5.36),
@@ -685,10 +718,14 @@ async function showWorld(){
     const flame=house.getObjectByName('Object_22');
     const lights={
       oven:new T.PointLight(0xff902c,0,2),
-      dishwasher:new T.PointLight(0x73d6ff,0,1.4)
+      dishwasher:new T.PointLight(0x73d6ff,0,1.4),
+      hob:new T.PointLight(0xff5227,0,1.2),
+      sink:new T.PointLight(0x83d9ff,0,1.05)
     };
     lights.oven.position.copy(sourcePoint(4.28,6.49,.56));
     lights.dishwasher.position.copy(sourcePoint(4.28,5.38,.82));
+    lights.hob.position.copy(sourcePoint(4.59,6.48,.96));
+    lights.sink.position.copy(sourcePoint(3.13,8.17,.99));
     scene.add(...Object.values(lights));
     const water=new T.Group();
     const dropsMaterial=new T.MeshBasicMaterial({color:0x9de8fa,transparent:true,opacity:.72});
@@ -709,14 +746,14 @@ async function showWorld(){
       const food=new T.Mesh(new T.SphereGeometry(.055,10,7),mat(i%2?'#bd5e37':'#90ab52'));
       food.scale.y=.48;food.position.y=.024;
       plate.add(dish,food);
-      plate.position.copy(sourcePoint(4.53-(i%2)*.37,6.00+Math.floor(i/2)*.39,1.10));
+      plate.position.copy(sourcePoint(-2.76-(i%2)*.42,3.67+Math.floor(i/2)*.66,1.08));
       plate.visible=false;
       plate.userData.ignoreSoftware=true;
       plates.push(plate);
       scene.add(plate);
     }
     interiorVisuals={tv,flame,lights,water,plates};
-    worker.postMessage({type:'house',geometry:{doors,kitchen,objects,trampoline:{x:bed.x,y:bed.y,z:bed.z,entryZ:entry.z}}});
+    worker.postMessage({type:'house',geometry:{doors,kitchen,objects,beds,stairs,trampoline:{x:bed.x,y:bed.y,z:bed.z,entryX:entry.x,entryZ:entry.z}}});
   })());
   load('aire de jeux', (async()=>{
     const files=await unzipPlayground(await assets.loadPlaygroundSourceZip());
@@ -806,7 +843,7 @@ async function showWorld(){
     actors[0].ageProfiles=profiles.variants.slice(0,8);
   })());
   const point=new T.Vector3();
-  let last=performance.now(), followTime=0;
+  let last=performance.now();
   renderer.setAnimationLoop(now=>{
     const dt=Math.min(.05,(now-last)/1000);last=now;
     const focus=following&&actors.find(actor=>actor.id===followedPerson);
@@ -823,8 +860,12 @@ async function showWorld(){
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld(true);
     if(snapshot){
+      const tracked=focus&&(focus.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===focus.id));
+      const upstairs=Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier'));
+      if(houseCut)houseCut.constant=scene.userData.floorCut=upstairs?3.42:1.45;
       ball.position.set(snapshot.ball.x,.21,snapshot.ball.z);
       for(const door of houseDoors){
+        door.root.visible=!door.floor||upstairs;
         const amount=door.id==='fridge'?(snapshot.kitchen?.fridge||0):(snapshot.doors?.[door.id]?.amount||0);
         if(door.mechanism==='coulissante')door.root.position.x=door.pivot.x+door.width*amount;
         else door.root.rotation.y=door.sign*amount*1.5;
@@ -838,7 +879,9 @@ async function showWorld(){
         }
         if(flame)flame.visible=Boolean(devices.fireplace);
         lights.oven.intensity=snapshot.kitchen?.oven?3:0;
-        lights.dishwasher.intensity=devices.dishwasher?1.8:0;
+        lights.dishwasher.intensity=devices.dishwasher||snapshot.kitchen?.dishwasher?1.8:0;
+        lights.hob.intensity=snapshot.kitchen?.hob?1.9:0;
+        lights.sink.intensity=snapshot.kitchen?.sink?1.6:0;
         water.visible=Boolean(devices.shower);
         if(water.visible)water.children.forEach((drop,i)=>{drop.position.y=-((snapshot.ticks*.035+i*.17)%1.15);});
         plates.forEach((plate,i)=>{plate.visible=i<(snapshot.kitchen?.meals||0);});
@@ -870,17 +913,23 @@ async function showWorld(){
         actor.root.scale.setScalar(size);
         actor.root.position.lerp(point.set(p.x,p.y||0,p.z),1-Math.exp(-dt*(human?22:12)));
         actor.root.rotation.y=p.heading;
-        actor.root.rotation.x=main?Math.max(-1.25,Math.min(1.25,p.tilt)):0;
-        followTime+=main?dt:0;
-        const gait=main?p.effort:Math.sin(human?p.phase:followTime*7+actor.profile.scale*8)*.6;
+        const lying=p.lie||0;
+        actor.root.visible=!p.floor||upstairs;
+        actor.root.rotation.order='YXZ';
+        actor.root.rotation.x=lying*Math.PI/2+(main?Math.max(-1.25,Math.min(1.25,p.tilt))*(1-lying):0);
+        const gait=lying?0:main?p.effort:p.moving?Math.sin(p.phase)*.6:0;
         const crouch=main?p.pose:0;
         posePopo(actor.rig,main?p.joints:null,crouch,gait,1-Math.exp(-dt*14));
         actor.root.userData.crouch=crouch;
         const line=conversationRows.at(-1);
-        const talking=line?.speaker===actor.id&&snapshot.ticks/120-line.at<Math.max(1,line.text.length*.077);
+        for(const eye of actor.face.eyes){
+          eye.closed.visible=lying>.8;
+          for(const detail of eye.open)detail.visible=!eye.closed.visible;
+        }
+        const talking=lying<.8&&line?.speaker===actor.id&&snapshot.ticks/120-line.at<Math.max(1,line.text.length*.077);
         actor.face.mouth.scale.y=talking?.008+Math.abs(Math.sin(now*.024))*.010:.006;
-        point.copy(actor.root.position);point.y+=size*(1-crouch*.24)+.25;point.project(camera);
-        actor.label.hidden=Math.abs(point.x)>1.04||Math.abs(point.y)>1.04;
+        point.copy(actor.root.position);point.y+=size*(1-crouch*.24)*(1-lying)+.25;point.project(camera);
+        actor.label.hidden=!actor.root.visible||Math.abs(point.x)>1.04||Math.abs(point.y)>1.04;
         actor.label.style.left=(point.x*.5+.5)*100+'%';
         actor.label.style.top=(.5-point.y*.5)*100+'%';
       }
