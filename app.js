@@ -889,6 +889,8 @@ async function showWorld(){
       scene.add(root);actors.push({id,root,profile,label,rig,face});
     }
     actors[0].ageProfiles=Array.from({length:9},(_,i)=>profiles.variants[Math.min(7,Math.max(0,i-1))]);
+    const julietteActor=actors.find(actor=>actor.id==='juliette');
+    if(julietteActor)julietteActor.ageProfiles=actors[0].ageProfiles;
   })());
   const assetURL='/assets/3d/';
   const readAsset=async file=>{
@@ -980,7 +982,7 @@ async function showWorld(){
       for(const actor of actors){
         const p=actor.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===actor.id);
         const main=actor.id==='alex';
-        const grows=main||['timeo','nathan','francoise','rose'].includes(actor.id);
+        const grows=main||['juliette','timeo','nathan','francoise','rose'].includes(actor.id);
         const size=(grows?actors[0].ageProfiles[snapshot.age].scale:actor.profile.scale)*1.85;
         actor.root.scale.setScalar(size);
         actor.root.position.lerp(point.set(p.x,p.y||0,p.z),1-Math.exp(-dt*(human?22:12)));
