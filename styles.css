@@ -137,3 +137,9 @@ dialog p{margin-top:9px;font-size:13px;color:var(--muted)}
   .tag{font-size:9px}
 }
 @media(max-width:390px){.detail-grid,.motor-grid{grid-template-columns:1fr}.timeline{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.vocabulary-search input{background:var(--quiet);border:1px solid var(--line);border-radius:8px;color:inherit;font:inherit;font-size:13px;padding:8px 10px;max-width:100%}
+.vocabulary-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,215px),1fr));gap:8px;list-style:none;padding:0;margin:0}
+.vocabulary-list li{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#22312a}
+.vocabulary-list strong{color:var(--mint)}
+.vocabulary-list span{font-size:13px}

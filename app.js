@@ -903,14 +903,22 @@ async function showWorld(){
         const size=(main?actor.ageProfiles[snapshot.age].scale:actor.profile.scale)*1.85;
         actor.root.scale.setScalar(size);
         actor.root.position.lerp(point.set(p.x,p.y||0,p.z),1-Math.exp(-dt*(human?22:12)));
-        actor.root.rotation.y=p.heading;
+        const gesture=p.languageGesture;
         const lying=p.lie||0;
+        actor.root.rotation.y=gesture&&!lying?gesture.heading:p.heading;
         actor.root.visible=!p.floor||upstairs;
         actor.root.rotation.order='YXZ';
         actor.root.rotation.x=lying*Math.PI/2+(main?Math.max(-1.25,Math.min(1.25,p.tilt))*(1-lying):0);
         const gait=lying?0:main?p.effort:p.moving?Math.sin(p.phase)*.6:0;
         const crouch=main?p.pose:0;
+        const pointing=gesture?.kind==='point'&&!lying;
         posePopo(actor.rig,main?p.joints:null,crouch,gait,1-Math.exp(-dt*14));
+        if(pointing){
+          const arm=actor.rig.sides[1];
+          arm.shoulder.rotation.z*=.7;
+          arm.shoulder.rotation.y=-Math.PI/3;
+          arm.elbow.rotation.y*=.6;
+        }
         actor.root.userData.crouch=crouch;
         const line=conversationRows.at(-1);
         for(const eye of actor.face.eyes){

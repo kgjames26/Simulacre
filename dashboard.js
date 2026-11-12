@@ -156,6 +156,25 @@ function renderStats(state){
   ui('equipment-stats').replaceChildren(...[['Trampoline','trampoline'],['Toboggan','slide'],['Corde','rope']]
     .map(([label,key])=>row(label,fmt(activityData.equipment[key])+' utilisations')));
 }
+const alphabet=new Intl.Collator('fr-BE');
+const normalizeWord=value=>value.toLocaleLowerCase('fr').normalize('NFD').replace(/\p{M}/gu,'');
+let vocabularyKey='';
+function renderVocabulary(dialogue){
+  const words=dialogue.vocabulary||[];
+  const search=normalizeWord(ui('vocabulary-search').value.trim());
+  const key=JSON.stringify([search,words]);
+  if(key===vocabularyKey)return;
+  vocabularyKey=key;
+  ui('vocabulary-count').textContent='· '+fmt(words.length);
+  const visible=words.filter(entry=>normalizeWord(entry.word).includes(search))
+    .sort((a,b)=>alphabet.compare(a.word,b.word));
+  ui('vocabulary-list').replaceChildren(...(visible.length?visible.map(entry=>{
+    const item=node('li');
+    item.append(node('strong',entry.word),node('span',entry.context),
+      node('small',fmt(entry.heard)+(entry.heard===1?' occurrence entendue':' occurrences entendues')));
+    return item;
+  }):[node('li',words.length?'Aucun mot ne correspond à cette recherche.':'Aucun mot confirmé pour l’instant.')]));
+}
 function renderDevelopment(state){
   ui('age-timeline').replaceChildren(...ageNames.map((name,i)=>{
     const stateKey=i<state.age?'done':i===state.age?'active':'later';
@@ -180,9 +199,18 @@ function renderDevelopment(state){
   ]:[['Stade final','Atteint']];
   ui('age-gates').replaceChildren(...gates.map(([label,value])=>row(label,value)));
   ui('language-stats').replaceChildren(row('Répliques entendues',fmt(state.dialogue.audible)),
-    row('Mots associés à une situation',fmt(state.dialogue.known)),row('Mots imités',fmt(state.dialogue.spoken)),
+    row('Mots compris',fmt(state.dialogue.known)),row('Imitations',fmt(state.dialogue.spoken)),
+    row('Phrases composées',fmt(state.dialogue.composed)),
     row('Connaissances en mémoire',fmt(state.activityData.knowledgeCount)));
   ui('discoveries').replaceChildren(...state.activityData.discoveries.map(name=>node('li',name)));
+  renderVocabulary(state.dialogue);
+  const phrases=state.dialogue.phrases||[];
+  ui('composed-phrases').replaceChildren(...(phrases.length?phrases.map(phrase=>{
+    const item=node('li');
+    item.append(node('strong',phrase.text),node('small',stamp(phrase.at)));
+    return item;
+  }):[node('li','Alex n’a encore composé aucune phrase.')]));
+
 }
 function mood(person,isAlex){
   if(person.lie>.8)return 'Au repos';
@@ -260,6 +288,7 @@ function showPage(scroll=false){
 export function setupDashboard(personNames){
   names=personNames;
   for(const [id,name] of Object.entries(names))ui('speaker-filter').append(new Option(name,id));
+  ui('vocabulary-search').oninput=()=>{if(current)renderVocabulary(current.dialogue);};
   ui('speaker-filter').onchange=resetHistoryPage;
   ui('hearing-filter').onchange=resetHistoryPage;
   ui('interaction-filter').onchange=()=>update(current,true);

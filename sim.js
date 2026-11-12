@@ -1,5 +1,6 @@
 importScripts('/dialogue.js','/collision-map.js','/navigation.js');
 const dialogue=createDialogue();
+const languageScene={points:{},visible:languageVisibility};
 const DT = 1 / 120;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 // Motor commands are learned. Goals are used only to score the outcome.
@@ -581,6 +582,12 @@ function finishGoal(s,completed){
   record.retryAt=s+(completed?50:20);
   explorationTarget=null;
 }
+function languageVisibility(observer,target){
+  const distance=Math.hypot(target.x-observer.x,target.z-observer.z);
+  const reach=Math.max(0,(distance-.24)/Math.max(.01,distance));
+  return navigation.clear(observer.x,observer.z,observer.x+(target.x-observer.x)*reach,
+    observer.z+(target.z-observer.z)*reach,observer.floor||0);
+}
 function experience() {
   alex.hunger=clamp(alex.hunger+DT*.002,0,1);
   alex.fatigue=clamp(alex.fatigue+DT*.0015,0,1);
@@ -716,7 +723,7 @@ function experience() {
       recordBallPlay(p.id,s);
     }
   }
-  if(ticks%12===0)dialogue.step(s,alex,people);
+  if(ticks%12===0)dialogue.step(s,alex,people,languageScene);
   ball.x+=ball.vx*DT;ball.z+=ball.vz*DT;
   if(ball.x>18.5||ball.x<5){ball.x=clamp(ball.x,5,18.5);ball.vx*=-.65;}
   if(Math.abs(ball.z)>11.5){ball.z=clamp(ball.z,-11.5,11.5);ball.vz*=-.65;}
@@ -750,6 +757,11 @@ function save() {
 onmessage=({data})=>{
   if(data.type==='house'){
     house=data.geometry;
+    const {objects,kitchen,trampoline,doors}=house;
+    languageScene.points={canape:objects.sofa,livre:objects.book,eau:objects.water,douche:objects.shower,
+      tele:objects.tv,feu:objects.fireplace,frigo:kitchen.fridge,four:kitchen.oven,
+      repas:kitchen.serve,table:kitchen.table,porte:doors.find(door=>door.id==='breezeway'),
+      trampoline:{x:trampoline.entryX,z:trampoline.entryZ}};
     for(const door of house.doors)doorStates[door.id]||={amount:0,until:0};
     for(const person of [...residents,...people.slice(3)])resetRestPosition(person);
   }
