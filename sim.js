@@ -11,6 +11,30 @@ const motorGoals=[
 ];
 const emptyRecord=()=>({champions:[],recent:[],confirmed:0,attempts:0,mastered:false});
 const MOTOR_VERSION=2;
+// Each side has six limb channels and five separately controlled digits.
+const JOINT_CHANNELS=11;
+const neutralJoints=()=>Array.from({length:2*JOINT_CHANNELS},()=>0);
+const FINGER_LIMIT=[0,1.35];
+const jointLimits=[[0,1.45],[0,1.9],[-1.2,1.2],[0,2.1],[-.7,.7],[-.65,.65]];
+function mutateJoints(parent,noise){
+  return Array.from({length:2*JOINT_CHANNELS},(_,i)=>{
+    const channel=i%JOINT_CHANNELS;
+    const [min,max]=jointLimits[channel]||FINGER_LIMIT;
+    const prior=parent?.[i];
+    return Number.isFinite(prior)?clamp(prior+(Math.random()+Math.random()-1)*(max-min)*noise,min,max):
+      min+Math.random()*(max-min);
+  });
+}
+function stepJoints(e,rhythm){
+  for(let i=0;i<e.joints.length;i++){
+    const channel=i%JOINT_CHANNELS;
+    const [min,max]=jointLimits[channel]||FINGER_LIMIT;
+    const side=i<JOINT_CHANNELS?1:-1;
+    const pulse=channel===2||channel===3||channel===0||channel===1?side*rhythm*.18:0;
+    const target=clamp(e.jointTargets[i]+pulse,min,max);
+    e.joints[i]+=clamp(target-e.joints[i],-DT*4,DT*4);
+  }
+}
 const goals = ['Se redresser', 'Ramper', 'Tenir debout', 'Faire ses premiers pas', 'Marcher'];
 const people = [
   ['joseph', -7, 1], ['marie', -4, 2], ['juliette', -5, -1],
@@ -85,7 +109,8 @@ function newEpisode() {
   });
   // Every trial starts down low, with a different lean and contact.
   const theta=(Math.random()<.5?-1:1)*(.22+Math.random()*.45);
-  return {policy,time:0,theta,angular:0,height:.09+Math.random()*.025,vy:0,
+  const jointTargets=mutateJoints(parent?.jointTargets,noise);
+  return {policy,jointTargets,joints:neutralJoints(),time:0,theta,angular:0,height:.09+Math.random()*.025,vy:0,
     vx:0,distance:0,effort:0,phase:Math.random()*Math.PI*2,hold:0,longest:0,
     quality:0,energy:0,fallen:false,settle:0,traction:.79+Math.random()*.2,
     disturbance:(Math.random()-.5)*.85};
@@ -97,8 +122,14 @@ function motorStep(){
   if(!e.fallen){
     e.phase+=frequency*DT;
     const rhythm=Math.sin(e.phase);
-    const force=clamp(push+heightFeedback*e.height+verticalFeedback*e.vy+rhythm*alternation,0,28);
-    const torque=clamp(leanFeedback*e.theta+turnFeedback*e.angular+rhythm*alternation,-15,15);
+    stepJoints(e,rhythm);
+    const kneeFlex=(e.joints[3]+e.joints[14])*.5;
+    const armSupport=e.height<.25?(Math.sin(e.joints[0])*Math.cos(e.joints[1]*.5)+
+      Math.sin(e.joints[11])*Math.cos(e.joints[12]*.5))*.55:0;
+    const legSupport=1-.13*Math.sin(kneeFlex*.85);
+    const force=clamp((push+heightFeedback*e.height+verticalFeedback*e.vy+rhythm*alternation)*legSupport+armSupport,0,28);
+    const armBalance=.32*(Math.sin(e.joints[0])-Math.sin(e.joints[11]));
+    const torque=clamp(leanFeedback*e.theta+turnFeedback*e.angular+rhythm*alternation+armBalance,-15,15);
     const planted=Math.abs(e.theta)<.93&&e.height<.54;
     const rocking=9.81*Math.sin(e.theta)/(.27+e.height);
     e.angular+=(rocking+(planted?torque*2.8:0)-e.angular*.38+e.disturbance)*DT;
@@ -135,7 +166,7 @@ function motorStep(){
     movement*.35+(valid?.65:0)-(e.fallen?.38:0)-e.energy*.018;
   trials++;
   record.attempts++;
-  record.champions.push({policy:e.policy,reward,valid});
+  record.champions.push({policy:e.policy,jointTargets:e.jointTargets,reward,valid});
   record.champions.sort((a,b)=>b.reward-a.reward);
   record.champions.length=Math.min(9,record.champions.length);
   record.recent.push(valid);
@@ -147,7 +178,7 @@ function motorStep(){
   }
   if(!record.mastered&&record.recent.filter(Boolean).length>=6){
     record.mastered=true;
-    knowledge['motricité · '+goals[skill]]={visits:record.attempts,senses:['position','effort','équilibre'],type:'geste'};
+    knowledge['motricité · '+goals[skill]]={visits:record.attempts,senses:['position des articulations','effort','équilibre'],type:'geste'};
     note('Alex a retrouvé et confirmé son geste · '+goals[skill]+'.');
     if(skill<4)skill++;
   }
@@ -393,8 +424,28 @@ function stepPark(s) {
   rope.angular+=acceleration*DT;
   rope.angle+=rope.angular*DT;
   if(!contact)return false;
+  if(contact.kind==='rope-grip'){
+    const end=ropeEnd();
+    const elapsed=s-contact.started;
+    alex.activity='Essaie de saisir la corde';
+    alex.heading=Math.PI/2;
+    alex.pose=.17;
+    alex.joints=contact.joints.map((angle,i)=>i%JOINT_CHANNELS>=6?angle*clamp(elapsed*3,0,1):angle);
+    if(elapsed<.46)return true;
+    const grip=alex.joints.slice(6,11).reduce((sum,angle)=>sum+Math.sin(angle),0);
+    if(grip>=3.45){
+      alex.ropeGrip={targets:contact.joints.slice(6,11),successes:(alex.ropeGrip?.successes||0)+1};
+      rope.angular+=(Math.sign(end.x-park.rope.x)||1)*.87;
+      contact={kind:'rope',release:s+2.3,joints:contact.joints};
+    }else{
+      parkCooldown.rope=s+4;
+      contact=null;
+    }
+    return true;
+  }
   if(contact.kind==='rope'){
     const end=ropeEnd();
+    alex.joints=contact.joints;
     alex.x=end.x;alex.z=end.z;alex.y=Math.max(0,end.y-.21);
     alex.activity='Se suspend à la corde';
     alex.pose=.17;alex.tilt=-rope.angle;alex.effort=0;
@@ -464,9 +515,14 @@ function beginEquipment(item,s){
     alex.x=park.slide.at(-1).x;
     alex.z=park.slide.at(-1).z;
   }else{
-    const direction=Math.sin(alex.heading)||1;
-    rope.angular+=direction*.87;
-    contact={kind:'rope',release:s+2.3};
+    const joints=neutralJoints();
+    joints[0]=.28;joints[1]=.86;
+    joints[11]=1.07;joints[12]=.2;
+    for(let i=0;i<5;i++){
+      const prior=alex.ropeGrip?.targets?.[i];
+      joints[6+i]=Number.isFinite(prior)?clamp(prior+(Math.random()-.5)*.18,0,1.35):Math.random()*1.35;
+    }
+    contact={kind:'rope-grip',started:s,joints};
   }
 }
 function makeGoalOptions(){
@@ -527,6 +583,7 @@ function experience() {
   stepKitchen(s);
   alex.thirst=clamp((alex.thirst??.15)+DT*.002,0,1);
   alex.hygiene=clamp((alex.hygiene??.9)-DT*.00065,0,1);
+  alex.joints=null;
   const usingEquipment=stepHouseObject(s)||stepPark(s);
   if(!usingEquipment){
   alex.y=Math.max(0,(alex.y||0)-DT*2.8);
@@ -611,6 +668,7 @@ function experience() {
       }
     }
     alex.pose=0;
+    alex.joints=null;
     alex.tilt=0;
     alex.effort=Math.sin(alex.phase)*.65;
   }else{
@@ -619,6 +677,7 @@ function experience() {
     alex.tilt=episode.fallen?Math.sign(episode.theta)*1.25:episode.theta;
     alex.effort=episode.effort;
     alex.phase=episode.phase;
+    alex.joints=episode.joints;
     if((skill===1||skill>=3)&&!episode.fallen){
       const center=alex.practiceZ??=alex.z;
       if(!episode.direction)episode.direction=alex.z>=center?-1:1;

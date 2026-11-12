@@ -214,6 +214,24 @@ function softwareRenderer(T){
           context.fillStyle='#f9b650';context.beginPath();context.arc(x,y,Math.max(2,.21*factor),0,Math.PI*2);context.fill();continue;
         }
         const size=object.scale.x*factor;
+        if(style.rig){
+          const projectJoint=joint=>project(screen.setFromMatrixPosition(joint.matrixWorld).project(camera),camera);
+          const stroke=(joints,color,weight)=>{
+            context.strokeStyle=color;context.lineWidth=Math.max(1,size*weight);
+            context.lineCap='round';context.lineJoin='round';context.beginPath();
+            joints.forEach((joint,i)=>{const [px,py]=projectJoint(joint);if(i)context.lineTo(px,py);else context.moveTo(px,py);});
+            context.stroke();
+          };
+          for(const side of style.rig.sides){
+            stroke([side.hip,side.knee,side.ankle],style.suit,.083);
+            stroke([side.hip,side.shoulder],style.suit,.115);
+            stroke([side.shoulder,side.elbow,side.wrist],style.suit,.062);
+            if(size>43)for(const finger of side.fingers)stroke([side.wrist,finger.base,finger.tip],style.skin,.014);
+          }
+          const [hx,hy]=project(screen.set(0,.842,0).applyMatrix4(style.rig.trunk.matrixWorld).project(camera),camera);
+          context.fillStyle=style.skin;context.beginPath();context.arc(hx,hy,Math.max(2,size*.109),0,Math.PI*2);context.fill();
+          continue;
+        }
         context.strokeStyle=style.suit;context.lineWidth=Math.max(2,size*.19);context.lineCap='round';
         const lean=object.rotation.x, crouch=style.crouch||0;
         const reach=size*(1-crouch*.52);
@@ -224,6 +242,110 @@ function softwareRenderer(T){
     }
   };
 }
+function buildPopoRig(T,root,gloveMaterial){
+  const bones=[];
+  function joint(parent,x,y,z){
+    const bone=new T.Bone();
+    bone.position.set(x,y,z);
+    parent.add(bone);
+    bone.userData.index=bones.length;
+    bones.push(bone);
+    return bone;
+  }
+  const trunk=joint(root,0,0,0);
+  const sides=[-1,1].map(sign=>{
+    const shoulder=joint(trunk,sign*.122,.686,0);
+    const elbow=joint(shoulder,sign*.137,-.005,0);
+    const wrist=joint(elbow,sign*.168,-.008,0);
+    const hip=joint(trunk,sign*.063,.396,0);
+    const knee=joint(hip,0,-.191,0);
+    const ankle=joint(knee,0,-.161,0);
+    const palm=new T.Mesh(new T.SphereGeometry(1,10,7),gloveMaterial);
+    palm.position.x=sign*.026;
+    palm.scale.set(.040,.026,.032);
+    wrist.add(palm);
+    const fingers=[];
+    for(let i=0;i<5;i++){
+      const thumb=i===0;
+      const start=new T.Group();
+      start.position.set(sign*(thumb?.023:.048),thumb?-.016:0,(i-2.3)*.012);
+      start.rotation.z=thumb?-sign*.62:sign*(i-2.5)*.075;
+      wrist.add(start);
+      const base=new T.Group(); start.add(base);
+      const length=[.046,.059,.066,.06,.049][i];
+      const upper=new T.Mesh(new T.SphereGeometry(1,7,5),gloveMaterial);
+      upper.scale.set(length*.35,.008,.008);
+      upper.position.x=sign*length*.27;
+      base.add(upper);
+      const tip=new T.Group();tip.position.x=sign*length*.54;base.add(tip);
+      const lower=new T.Mesh(new T.SphereGeometry(1,7,5),gloveMaterial);
+      lower.scale.set(length*.27,.007,.007);
+      lower.position.x=sign*length*.21;
+      tip.add(lower);
+      fingers.push({base,tip});
+    }
+    return {sign,shoulder,elbow,wrist,hip,knee,ankle,fingers};
+  });
+  return {bones,trunk,sides,skeleton:new T.Skeleton(bones)};
+}
+function skinPopoGeometry(T,geometry,rig){
+  const positions=geometry.attributes.position;
+  const ids=new Uint16Array(positions.count*4),weights=new Float32Array(positions.count*4);
+  const smooth=T.MathUtils.smoothstep;
+  for(let i=0;i<positions.count;i++){
+    const x=positions.getX(i), y=positions.getY(i), a=Math.abs(x);
+    const side=rig.sides[x<0?0:1];
+    const arm=smooth(a,.108,.168)*smooth(y,.56,.64)*(1-smooth(y,.72,.77));
+    const leg=1-smooth(y,.32,.415);
+    let first=rig.trunk,second=rig.trunk,mix=0,influence=0;
+    if(arm>.001){
+      first=a<.35?side.shoulder:side.elbow;
+      second=a<.35?side.elbow:side.wrist;
+      mix=a<.35?smooth(a,.227,.291):smooth(a,.389,.443);
+      influence=arm;
+    }else if(leg>.001){
+      first=y<.13?side.knee:side.hip;
+      second=y<.13?side.ankle:side.knee;
+      mix=y<.13?1-smooth(y,.025,.080):1-smooth(y,.17,.25);
+      influence=leg;
+    }
+    ids.set([rig.trunk.userData.index,first.userData.index,second.userData.index,0],i*4);
+    weights.set([1-influence,influence*(1-mix),influence*mix,0],i*4);
+  }
+  geometry.setAttribute('skinIndex',new T.Uint16BufferAttribute(ids,4));
+  geometry.setAttribute('skinWeight',new T.Float32BufferAttribute(weights,4));
+  if(geometry.index){
+    const triangles=[];
+    for(let i=0;i<geometry.index.count;i+=3){
+      const face=[geometry.index.getX(i),geometry.index.getX(i+1),geometry.index.getX(i+2)];
+      if(face.every(vertex=>Math.abs(positions.getX(vertex))>.445&&positions.getY(vertex)>.57))continue;
+      triangles.push(...face);
+    }
+    geometry.setIndex(triangles);
+  }
+}
+function posePopo(rig,channels,crouch,gait,smoothing){
+  const smooth=(angle,target)=>angle+(target-angle)*smoothing;
+  rig.trunk.position.y=smooth(rig.trunk.position.y,-crouch*.11);
+  rig.sides.forEach((side,i)=>{
+    const {sign,shoulder,elbow,wrist,hip,knee,ankle,fingers}=side;
+    const offset=i*11;
+    const value=(index,fallback)=>channels?.[offset+index]??fallback;
+    shoulder.rotation.z=smooth(shoulder.rotation.z,-sign*value(0,1.10));
+    shoulder.rotation.y=smooth(shoulder.rotation.y,sign*gait*.38);
+    elbow.rotation.y=smooth(elbow.rotation.y,-sign*value(1,.24+crouch*.25));
+    wrist.rotation.x=smooth(wrist.rotation.x,value(4,0));
+    hip.rotation.x=smooth(hip.rotation.x,value(2,-sign*gait*.46)-crouch*.58);
+    knee.rotation.x=smooth(knee.rotation.x,value(3,Math.max(0,sign*gait)*.64)+crouch*.62);
+    ankle.rotation.x=smooth(ankle.rotation.x,value(5,-gait*.16));
+    fingers.forEach(({base,tip},finger)=>{
+      const curl=value(6+finger,.17);
+      base.rotation.y=smooth(base.rotation.y,-sign*curl);
+      tip.rotation.y=smooth(tip.rotation.y,-sign*curl*.72);
+    });
+  });
+}
+
 async function showWorld(){
   const [T,{GLTFLoader},assets]=await Promise.all([
     import('three'),import('three/addons/loaders/GLTFLoader.js'),import('/assets/3d/load-character.js')
@@ -511,31 +633,24 @@ async function showWorld(){
       const profile=id==='alex'?profiles.variants[0]:profiles.variants.find(item=>item.id===id);
       const root=new T.Group();
       root.userData={dynamic:true,suit:profile.suit,skin:profile.skin};
-      const gait={value:0}, crouch={value:0};
+      const rig=buildPopoRig(T,root,mat(profile.accent));
+      root.userData.rig=rig;
       for(const {geometry,name} of geometries){
         const key=name.toLowerCase();
         const color=key.includes('head')?profile.skin:key.includes('glass')?'#9cdae6':key.includes('003')?profile.accent:profile.suit;
         const material=mat(color);
         if(key.includes('glass')){material.transparent=true;material.opacity=.34;material.depthWrite=false;}
-        material.onBeforeCompile=shader=>{
-          shader.uniforms.gait=gait;shader.uniforms.crouch=crouch;
-          shader.vertexShader='uniform float gait; uniform float crouch;\n'+shader.vertexShader;
-          shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`
-            #include <begin_vertex>
-            float leg=1.0-smoothstep(0.28,0.48,position.y);
-            float arm=smoothstep(.10,.28,abs(position.x))*smoothstep(.37,.53,position.y)*(1.0-smoothstep(.69,.77,position.y));
-            transformed.y-=arm*.32;
-            transformed.x*=1.0-arm*.52;
-            transformed.z+=sign(position.x)*gait*(leg*.24-arm*.16);
-            transformed.y*=1.0-crouch*.43;
-          `);
-        };
-        root.add(new T.Mesh(geometry,material));
+        if(!geometry.hasAttribute('skinIndex'))skinPopoGeometry(T,geometry,rig);
+        const mesh=new T.SkinnedMesh(geometry,material);
+        mesh.frustumCulled=false;
+        root.add(mesh);
+        root.updateMatrixWorld(true);
+        mesh.bind(rig.skeleton);
       }
       const label=document.createElement('button');
       label.type='button';label.className='tag'+(id==='alex'?' alex':'');label.textContent=profile.name;
       label.title='Suivre '+profile.name;label.onclick=()=>selectPerson(id);ui('labels').append(label);
-      scene.add(root);actors.push({id,root,profile,label,gait,crouch});
+      scene.add(root);actors.push({id,root,profile,label,rig});
     }
     actors[0].ageProfiles=profiles.variants.slice(0,8);
   })());
@@ -606,10 +721,11 @@ async function showWorld(){
         actor.root.rotation.y=p.heading;
         actor.root.rotation.x=main?Math.max(-1.25,Math.min(1.25,p.tilt)):0;
         followTime+=main?dt:0;
-        actor.gait.value=main?p.effort:Math.sin(human?p.phase:followTime*7+actor.profile.scale*8)*.6;
-        actor.crouch.value=main?p.pose:0;
-        actor.root.userData.crouch=actor.crouch.value;
-        point.copy(actor.root.position);point.y+=size*(1-actor.crouch.value*.43)+.25;point.project(camera);
+        const gait=main?p.effort:Math.sin(human?p.phase:followTime*7+actor.profile.scale*8)*.6;
+        const crouch=main?p.pose:0;
+        posePopo(actor.rig,main?p.joints:null,crouch,gait,1-Math.exp(-dt*14));
+        actor.root.userData.crouch=crouch;
+        point.copy(actor.root.position);point.y+=size*(1-crouch*.24)+.25;point.project(camera);
         actor.label.hidden=Math.abs(point.x)>1.04||Math.abs(point.y)>1.04;
         actor.label.style.left=(point.x*.5+.5)*100+'%';
         actor.label.style.top=(.5-point.y*.5)*100+'%';
