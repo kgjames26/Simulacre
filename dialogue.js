@@ -210,6 +210,14 @@ function createDialogue(){
     ['Tu restes dans cette pièce ?', 'Oui, encore un instant.'],
     ['On se retrouve après ?', 'D’accord, à tout à l’heure.']
   ];
+  const mathLines=[
+    ['Si on ajoute 25 000 à 40 000, on obtient 65 000.', 'Et si on retire 15 000, on revient à 50 000.'],
+    ['La moitié de 480, c’est 240.', 'Et 240 multiplié par 2 redonne 480.'],
+    ['On peut compter jusqu’à un million, un nombre après l’autre.', 'Oui, et on peut aussi regrouper les nombres par milliers.'],
+    ['12 500 plus 7 500, cela fait 20 000.', 'Exactement : deux dizaines de milliers.'],
+    ['500 divisé par 5 donne 100.', 'Et 100 fois 5 redonne 500.'],
+    ['Si on enlève 35 000 à 90 000, il reste 55 000.', 'On peut vérifier en ajoutant 35 000.']
+  ];
   function otherExchange(s,alex,people,scene){
     const groups=[people.slice(3),[people[2],...people.slice(0,2)]];
     const ordered=turn%3===1?groups:groups.slice().reverse();
@@ -220,7 +228,7 @@ function createDialogue(){
       if(!pairs.length)continue;
       const [first,second]=pairs[Math.floor(Math.random()*pairs.length)];
       const bank=outside?parkLines:familyLines;
-      let [text,reply]=bank[Math.floor(Math.random()*bank.length)];
+      let [text,reply]=!outside&&turn%7===0?mathLines[Math.floor(Math.random()*mathLines.length)]:bank[Math.floor(Math.random()*bank.length)];
       if(!outside&&typeof familyLexicons!=='undefined'&&turn%4===0){
         const allowed=familyComments.filter(([word])=>familyLexicons[first.id]?.has(word)&&familyLexicons[second.id]?.has(word));
         if(allowed.length){
