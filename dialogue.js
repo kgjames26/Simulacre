@@ -122,7 +122,7 @@ function createDialogue(){
   let turn=0;
   let id=0,next=2,pending=null,lastTopic=-1,imitation=null;
   let heard=0,audibleCount=0,spoken=0,lastImitation=-1e9;
-  let composed=0,lastComposition=-1e9;
+  let composed=0,lastComposition=-1e9,lastInvitation=-1e9;
   const phrases=[];
   const language=createLanguageMemory();
   function emit(s,speaker,text,heardByAlex,listener){
@@ -196,6 +196,15 @@ function createDialogue(){
     ['Tu as vu la balle ?', 'Oui, je la cherche aussi.'],
     ['On se rejoint par ici ?', 'Oui, j’arrive.']
   ];
+  const familyComments=[
+    ['calme','Il fait calme dans la maison.','Oui, on entend les bruits du jardin.'],
+    ['fenêtre','La lumière passe par la fenêtre.','Je la vois aussi.'],
+    ['soleil','Le soleil éclaire le jardin.','On pourra regarder dehors.'],
+    ['couleur','J’aime cette couleur.','Moi aussi, elle est douce.'],
+    ['silence','On entend bien le silence ici.','Oui, cela fait du bien.'],
+    ['animal','On dirait un petit animal en bois.','Il est sur le jeu.'],
+    ['rouge','J’aime bien le rouge.','Il ressort sur le bois.']
+  ];
   const familyLines=[
     ['Tu fais quoi ?', 'Je regarde autour de moi.'],
     ['Tu restes dans cette pièce ?', 'Oui, encore un instant.'],
@@ -211,7 +220,19 @@ function createDialogue(){
       if(!pairs.length)continue;
       const [first,second]=pairs[Math.floor(Math.random()*pairs.length)];
       const bank=outside?parkLines:familyLines;
-      const [text,reply]=bank[Math.floor(Math.random()*bank.length)];
+      let [text,reply]=bank[Math.floor(Math.random()*bank.length)];
+      if(!outside&&typeof familyLexicons!=='undefined'&&turn%4===0){
+        const allowed=familyComments.filter(([word])=>familyLexicons[first.id]?.has(word)&&familyLexicons[second.id]?.has(word));
+        if(allowed.length){
+          const [,comment,response]=allowed[Math.floor(Math.random()*allowed.length)];
+          text=comment;reply=response;
+        }
+      }
+      if(phrases.length&&turn%6===0){
+        const vocabulary=new Set(language.words().map(entry=>entry.word));
+        const learned=phrases.find(phrase=>alexTokens(phrase.text).every(word=>vocabulary.has(word)));
+        if(learned){text=learned.text;reply=outside?'Oui, viens voir.':'D’accord, je regarde.';}
+      }
       emit(s,first.id,text,near(first,alex,5.2),second.id);
       if(near(first,alex,5.2))language.hear(text,observe(alex,first,scene),s,first.id);
       pending={speaker:second,listener:first,reply};
@@ -253,6 +274,18 @@ function createDialogue(){
       const [joseph,marie]=people;
       turn++;
       const listening=people.find(person=>near(person,alex,3.1));
+      if(s-lastInvitation>105&&turn%5===0&&scene.invitations){
+        const parent=[joseph,marie].find(person=>near(person,alex,3.4));
+        const invitation=scene.invitations.find(item=>Math.hypot(item.x-alex.x,item.z-alex.z)<4.6&&
+          (!scene.visible||scene.visible(alex,item)));
+        if(parent&&invitation){
+          const text=invitation.id==='toy'?'Tu peux regarder le jeu en bois.':'Tu peux aller voir le tricycle.';
+          emit(s,parent.id,text,true,'alex');
+          language.hear(text,observe(alex,parent,scene),s,parent.id);
+          lastInvitation=s;next=s+4;
+          return;
+        }
+      }
       if(listening&&s-lastComposition>=45){
         const visible=landmarksInView(alex,scene);
         const proposal=language.compose(visible.map(thing=>thing.cue),s);

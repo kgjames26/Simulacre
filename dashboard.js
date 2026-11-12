@@ -7,7 +7,7 @@ const motorNames=['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'
 const countLabels={life:'Vie quotidienne',cognition:'Découvertes',play:'Expériences de jeu',social:'Interactions sociales'};
 const eventLabels={social:'Relation',play:'Jeu',food:'Repas',sleep:'Sommeil',object:'Objet ou porte'};
 const pageNames={ensemble:'Vue d’ensemble',monde:'Monde 3D',statistiques:'Statistiques',
-  conversations:'Conversations',developpement:'Développement',relations:'Humeurs et liens'};
+  conversations:'Conversations',developpement:'Développement',relations:'Humeurs et relations'};
 const tabLinks=[...document.querySelectorAll('.pages a')];
 const detailPages=Object.keys(pageNames).slice(2);
 const pageSize=48;
@@ -221,7 +221,35 @@ function mood(person,isAlex){
   if(person.activity?.includes('Explore'))return 'Curieux';
   return person.moving?'Actif':'Calme';
 }
+let relationOptions='';
+function renderRelationshipHistory(state){
+  const pairs=Object.entries(state.relationships||{}).sort(([,a],[,b])=>Number(b.couple)-Number(a.couple)||b.bond-a.bond);
+  const select=ui('relationship-filter');
+  const key=pairs.map(([id])=>id).join(',');
+  if(key!==relationOptions){
+    const selected=select.value;
+    select.replaceChildren(...pairs.map(([id,r])=>new Option(names[r.a]+' et '+names[r.b],id)));
+    if(pairs.some(([id])=>id===selected))select.value=selected;
+    relationOptions=key;
+  }
+  const pair=state.relationships?.[select.value]||pairs[0]?.[1];
+  if(!pair){
+    ui('relationship-summary').replaceChildren();
+    ui('relationship-history').replaceChildren(node('li','Aucun lien enregistré.'));
+    return;
+  }
+  const label=pair.couple?'Couple établi':pair.romance?'Rapprochement affectif':pair.bond>=45?'Lien proche':'Connaissance';
+  const meter=node('meter');meter.min=0;meter.max=100;meter.value=pair.bond;meter.setAttribute('aria-label','Solidité du lien');
+  ui('relationship-summary').replaceChildren(row(label,pair.bond+' / 100'),meter);
+  const events=pair.history.slice().reverse();
+  ui('relationship-history').replaceChildren(...(events.length?events.map(event=>{
+    const item=node('li',event.event);
+    item.append(node('small',stamp(event.at)+' · Lien '+event.bond+' / 100'+(event.romance?' · Affinité '+event.romance+' / 100':'')));
+    return item;
+  }):[node('li','Aucun changement enregistré pour cette relation.')]));
+}
 function renderRelations(state){
+  renderRelationshipHistory(state);
   const people=[{...state.alex,id:'alex'},...state.people];
   ui('people-grid').replaceChildren(...people.map(person=>{
     const item=node('article',null,'person');
@@ -230,7 +258,11 @@ function renderRelations(state){
     if(person.hunger!=null)item.append(row('Faim',percent(person.hunger)),row('Fatigue',percent(person.fatigue)),
       row('Plaisir',percent(person.pleasure??0)));
     if(person.id==='alex')item.append(row('Soif',percent(person.thirst)),row('Hygiène',percent(person.hygiene)));
-    else item.append(row('Rencontres avec Alex',fmt(person.bond)));
+    else{
+      if(person.age!=null)item.append(row('Stade',ageNames[person.age]));
+      item.append(row('Acquis partagés',fmt(person.inherited)));
+      if(person.baseWords)item.append(row('Vocabulaire supplémentaire',fmt(person.baseWords)));
+    }
     return item;
   }));
   const kind=ui('interaction-filter').value;
@@ -292,6 +324,7 @@ export function setupDashboard(personNames){
   ui('speaker-filter').onchange=resetHistoryPage;
   ui('hearing-filter').onchange=resetHistoryPage;
   ui('interaction-filter').onchange=()=>update(current,true);
+  ui('relationship-filter').onchange=()=>current&&renderRelationshipHistory(current);
   ui('older-lines').onclick=()=>{
     const before=Number(ui('older-lines').dataset.before);
     if(before){historyStack.push(historyBefore);historyBefore=before;renderTranscript();}

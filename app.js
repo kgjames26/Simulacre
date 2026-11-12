@@ -1,3 +1,4 @@
+import {bindPlayViews} from '/play-view.js';
 import {setupDashboard} from '/dashboard.js';
 const ui = id => document.getElementById(id);
 const ages = ['Bébé','Petit enfant','Enfant','Grand enfant','Petit ado','Ado','Jeune homme','Homme'];
@@ -263,7 +264,11 @@ function softwareRenderer(T){
           context.beginPath();context.moveTo(ax,ay);context.lineTo(bx,by);context.stroke();continue;
         }
         if(style.ball){
-          context.fillStyle='#f9b650';context.beginPath();context.arc(x,y,Math.max(2,.21*factor),0,Math.PI*2);context.fill();continue;
+          context.fillStyle='#f9b650';context.beginPath();context.arc(x,y,Math.max(2,style.ball*factor),0,Math.PI*2);context.fill();continue;
+        }
+        if(style.playSymbol){
+          context.fillStyle=style.playSymbol==='bike'?'#df7245':'#ad8158';
+          context.fillRect(x-factor*.28,y-factor*.34,factor*.56,factor*.34);continue;
         }
         const size=object.scale.x*factor;
         if(style.rig){
@@ -280,7 +285,7 @@ function softwareRenderer(T){
             stroke([side.shoulder,side.elbow,side.wrist],style.suit,.062);
             if(size>43)for(const finger of side.fingers)stroke([side.wrist,finger.base,finger.tip],style.skin,.014);
           }
-          const [hx,hy]=project(screen.set(0,.842,0).applyMatrix4(style.rig.trunk.matrixWorld).project(camera),camera);
+          const [hx,hy]=project(screen.set(0,.107,0).applyMatrix4(style.rig.spine.at(-1).matrixWorld).project(camera),camera);
           const face=style.face;
           const radius=Math.max(2,size*.109);
           context.fillStyle=style.skin;context.beginPath();
@@ -326,7 +331,8 @@ function buildFace(T,rig,id,skin){
   const head=new T.Group();
   head.position.set(0,.842,0);
   head.scale.set(...profile.shape);
-  rig.trunk.add(head);
+  head.position.y-=.735;
+  rig.spine.at(-1).add(head);
   const material=color=>new T.MeshStandardMaterial({color,roughness:.82});
   const skinMaterial=material(skin);
   const hairMaterial=material(profile.hair);
@@ -397,11 +403,17 @@ function buildPopoRig(T,root,gloveMaterial){
     return bone;
   }
   const trunk=joint(root,0,0,0);
+  const spine=[];
+  for(const height of [.40,.47,.54,.61,.686,.735]){
+    const previous=spine.at(-1);
+    const previousHeight=spine.length?[.40,.47,.54,.61,.686][spine.length-1]:0;
+    spine.push(joint(previous||trunk,0,height-previousHeight,0));
+  }
   const sides=[-1,1].map(sign=>{
-    const shoulder=joint(trunk,sign*.122,.686,0);
+    const shoulder=joint(spine[4],sign*.122,0,0);
     const elbow=joint(shoulder,sign*.137,-.005,0);
     const wrist=joint(elbow,sign*.168,-.008,0);
-    const hip=joint(trunk,sign*.063,.396,0);
+    const hip=joint(spine[0],sign*.063,-.004,0);
     const knee=joint(hip,0,-.191,0);
     const ankle=joint(knee,0,-.161,0);
     const palm=new T.Mesh(new T.SphereGeometry(1,10,7),gloveMaterial);
@@ -430,7 +442,7 @@ function buildPopoRig(T,root,gloveMaterial){
     }
     return {sign,shoulder,elbow,wrist,hip,knee,ankle,fingers};
   });
-  return {bones,trunk,sides,skeleton:new T.Skeleton(bones)};
+  return {bones,trunk,spine,sides,skeleton:new T.Skeleton(bones)};
 }
 function skinPopoGeometry(T,geometry,rig){
   const positions=geometry.attributes.position;
@@ -453,7 +465,9 @@ function skinPopoGeometry(T,geometry,rig){
       mix=y<.13?1-smooth(y,.025,.080):1-smooth(y,.17,.25);
       influence=leg;
     }
-    ids.set([rig.trunk.userData.index,first.userData.index,second.userData.index,0],i*4);
+    const vertebra=rig.spine[Math.max(0,Math.min(5,Math.round((y-.40)/.069)))];
+    const central=y>.38?vertebra:rig.trunk;
+    ids.set([central.userData.index,first.userData.index,second.userData.index,0],i*4);
     weights.set([1-influence,influence*(1-mix),influence*mix,0],i*4);
   }
   geometry.setAttribute('skinIndex',new T.Uint16BufferAttribute(ids,4));
@@ -468,9 +482,13 @@ function skinPopoGeometry(T,geometry,rig){
     geometry.setIndex(triangles);
   }
 }
-function posePopo(rig,channels,crouch,gait,smoothing){
+function posePopo(rig,channels,crouch,gait,smoothing,lean=0){
   const smooth=(angle,target)=>angle+(target-angle)*smoothing;
   rig.trunk.position.y=smooth(rig.trunk.position.y,-crouch*.11);
+  rig.spine.forEach((joint,i)=>{
+    joint.rotation.x=smooth(joint.rotation.x,(crouch*.45-lean*.26)*(i<4?.19:.12));
+    joint.rotation.y=smooth(joint.rotation.y,gait*(i<4?.045:-.06));
+  });
   rig.sides.forEach((side,i)=>{
     const {sign,shoulder,elbow,wrist,hip,knee,ankle,fingers}=side;
     const offset=i*11;
@@ -479,8 +497,8 @@ function posePopo(rig,channels,crouch,gait,smoothing){
     shoulder.rotation.y=smooth(shoulder.rotation.y,sign*gait*.38);
     elbow.rotation.y=smooth(elbow.rotation.y,-sign*value(1,.24+crouch*.25));
     wrist.rotation.x=smooth(wrist.rotation.x,value(4,0));
-    hip.rotation.x=smooth(hip.rotation.x,value(2,-sign*gait*.46)-crouch*.58);
-    knee.rotation.x=smooth(knee.rotation.x,value(3,Math.max(0,sign*gait)*.64)+crouch*.62);
+    hip.rotation.x=smooth(hip.rotation.x,value(2,-sign*gait*.46-crouch*.58));
+    knee.rotation.x=smooth(knee.rotation.x,value(3,Math.max(0,sign*gait)*.64+crouch*.62));
     ankle.rotation.x=smooth(ankle.rotation.x,value(5,-gait*.16));
     fingers.forEach(({base,tip},finger)=>{
       const curl=value(6+finger,.17);
@@ -565,9 +583,23 @@ async function showWorld(){
   function box(w,h,d,x,y,z,material){
     const mesh=new T.Mesh(new T.BoxGeometry(w,h,d),material);mesh.position.set(x,y,z);scene.add(mesh);return mesh;
   }
-  box(38,.65,24,0,-.36,0,mat('#8caa72'));
+  function surfaceTexture(base,colors,repeat){
+    const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
+    const ctx=canvas.getContext('2d');ctx.fillStyle=base;ctx.fillRect(0,0,128,128);
+    for(let i=0;i<850;i++){
+      ctx.fillStyle=colors[i%colors.length];
+      ctx.fillRect((i*67)%128,(i*i*13+17*i)%128,1+i%3,1+(i>>3)%3);
+    }
+    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
+    texture.wrapS=texture.wrapT=T.RepeatWrapping;texture.repeat.set(...repeat);
+    return texture;
+  }
+  const lawn=mat('#849b73');
+  lawn.map=surfaceTexture('#f2f6e8',['#cad2b9','#dee7d1','#e7efdc','#becaa9'],[20,13]);
+  box(38,.65,24,0,-.36,0,lawn);
   box(39,.27,25,0,-.78,0,mat('#304e44'));
-  box(15,.035,1.5,3,0,4,mat('#dbbc90'));
+  const gravel=mat('#c3a582');gravel.map=surfaceTexture('#f8eddd',['#cfbaa0','#e2ceb5','#fff4dc'],[13,2]);
+  box(15,.035,1.5,3,0,4,gravel);
   const fence=mat('#d9c6a3');
   for(const y of [.28,.7]){
     for(const x of [-19,19])box(.10,.10,24,x,y,0,fence);
@@ -588,7 +620,13 @@ async function showWorld(){
     const plaque=new T.Mesh(new T.PlaneGeometry(1.55,.36),new T.MeshBasicMaterial({map:texture}));
     plaque.position.set(x,.65,z);scene.add(plaque);
   }
-  const ball=new T.Mesh(new T.SphereGeometry(.21,18,12),mat('#f9b650'));ball.userData={dynamic:true,ball:true};scene.add(ball);
+  const play=bindPlayViews(T,scene,worker,mat,id=>{
+    const item=snapshot?.playItems?.[id];
+    if(!item)return;
+    following=false;showFollowState();
+    manualCenter.set(item.x,.25,item.z);
+    zoomBy((id==='toy'?11:6)/desiredZoom);
+  });
   const parse=(loader,data)=>new Promise((resolve,reject)=>loader.parse(data,'',resolve,reject));
   const actors=[];
   let physicalRope, trampolineMesh;
@@ -610,8 +648,21 @@ async function showWorld(){
     house.updateMatrixWorld(true);
     const sourcePoint=(x,z,height)=>house.localToWorld(new T.Vector3(x,height,-z));
     const trampoline=house.getObjectByName('Object_112');
+    const timber=surfaceTexture('#ebdbc3',['#ddd0b8','#cdbb9f','#efdfc5'],[3,3]);
+    const plaster=surfaceTexture('#f5f0e4',['#dfd9cd','#ede7db','#f2eee6'],[2,2]);
     house.traverse(o=>{
-      if(o.isMesh&&o!==trampoline)for(const m of [o.material].flat())m.clippingPlanes=[cut];
+      if(!o.isMesh||o===trampoline)return;
+      for(const m of [o.material].flat()){
+        m.clippingPlanes=[cut];
+        const name=m.name.toLowerCase();
+        if(/bois|wood|parquet/.test(name)){
+          m.color.lerp(new T.Color('#b78e69'),.25);
+          if(!m.map&&o.geometry.attributes.uv)m.map=timber;
+        }else if(/wall|mur|brick|brique|enduit|stucco/.test(name)){
+          m.color.lerp(new T.Color(/brick|brique/.test(name)?'#b5816c':'#e2d7c3'),.28);
+          if(!m.map&&o.geometry.attributes.uv)m.map=plaster;
+        }
+      }
     });
     if(trampoline?.isMesh){
       trampoline.geometry=trampoline.geometry.clone();
@@ -832,6 +883,28 @@ async function showWorld(){
     }
     actors[0].ageProfiles=profiles.variants.slice(0,8);
   })());
+  const assetURL='/assets/3d/';
+  const readAsset=async file=>{
+    const response=await fetch(assetURL+file);
+    if(!response.ok)throw Error('Modèle indisponible : '+file);
+    return response;
+  };
+  Promise.allSettled([
+    (async()=>play.football((await parse(new GLTFLoader(),await (await readAsset('soccer_ball__football.glb')).arrayBuffer())).scene))(),
+    (async()=>play.toy((await parse(new GLTFLoader(),await (await readAsset('kid_toy_low_poly.glb')).arrayBuffer())).scene))(),
+    (async()=>{
+      const files=await unzipPlayground(await (await readAsset('low_poly_kids_tricycle.zip')).blob());
+      const urls=new Map();
+      for(const [name,data] of files)if(name==='scene.bin'||name.startsWith('textures/')){
+        const type=name.endsWith('.jpeg')?'image/jpeg':name.endsWith('.png')?'image/png':'application/octet-stream';
+        urls.set(name,URL.createObjectURL(new Blob([data],{type})));
+      }
+      const manager=new T.LoadingManager();
+      manager.setURLModifier(url=>urls.get(decodeURIComponent(url.replace(/^\.\//,'')))||url);
+      try{play.tricycles((await parse(new GLTFLoader(manager),new TextDecoder().decode(files.get('scene.gltf')))).scene);}
+      finally{for(const url of urls.values())URL.revokeObjectURL(url);}
+    })()
+  ]).then(results=>{for(const result of results)if(result.status==='rejected')console.warn(result.reason);});
   const point=new T.Vector3();
   let last=performance.now();
   renderer.setAnimationLoop(now=>{
@@ -854,7 +927,7 @@ async function showWorld(){
       const tracked=focus&&(focus.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===focus.id));
       const upstairs=Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier'));
       if(houseCut)houseCut.constant=scene.userData.floorCut=upstairs?3.42:1.45;
-      ball.position.set(snapshot.ball.x,.21,snapshot.ball.z);
+      play.update(snapshot.playItems);
       for(const door of houseDoors){
         door.root.visible=!door.floor||upstairs;
         const amount=door.id==='fridge'?(snapshot.kitchen?.fridge||0):(snapshot.doors?.[door.id]?.amount||0);
@@ -900,7 +973,8 @@ async function showWorld(){
       for(const actor of actors){
         const p=actor.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===actor.id);
         const main=actor.id==='alex';
-        const size=(main?actor.ageProfiles[snapshot.age].scale:actor.profile.scale)*1.85;
+        const grows=main||['timeo','nathan','francoise','rose'].includes(actor.id);
+        const size=(grows?actors[0].ageProfiles[snapshot.age].scale:actor.profile.scale)*1.85;
         actor.root.scale.setScalar(size);
         actor.root.position.lerp(point.set(p.x,p.y||0,p.z),1-Math.exp(-dt*(human?22:12)));
         const gesture=p.languageGesture;
@@ -908,11 +982,11 @@ async function showWorld(){
         actor.root.rotation.y=gesture&&!lying?gesture.heading:p.heading;
         actor.root.visible=!p.floor||upstairs;
         actor.root.rotation.order='YXZ';
-        actor.root.rotation.x=lying*Math.PI/2+(main?Math.max(-1.25,Math.min(1.25,p.tilt))*(1-lying):0);
+        actor.root.rotation.x=lying*Math.PI/2+Math.max(-1.38,Math.min(1.38,p.tilt||0))*(1-lying);
         const gait=lying?0:main?p.effort:p.moving?Math.sin(p.phase)*.6:0;
-        const crouch=main?p.pose:0;
+        const crouch=p.pose||0;
         const pointing=gesture?.kind==='point'&&!lying;
-        posePopo(actor.rig,main?p.joints:null,crouch,gait,1-Math.exp(-dt*14));
+        posePopo(actor.rig,p.joints,crouch,gait,1-Math.exp(-dt*14),p.tilt||0);
         if(pointing){
           const arm=actor.rig.sides[1];
           arm.shoulder.rotation.z*=.7;

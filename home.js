@@ -135,10 +135,21 @@ function sleeping(person,s,canWalk=true){
   if(!sleep){
     if(person.fatigue<.76||s<(person.sleepRetry||0))return false;
     if(kitchenOwner===id)return false;
+    if(person===alex&&!canWalk){
+      sleeps.set(person,{phase:'ground',until:s+38});
+      return true;
+    }
     const bed=chooseBed(person);
     const carrier=canWalk?null:people.slice(0,2).find(parent=>!parent.floor&&!sleeps.has(parent)&&parent.id!==kitchenOwner);
     if(!bed||!canWalk&&!carrier)return false;
     sleeps.set(person,{bed,carrier,phase:carrier?'pickup':bed.floor?'stairs-start':'bed',until:s+80});
+    return true;
+  }
+  if(sleep.phase==='ground'){
+    person.activity='Se repose sur place';
+    person.lie=1;
+    person.fatigue=Math.max(.05,person.fatigue-DT*.026);
+    if(s>=sleep.until){person.lie=0;sleeps.delete(person);person.sleepRetry=s+22;}
     return true;
   }
   const {bed,carrier}=sleep;
@@ -162,7 +173,8 @@ function sleeping(person,s,canWalk=true){
   }else if(sleep.phase==='bed'){
     person.activity=carrier?'Est porté vers son lit':'Va se coucher';
     if(carrier)carrier.activity='Porte Alex vers son lit';
-    if(move(movePerson,bed.approach.x,bed.approach.z,speed)<.075){
+    const distance=movePerson===alex?learnedMovement(alex,bed.approach.x,bed.approach.z):move(movePerson,bed.approach.x,bed.approach.z,speed);
+    if(distance<.075){
       sleep.phase='settle';
       sleep.started=s;
       sleep.start={x:movePerson.x,z:movePerson.z,y:person.floor?floorHeight:0};

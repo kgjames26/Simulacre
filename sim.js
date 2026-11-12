@@ -1,43 +1,19 @@
-importScripts('/dialogue.js','/collision-map.js','/navigation.js');
+importScripts('/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js');
 const dialogue=createDialogue();
-const languageScene={points:{},visible:languageVisibility};
+const languageScene={points:{},visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
 const DT = 1 / 120;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-// Motor commands are learned. Goals are used only to score the outcome.
-const motorLimits=[[0,28],[-46,24],[-19,7],[-52,52],[-22,16],[0,1.6],[.8,7],[0,11]];
 const motorGoals=[
-  {height:.22,duration:2.7,distance:0,hold:.65,balance:.54},
-  {height:.18,duration:3.1,distance:.26,hold:.8,balance:.65},
-  {height:.44,duration:4.3,distance:0,hold:1.65,balance:.36},
-  {height:.45,duration:4.7,distance:.43,hold:1.6,balance:.39},
-  {height:.46,duration:5.3,distance:.83,hold:2,balance:.4}
+  {height:.175,duration:3.2,distance:0,hold:.32,balance:1.38},
+  {height:.115,duration:4.4,distance:.115,hold:.24,balance:2.5},
+  {height:.218,duration:5,distance:0,hold:.47,balance:.61},
+  {height:.214,duration:6.4,distance:.075,hold:.45,balance:.65,strikes:2},
+  {height:.22,duration:8,distance:.18,hold:.70,balance:.65,strikes:4}
 ];
 const emptyRecord=()=>({champions:[],recent:[],confirmed:0,attempts:0,mastered:false});
-const MOTOR_VERSION=2;
-// Each side has six limb channels and five separately controlled digits.
+const MOTOR_VERSION=3;
 const JOINT_CHANNELS=11;
 const neutralJoints=()=>Array.from({length:2*JOINT_CHANNELS},()=>0);
-const FINGER_LIMIT=[0,1.35];
-const jointLimits=[[0,1.45],[0,1.9],[-1.2,1.2],[0,2.1],[-.7,.7],[-.65,.65]];
-function mutateJoints(parent,noise){
-  return Array.from({length:2*JOINT_CHANNELS},(_,i)=>{
-    const channel=i%JOINT_CHANNELS;
-    const [min,max]=jointLimits[channel]||FINGER_LIMIT;
-    const prior=parent?.[i];
-    return Number.isFinite(prior)?clamp(prior+(Math.random()+Math.random()-1)*(max-min)*noise,min,max):
-      min+Math.random()*(max-min);
-  });
-}
-function stepJoints(e,rhythm){
-  for(let i=0;i<e.joints.length;i++){
-    const channel=i%JOINT_CHANNELS;
-    const [min,max]=jointLimits[channel]||FINGER_LIMIT;
-    const side=i<JOINT_CHANNELS?1:-1;
-    const pulse=channel===2||channel===3||channel===0||channel===1?side*rhythm*.18:0;
-    const target=clamp(e.jointTargets[i]+pulse,min,max);
-    e.joints[i]+=clamp(target-e.joints[i],-DT*4,DT*4);
-  }
-}
 const goals = ['Se redresser', 'Ramper', 'Tenir debout', 'Faire ses premiers pas', 'Marcher'];
 const people = [
   ['joseph', -7, 1], ['marie', -4, 2], ['juliette', -5, 1.45],
@@ -45,13 +21,13 @@ const people = [
 ].map(([id,x,z])=>({id,x,z,homeX:x,homeZ:z,heading:0,phase:0,bond:0,inherited:0}));
 const bounds = {x:19,z:12};
 const milestones = [
-  {motor:1000000, life:0, cognition:0, play:0, social:0},
-  {motor:2300000, life:8, cognition:3, play:1, social:2},
-  {motor:3800000, life:18, cognition:6, play:5, social:8},
-  {motor:5600000, life:30, cognition:9, play:12, social:20},
-  {motor:7900000, life:48, cognition:12, play:25, social:35},
-  {motor:10500000, life:70, cognition:15, play:40, social:55},
-  {motor:13600000, life:100, cognition:18, play:65, social:80}
+  {motor:35, life:0, cognition:0, play:0, social:0},
+  {motor:62, life:8, cognition:3, play:1, social:2},
+  {motor:92, life:18, cognition:6, play:5, social:8},
+  {motor:125, life:30, cognition:9, play:12, social:20},
+  {motor:170, life:48, cognition:12, play:25, social:35},
+  {motor:220, life:70, cognition:15, play:40, social:55},
+  {motor:280, life:100, cognition:18, play:65, social:80}
 ];
 const landmarks = [
   ['tapis',-8,2],['baie',-1,1],['table',-5,-3],['cuisine',-2,-4],
@@ -66,7 +42,7 @@ let interactions = [];
 let ticks=0, trials=0, pecm=0, skill=0, age=0, score=0, mode='human';
 let records=goals.map(emptyRecord);
 let alex={x:-6.7,z:2.6,heading:0,phase:0,pose:0,tilt:0,effort:0,hunger:.1,fatigue:.05,activity:'Premiers mouvements'};
-let ball={x:9,z:7,vx:0,vz:0};
+const ball=playItems.football;
 let park=null;
 let house=null;
 const kitchen={ingredients:8,meals:0,servings:[],fridge:0,oven:0,ovenTemperature:22,lastQuality:null};
@@ -108,78 +84,63 @@ function recordInteraction(message,kind){
   interactions.unshift({message,ticks,kind});
   if(interactions.length>100)interactions.pop();
 }
-function newEpisode() {
+function newEpisode(){
   const record=records[skill];
-  const parent=record.champions[Math.floor(Math.random()*Math.min(3,record.champions.length))];
-  const trial=record.attempts;
-  const replay=record.confirmed>0&&trial%3===0;
-  const noise=replay?.018:record.confirmed>0?.09:.21;
-  const policy=motorLimits.map(([min,max],i)=>{
-    if(!parent||(!replay&&trial%9===8))return min+Math.random()*(max-min);
-    return clamp(parent.policy[i]+(Math.random()+Math.random()-1)*(max-min)*noise,min,max);
+  const previous=records[skill-1];
+  const pool=record.champions.length?record.champions:previous?.champions||[];
+  const parent=pool[Math.floor(Math.random()*Math.min(5,pool.length))];
+  const replay=record.confirmed>0&&record.attempts%8!==7&&pool.some(candidate=>candidate.valid);
+  const reference=replay?pool.find(candidate=>candidate.valid):parent;
+  const radius=replay?.006:record.attempts%7===0?.31:.15;
+  const posture=Array.from({length:8},()=>Math.random());
+  const common=Array.from({length:8},()=>Math.random()<.38?(Math.random()-Math.random())*radius:0);
+  const acrossTime=Math.random()<.65;
+  const policy=Array.from({length:64},(_,i)=>{
+    if(!reference||record.attempts%31===30)return clamp(posture[i%8]+(acrossTime?0:(Math.random()-.5)*.52),0,1);
+    if(!replay&&acrossTime)return clamp(reference.policy[i]+common[i%8],0,1);
+    if(!replay&&Math.random()<.55)return reference.policy[i];
+    return clamp(reference.policy[i]+(Math.random()-Math.random())*radius,0,1);
   });
-  // Every trial starts down low, with a different lean and contact.
-  const theta=(Math.random()<.5?-1:1)*(.22+Math.random()*.45);
-  const jointTargets=mutateJoints(parent?.jointTargets,noise);
-  return {policy,jointTargets,joints:neutralJoints(),time:0,theta,angular:0,height:.09+Math.random()*.025,vy:0,
-    vx:0,distance:0,effort:0,phase:Math.random()*Math.PI*2,hold:0,longest:0,
-    quality:0,energy:0,fallen:false,settle:0,traction:.79+Math.random()*.2,
-    disturbance:(Math.random()-.5)*.85};
+  const available=previous?.champions.filter(candidate=>candidate.valid&&candidate.bestPose)||[];
+  const starting=reference?.start||(available.length?available[Math.floor(Math.random()*Math.min(3,available.length))].bestPose:null);
+  const body=motorBody(policy,starting);
+  body.friction=.83+Math.random()*.055;
+  return body;
 }
 function motorStep(){
-  const e=episode;
+  if(ticks%2)return;
+  const e=simulateMotor(episode,episode.friction);
   const goal=motorGoals[skill];
-  const [push,heightFeedback,verticalFeedback,leanFeedback,turnFeedback,alternation,frequency,stride]=e.policy;
-  if(!e.fallen){
-    e.phase+=frequency*DT;
-    const rhythm=Math.sin(e.phase);
-    stepJoints(e,rhythm);
-    const kneeFlex=(e.joints[3]+e.joints[14])*.5;
-    const armSupport=e.height<.25?(Math.sin(e.joints[0])*Math.cos(e.joints[1]*.5)+
-      Math.sin(e.joints[11])*Math.cos(e.joints[12]*.5))*.55:0;
-    const legSupport=1-.13*Math.sin(kneeFlex*.85);
-    const force=clamp((push+heightFeedback*e.height+verticalFeedback*e.vy+rhythm*alternation)*legSupport+armSupport,0,28);
-    const armBalance=.32*(Math.sin(e.joints[0])-Math.sin(e.joints[11]));
-    const torque=clamp(leanFeedback*e.theta+turnFeedback*e.angular+rhythm*alternation+armBalance,-15,15);
-    const planted=Math.abs(e.theta)<.93&&e.height<.54;
-    const rocking=9.81*Math.sin(e.theta)/(.27+e.height);
-    e.angular+=(rocking+(planted?torque*2.8:0)-e.angular*.38+e.disturbance)*DT;
-    e.theta+=e.angular*DT;
-    e.vy+=(planted?force-9.81:-9.81)*DT;
-    e.height+=e.vy*DT;
-    if(e.height<.085){e.height=.085;e.vy=Math.max(0,-e.vy*.07);}
-    if(e.height>.66){e.height=.66;e.vy=Math.min(0,e.vy);}
-    const grounded=planted&&Math.abs(e.theta)<.58&&e.height>.1;
-    e.vx+=((grounded?Math.max(0,rhythm)*stride*e.traction:0)-e.vx*(grounded?3.1:5.2))*DT;
-    e.distance+=e.vx*DT;
-    e.effort=rhythm*clamp(stride/7,0,1);
-    e.energy+=(force*.014+Math.abs(torque)*.025+stride*.014)*DT;
-    const heightError=Math.abs(goal.height-e.height);
-    e.quality+=Math.exp(-heightError*8-Math.abs(e.theta)*1.9)*DT;
-    const stable=heightError<(skill===1?.075:.10)&&Math.abs(e.theta)<goal.balance&&Math.abs(e.vy)<.34;
-    e.hold=stable?e.hold+DT:0;
-    e.longest=Math.max(e.longest,e.hold);
-    e.fallen=Math.abs(e.theta)>1.04&&e.time>.24;
-  }else{
-    e.vy-=9.81*DT;
-    e.height=Math.max(.085,e.height+e.vy*DT);
-    e.theta+=(Math.sign(e.theta)*1.49-e.theta)*DT*9;
-    e.effort=0;
-    e.settle+=DT;
+  const grounded=e.particles[4].ground||e.particles[6].ground;
+  const hands=e.particles[8].ground||e.particles[10].ground;
+  const stable=e.height>=goal.height&&Math.abs(e.theta)<goal.balance&&
+    (skill===0?true:skill===1?hands:grounded)&&(skill<2||!hands&&!e.particles[2].ground);
+  e.hold=stable?e.hold+motorStepTime:0;
+  e.longest=Math.max(e.longest,e.hold);
+  const supportedTravel=skill===1?hands&&Math.abs(e.theta)<1.7:stable;
+  if(supportedTravel)e.crawl+=e.delta;
+  const upright=Math.exp(-Math.abs(e.theta)*1.5);
+  const supported=grounded&&!hands&&!e.particles[2].ground;
+  const posture=Math.min(e.height/goal.height,1.18)*upright;
+  const supportQuality=skill>=2?(grounded?.24:0)+(supported?.56:0)+
+    Math.min(.36,Math.max(0,e.particles[2].y-e.height))*.9:0;
+  e.quality+=(posture+supportQuality)*motorStepTime;
+  const poseScore=posture+(supported?.45:0);
+  if(stable&&poseScore>e.bestPoseScore){
+    e.bestPoseScore=poseScore;
+    e.bestPose=e.particles.map(part=>[part.x-e.particles[0].x,part.y]);
   }
-  e.time+=DT;
-  if(e.fallen?e.settle<.75:e.time<goal.duration)return;
+  if(e.time<goal.duration)return;
   const record=records[skill];
-  const stable=e.longest>=goal.hold;
-  const valid=stable&&e.distance>=goal.distance&&!e.fallen;
-  const movement=goal.distance>0?Math.min(e.distance/goal.distance,1.45):0;
-  const reward=e.quality/goal.duration+Math.min(e.longest/goal.hold,1.6)*.58+
-    movement*.35+(valid?.65:0)-(e.fallen?.38:0)-e.energy*.018;
-  trials++;
-  record.attempts++;
-  record.champions.push({policy:e.policy,jointTargets:e.jointTargets,reward,valid});
-  record.champions.sort((a,b)=>b.reward-a.reward);
-  record.champions.length=Math.min(9,record.champions.length);
+  const valid=e.longest>=goal.hold&&e.crawl>=goal.distance&&
+    (!goal.strikes||e.strikes>=goal.strikes&&e.steps.every(count=>count>0));
+  const reward=e.quality/goal.duration+Math.min(e.longest/goal.hold,1.5)*.8+
+    (goal.distance?clamp(e.crawl/goal.distance,-1,1.5)*.8:0)+
+    (goal.strikes?Math.min(e.strikes/goal.strikes,1.5)*1.7+Math.min(e.footWork,.22)*4:0)+(valid?1:0);
+  trials++;record.attempts++;
+  record.champions.push({policy:e.policy,start:e.start,bestPose:e.bestPose,reward,valid});
+  record.champions.sort((a,b)=>Number(b.valid)-Number(a.valid)||b.reward-a.reward);
+  if(record.champions.length>12)record.champions.pop();
   record.recent.push(valid);
   if(record.recent.length>8)record.recent.shift();
   score=Math.round(clamp(e.longest/goal.hold,0,1)*100);
@@ -189,11 +150,43 @@ function motorStep(){
   }
   if(!record.mastered&&record.recent.filter(Boolean).length>=6){
     record.mastered=true;
-    knowledge['motricité · '+goals[skill]]={visits:record.attempts,senses:['position des articulations','effort','équilibre'],type:'geste'};
-    note('Alex a retrouvé et confirmé son geste · '+goals[skill]+'.');
+    knowledge['motricité · '+goals[skill]]={visits:record.attempts,senses:['appui','articulations','équilibre'],type:'geste'};
+    note('Alex a confirmé son geste · '+goals[skill]+'.');
     if(skill<4)skill++;
   }
   episode=newEpisode();
+}
+function bodyPose(person,body){
+  person.joints=body.joints;
+  person.pose=clamp((.29-body.height)/.18,0,1);
+  person.tilt=body.theta;
+  person.effort=0;
+  person.moving=Math.abs(body.delta)>.001;
+}
+function advanceBody(person,body,heading){
+  if(ticks%2)return;
+  const amount=body.delta;
+  if(Math.abs(amount)<.0001)return;
+  walkStep(person,person.x+Math.sin(heading)*amount,person.z+Math.cos(heading)*amount);
+}
+const walkingBodies=new WeakMap();
+function learnedMovement(person,x,z){
+  const distance=Math.hypot(x-person.x,z-person.z);
+  const candidate=records[4].mastered&&records[4].champions.find(champion=>champion.valid);
+  if(!candidate)return distance;
+  let body=walkingBodies.get(person);
+  if(!body||body.time>motorGoals[4].duration){
+    body=motorBody(candidate.policy,candidate.start);
+    walkingBodies.set(person,body);
+  }
+  const route=navigation.next(person,x,z,person.floor||0,ticks*DT);
+  if(route&&distance>.05){
+    person.heading=Math.atan2(route.x-person.x,route.z-person.z);
+    if(ticks%2===0)simulateMotor(body);
+    advanceBody(person,body,person.heading);
+  }
+  bodyPose(person,body);
+  return distance;
 }
 function learn(name, type) {
   const entry=knowledge[name] ||= {visits:0, senses:[], type};
@@ -546,7 +539,10 @@ function makeGoalOptions(){
     if(person.floor||person.lie)continue;
     options.push({name:person.id,x:person.x,z:person.z,category:'social',person});
   }
-  if(alex.x>4)options.push({name:'balle',x:ball.x,z:ball.z,category:'jeu'});
+  for(const [id,item] of Object.entries(playItems)){
+    if(Math.hypot(item.x-alex.x,item.z-alex.z)>7)continue;
+    options.push({name:playNames[id],id,x:item.x,z:item.z,category:'jeu'});
+  }
   return options;
 }
 function curiosityRecord(name){
@@ -611,8 +607,8 @@ function experience() {
       explorationTarget.z=explorationTarget.person.z;
     }
     if(explorationTarget?.category==='jeu'){
-      explorationTarget.x=ball.x;
-      explorationTarget.z=ball.z;
+      const item=playItems[explorationTarget.id];
+      if(item){explorationTarget.x=item.x;explorationTarget.z=item.z;}
     }
     if(explorationTarget&&s>=nextChoice)finishGoal(s,false);
     explorationTarget ||= chooseGoal(s);
@@ -631,9 +627,9 @@ function experience() {
     }else if(alex.hunger>.86&&!house){goal=['repas',-2,-4];category='repas';}
     else if(equipment){goal=[equipment.name,equipment.x,equipment.z];category='équipement';}
     alex.activity=category==='objet'?'Explore · '+goal[0]:category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category==='équipement'?'Observe · '+goal[0]:category;
-    const learnedStride=records[4].champions.find(candidate=>candidate.valid)?.policy[7]||0;
-    const near=move(alex,goal[1],goal[2],clamp(learnedStride*.17,.24,1.35));
-    if(category==='équipement'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.23) beginEquipment(equipment,s);
+    const near=learnedMovement(alex,goal[1],goal[2]);
+    if(category==='équipement'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.23)beginEquipment(equipment,s);
+
     const pursuingIntention=intention&&goal[0]===intention.name&&category===intention.category;
     if(pursuingIntention){
       const distance=Math.hypot(alex.x-goal[1],alex.z-goal[2]);
@@ -659,33 +655,24 @@ function experience() {
       }
       if(category==='social'){
         counts.social++; friend.bond++;
+        relationshipEvent('alex',friend.id,'Rencontre',s,age);
         if(friend.id==='marie'||friend.id==='joseph') note('Un câlin apaise Alex.','social');
         else note('Alex rencontre '+characterNames[friend.id]+'.','social');
       }
       if(category==='jeu'){
         counts.play++;
-        ball.vx=Math.sin(alex.heading)*2;ball.vz=Math.cos(alex.heading)*2;
-        recordBallPlay('alex',s);
       }
     }
-    alex.pose=0;
-    alex.joints=null;
-    alex.tilt=0;
-    alex.effort=Math.sin(alex.phase)*.65;
   }else{
-    alex.activity=episode.fallen?'Perd l’équilibre · recommence ensuite':goals[skill];
-    alex.pose=clamp(1-(episode.height-.085)/.40,0,1);
-    alex.tilt=episode.fallen?Math.sign(episode.theta)*1.25:episode.theta;
-    alex.effort=episode.effort;
-    alex.phase=episode.phase;
-    alex.joints=episode.joints;
-    if((skill===1||skill>=3)&&!episode.fallen){
-      const center=alex.practiceZ??=alex.z;
-      if(!episode.direction)episode.direction=alex.z>=center?-1:1;
-      const z=clamp(alex.z+episode.direction*Math.min(.42,episode.vx)*DT,Math.max(-11.5,center-.8),Math.min(11.5,center+.8));
-      if(!walkStep(alex,alex.x,z))episode.direction*=-1;
-    }
+    alex.activity=goals[skill];
+    if(episode.heading==null)episode.heading=Math.random()*Math.PI*2;
+    alex.heading=episode.heading;
+    bodyPose(alex,episode);
+    advanceBody(alex,episode,alex.heading);
   }
+  }
+  for(const [id,item] of Object.entries(playItems)){
+    if(Math.hypot(alex.x-item.x,alex.z-item.z)<.49)tryPlayObject(alex,id,s);
   }
   for(let i=0;i<people.length;i++){
     const p=people[i];
@@ -716,18 +703,40 @@ function experience() {
         goalZ=door.z+(door.passage&&cycle>24?.64:-.34);
       }
     }
-    move(p,goalX,goalZ,.75);
-    if((i<2&&age>=5)||(i>=2&&Object.keys(knowledge).length>i))p.inherited=counts.cognition;
-    if(i>=3 && Math.hypot(p.x-ball.x,p.z-ball.z)<.65 && Math.hypot(ball.vx,ball.vz)<1.1){
-      ball.vx=Math.sin(p.heading)*1.7; ball.vz=Math.cos(p.heading)*1.7;
-      recordBallPlay(p.id,s);
+    if(i>=3){
+      p.age=age;
+      if(records[4].mastered){
+        const style=socialStyle[p.id];
+        if(Math.sin(s*.11+i*2)>1-style.outreach){
+          goalX=ball.x;goalZ=ball.z;
+          p.activity='S’intéresse au ballon';
+        }
+        learnedMovement(p,goalX,goalZ);
+      }else{
+        const acquired=records.findLastIndex(record=>record.mastered);
+        const candidate=acquired>=0&&records[acquired].champions.find(champion=>champion.valid);
+        let body=walkingBodies.get(p);
+        if(candidate){
+          if(!body||body.policy!==candidate.policy||body.time>motorGoals[acquired].duration){
+            body=motorBody(candidate.policy,candidate.start);walkingBodies.set(p,body);
+          }
+          if(ticks%2===0)simulateMotor(body,.76+socialStyle[p.id].care*.14);
+          bodyPose(p,body);
+          advanceBody(p,body,p.heading);
+          p.activity=goals[acquired];
+        }else{p.pose=1;p.tilt=1.1;p.activity='Observe le parc';}
+      }
+    }else move(p,goalX,goalZ,.75);
+    for(const id of ['football','softBall','bikePark','bikeHome','toy']){
+      const item=playItems[id];
+      if(Math.hypot(p.x-item.x,p.z-item.z)<.49)tryPlayObject(p,id,s);
     }
   }
-  if(ticks%12===0)dialogue.step(s,alex,people,languageScene);
-  ball.x+=ball.vx*DT;ball.z+=ball.vz*DT;
-  if(ball.x>18.5||ball.x<5){ball.x=clamp(ball.x,5,18.5);ball.vx*=-.65;}
-  if(Math.abs(ball.z)>11.5){ball.z=clamp(ball.z,-11.5,11.5);ball.vz*=-.65;}
-  ball.vx*=Math.exp(-DT*.9);ball.vz*=Math.exp(-DT*.9);
+  if(ticks%12===0){
+    dialogue.step(s,alex,people,languageScene);
+    updateRelationships(alex,people,s,age);
+  }
+  stepPlay();
   const gate=milestones[age];
   if(gate&&skill===4&&pecm>=gate.motor&&Object.keys(counts).every(key=>counts[key]>=gate[key])){
     age++;note('Nouveau stade de développement · '+(age+1));
@@ -744,15 +753,22 @@ let activityData, nextActivitySnapshot=0;
 function snapshot() {
   if(!activityData||ticks>=nextActivitySnapshot){
     const names=Object.keys(knowledge);
-    activityData={equipment:parkMemory,gate:milestones[age],events:interactions,
+    const vocabulary=dialogue.view().vocabulary.map(entry=>entry.word);
+    const shared={skills:records.flatMap((record,i)=>record.mastered?[goals[i]]:[]),discoveries:names,vocabulary};
+    for(const p of people){
+      if(playgroundFriends.includes(p.id))p.age=age;
+      p.inherited=names.length+vocabulary.length;
+      p.baseWords=familyLexicons[p.id]?.size||0;
+    }
+    activityData={equipment:parkMemory,gate:milestones[age],events:interactions,shared,
       motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered})),
       knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};
     nextActivitySnapshot=ticks+36;
   }
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),activityData};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),activityData};
 }
 function save() {
-  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,dialogue:dialogue.save()};
+  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -764,7 +780,13 @@ onmessage=({data})=>{
       trampoline:{x:trampoline.entryX,z:trampoline.entryZ}};
     for(const door of house.doors)doorStates[door.id]||={amount:0,until:0};
     for(const person of [...residents,...people.slice(3)])resetRestPosition(person);
+    for(const item of Object.values(playItems)){
+      if(navigation.isFree(item.x,item.z,0))continue;
+      const nearest=navigation.nearest(item.x,item.z,0,null,1.2);
+      if(nearest>=0)Object.assign(item,navigation.point(nearest));
+    }
   }
+  if(data.type==='play-control')playControl(data.id,data.action,data.value);
   if(data.type==='park'&&data.geometry.slide.length>1){
     park=data.geometry;
     park.approaches={};
@@ -781,9 +803,12 @@ onmessage=({data})=>{
     if(!s)return;
     if(!Array.isArray(s.records)||s.records.length!==5||!Number.isFinite(s.ticks))return;
     ({ticks,trials,pecm,skill,age,score,counts,journal,records,knowledge,eventClock}=s);
-    if(s.motorVersion!==MOTOR_VERSION)records=goals.map((_,i)=>({
-      ...emptyRecord(), mastered:i<skill, confirmed:i<skill?(s.records[i]?.confirmed||0):0
-    }));
+    if(s.motorVersion!==MOTOR_VERSION)records=goals.map(emptyRecord);
+    if(s.motorVersion!==MOTOR_VERSION){
+      skill=0;score=0;trials=0;pecm=0;
+      for(const name of Object.keys(knowledge))if(name.startsWith('motricité · '))delete knowledge[name];
+      note('Alex recommence ses essais avec un corps articulé.');
+    }
     dialogue.restore(s.dialogue);
     interactions=(s.interactions||[]).slice(0,100);
     activityData=null;
@@ -796,7 +821,10 @@ onmessage=({data})=>{
     Object.assign(objectLearning,s.objectLearning);
     nextRefill=Number.isFinite(s.nextRefill)?s.nextRefill:0;
     Object.assign(equipmentSeen,s.equipmentSeen);
-    Object.assign(ball,s.ball);
+    if(s.motorVersion===MOTOR_VERSION)Object.assign(ball,s.ball);
+    for(const [id,item] of Object.entries(s.playItems||{}))if(playItems[id])Object.assign(playItems[id],item);
+    Object.assign(playTrials,s.playTrials);
+    if(s.relationships)relationships=s.relationships;
     people.forEach((p,i)=>Object.assign(p,s.people[i]));
     if(house)for(const person of [...residents,...people.slice(3)])resetRestPosition(person);
     episode=newEpisode();
@@ -817,8 +845,7 @@ function run(){
     const deadline=performance.now()+11;
     do {
       for(let n=0;n<96;n++){
-        ticks++;if(!sleeps.has(alex))motorStep();
-        if(ticks%4===0)for(let j=0;j<4;j++)experience();
+        ticks++;if(!sleeps.has(alex))motorStep();experience();
       }
     }while(performance.now()<deadline);
   }
