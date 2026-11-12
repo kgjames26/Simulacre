@@ -883,6 +883,7 @@ async function showWorld(){
         root.updateMatrixWorld(true);
         mesh.bind(rig.skeleton);
       }
+      profile.name=personNames[id]||profile.name;
       const label=document.createElement('button');
       label.type='button';label.className='tag'+(id==='alex'?' alex':'');label.textContent=profile.name;
       label.title='Suivre '+profile.name;label.onclick=()=>selectPerson(id);ui('labels').append(label);
