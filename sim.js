@@ -32,6 +32,20 @@ let alex={x:-6.7,z:2.6,heading:0,phase:0,pose:0,tilt:0,effort:0,hunger:.1,fatigu
 let ball={x:9,z:7,vx:0,vz:0};
 let park=null;
 let house=null;
+const kitchen={ingredients:8,meals:0,fridge:0,oven:0};
+const household={};
+const objectLearning={};
+const cooks={};
+let nextRefill=0, objectContact=null;
+const HOUSE_EFFECTS={
+  sofa:{name:'canapé',activity:'Se repose sur le canapé',duration:8},
+  tv:{name:'télévision',activity:'Regarde la télévision',duration:7},
+  book:{name:'livre',activity:'Feuillette le livre',duration:8},
+  water:{name:'fontaine à eau',activity:'Boit à la fontaine',duration:4},
+  shower:{name:'douche',activity:'Prend une douche',duration:9},
+  dishwasher:{name:'lave-vaisselle',activity:'Fait tourner le lave-vaisselle',duration:7},
+  fireplace:{name:'cheminée',activity:'Observe la cheminée allumée',duration:6}
+};
 const doorKnowledge={};
 const doorStates={};
 let trampolineCooldown=0;
@@ -139,6 +153,89 @@ function useDoor(p,door,s) {
     note((p.id==='joseph'?'Joseph':'Marie')+' montre à Alex comment ouvrir la '+door.name+'.');
     if(record.seen>=2)validateDoor(door.mechanism,record);
   }
+}
+function stepKitchen(s){
+  if(!house?.kitchen)return;
+  if(s>=nextRefill){
+    kitchen.ingredients=Math.min(8,kitchen.ingredients+1);
+    nextRefill=s+19;
+  }
+  const wantsFridge=Object.values(cooks).some(cook=>cook.phase==='take');
+  const wantsOven=Object.values(cooks).some(cook=>cook.phase==='cook');
+  kitchen.fridge+=clamp((wantsFridge?1:0)-kitchen.fridge,-DT*2,DT*2);
+  kitchen.oven=wantsOven?1:0;
+}
+function cookMeal(person,s){
+  if(!house?.kitchen)return false;
+  const cook=cooks[person.id] ||= {phase:'idle',next:s+(person.id==='joseph'?2:20)};
+  const {fridge,stove}=house.kitchen;
+  if(cook.phase==='idle'){
+    if(s<cook.next||kitchen.ingredients===0||kitchen.meals>=5)return false;
+    cook.phase='fetch';
+  }
+  if(cook.phase==='fetch'){
+    person.activity='Va chercher des ingrédients';
+    if(move(person,fridge.x,fridge.z,.95)<.16){
+      cook.phase='take';
+      cook.until=s+2.1;
+    }
+  }else if(cook.phase==='take'){
+    person.activity='Ouvre le frigo';
+    if(s>=cook.until){
+      if(kitchen.ingredients>0){kitchen.ingredients--;cook.phase='stove';}
+      else {cook.phase='idle';cook.next=s+8;}
+    }
+  }else if(cook.phase==='stove'){
+    person.activity='Apporte les ingrédients au plan de travail';
+    if(move(person,stove.x,stove.z,.95)<.16){cook.phase='cook';cook.until=s+10;}
+  }else{
+    person.activity='Prépare le repas';
+    if(s>=cook.until){
+      kitchen.meals=Math.min(6,kitchen.meals+2);
+      note((person.id==='joseph'?'Joseph':'Marie')+' prépare deux portions dans la cuisine.');
+      cook.phase='idle';
+      cook.next=s+29;
+    }
+  }
+  return true;
+}
+function tryHouseObject(id,s){
+  const record=objectLearning[id] ||= {attempts:0,success:0,next:0};
+  if(record.next>s)return;
+  const item=HOUSE_EFFECTS[id];
+  record.attempts++;
+  record.next=s+20;
+  // Alex tries actions independently. Success becomes knowledge only after repetition.
+  const usableAction={sofa:0,tv:2,book:1,water:2,shower:2,dishwasher:2,fireplace:2}[id];
+  const action=record.success>=2?usableAction:(record.attempts-1)%3;
+  if(action!==usableAction){
+    if(record.attempts===1)note('Alex essaie de comprendre '+item.name+'.');
+    return;
+  }
+  objectContact={id,until:s+item.duration};
+  household[id]=1;
+  if(++record.success===2){
+    counts.cognition++;
+    knowledge[item.name]={visits:2,senses:['vision','contact','effet'],type:'objet'};
+    note('Alex découvre comment utiliser le matériel · '+item.name+'.');
+  }
+}
+function stepHouseObject(s){
+  if(!objectContact)return false;
+  const {id,until}=objectContact;
+  alex.activity=HOUSE_EFFECTS[id].activity;
+  alex.pose=id==='sofa'?.64:.12;
+  alex.y=id==='sofa'?.37:0;
+  alex.effort=0;
+  if(s>=until){
+    if(id==='sofa')alex.fatigue=Math.max(.05,alex.fatigue-.44);
+    if(id==='water')alex.thirst=.06;
+    if(id==='shower')alex.hygiene=1;
+    counts.life++;
+    household[id]=0;
+    objectContact=null;
+  }
+  return true;
 }
 function stepDoors(s){
   if(!house)return;
@@ -327,13 +424,17 @@ function experience() {
   alex.fatigue=clamp(alex.fatigue+DT*.0015,0,1);
   const s=ticks*DT;
   stepDoors(s);
-  const usingEquipment=stepPark(s);
+  stepKitchen(s);
+  alex.thirst=clamp((alex.thirst??.15)+DT*.002,0,1);
+  alex.hygiene=clamp((alex.hygiene??.9)-DT*.00065,0,1);
+  const usingEquipment=stepHouseObject(s)||stepPark(s);
   if(!usingEquipment){
   alex.y=Math.max(0,(alex.y||0)-DT*2.8);
   if(skill===4 && records[4].confirmed>=12){
     if(!explorationTarget||s>=nextChoice){
       const weight = ([name,x,z]) => 1/(1+(knowledge[name]?.visits||0)*.22)/(1+Math.hypot(x-alex.x,z-alex.z)*.07);
-      const options=house?[...landmarks,['terrasse',house.trampoline.x,house.trampoline.entryZ]]:landmarks;
+      const options=house?[...landmarks,['terrasse',house.trampoline.x,house.trampoline.entryZ],
+        ...Object.entries(house.objects).map(([id,p])=>[HOUSE_EFFECTS[id].name,p.x,p.z,id])]:landmarks;
       let draw=Math.random()*options.reduce((sum,target)=>sum+weight(target),0);
       explorationTarget=options.find(target=>(draw-=weight(target))<=0)||options[0];
       if(house&&Math.random()<.25){
@@ -346,21 +447,31 @@ function experience() {
     const friend=people[Math.floor(s/13)%people.length];
     let goal=target, category='exploration';
     const equipment=tryEquipment(s);
-    if(alex.hunger>.66){goal=['repas',-2,-4];category='repas';}
+    const objects=house?.objects;
+    if(alex.hunger>.66&&house?.kitchen&&kitchen.meals>0){
+      goal=['repas',house.kitchen.stove.x,house.kitchen.stove.z];category='repas';
+    }else if(alex.thirst>.7&&objects?.water&&(objectLearning.water?.next||0)<=s){
+      goal=['eau',objects.water.x,objects.water.z,'water'];category='objet';
+    }else if(alex.fatigue>.74&&objects?.sofa&&(objectLearning.sofa?.next||0)<=s){
+      goal=['canapé',objects.sofa.x,objects.sofa.z,'sofa'];category='objet';
+    }else if(alex.hygiene<.25&&objects?.shower&&(objectLearning.shower?.next||0)<=s){
+      goal=['douche',objects.shower.x,objects.shower.z,'shower'];category='objet';
+    }else if(alex.hunger>.86&&!house){goal=['repas',-2,-4];category='repas';}
     else if(alex.fatigue>.74){goal=['repos',-7,2];category='repos';}
     else if(equipment){goal=[equipment.name,equipment.x,equipment.z];category='équipement';}
     else if(Math.floor(s/10)%4===2){goal=[friend.id,friend.x,friend.z];category='social';}
     else if(alex.x>5 && Math.hypot(alex.x-ball.x,alex.z-ball.z)<2.8){
       goal=['balle',ball.x,ball.z];category='jeu';
     }
-    alex.activity=category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category==='équipement'?'Observe · '+goal[0]:category;
+    if(category==='exploration'&&goal[3])category='objet';
+    alex.activity=category==='objet'?'Explore · '+goal[0]:category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category==='équipement'?'Observe · '+goal[0]:category;
     let [destinationX,destinationZ]=goal.slice(1);
     const crossing=(alex.x<-.5)!==(destinationX<-.5);
     if(crossing&&Math.abs(alex.z-4)>.45){
       destinationX=alex.x;
       destinationZ=4;
     }else if(crossing)destinationZ=4;
-    const entrance=house?.doors.find(door=>door.passage);
+    const entrance=house?.doors.find(door=>door.id==='breezeway');
     if(entrance&&alex.x<-.5&&goal[1]<-.5){
       const side=Math.sign(alex.z-entrance.z)||-1;
       const targetSide=Math.sign(goal[2]-entrance.z)||side;
@@ -372,12 +483,17 @@ function experience() {
     }
     const near=move(alex,destinationX,destinationZ,clamp(episode.vx*4,.24,1.35));
     if(category==='équipement'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.23) beginEquipment(equipment,s);
-    if(category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock){
+    if(category==='objet'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.22)tryHouseObject(goal[3],s);
+    if(category!=='objet'&&category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock){
       eventClock=s+3;
       learn(goal[0],category);
       if(category==='repas'||category==='repos'){
         counts.life++;
-        if(category==='repas')alex.hunger=.08;else alex.fatigue=.06;
+        if(category==='repas'){
+          if(house&&kitchen.meals===0)return;
+          if(house)kitchen.meals--;
+          alex.hunger=.08;
+        }else alex.fatigue=.06;
         note(category==='repas'?'Alex prend un repas.':'Alex se repose.');
       }
       if(category==='social'){
@@ -397,6 +513,8 @@ function experience() {
   }
   for(let i=0;i<people.length;i++){
     const p=people[i];
+    p.activity='Se déplace';
+    if(i<2&&cookMeal(p,s))continue;
     let goalX=p.homeX+Math.sin(s*.21+i)*1.1;
     let goalZ=p.homeZ+Math.cos(s*.18+i)*1.2;
     if(house&&i<3){
@@ -423,10 +541,10 @@ function experience() {
   }
 }
 function snapshot() {
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,validated:records[4].confirmed};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed};
 }
 function save() {
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -442,6 +560,9 @@ onmessage=({data})=>{
     Object.assign(alex,s.alex);
     Object.assign(parkMemory,s.parkMemory);
     Object.assign(doorKnowledge,s.doorKnowledge);
+    Object.assign(kitchen,s.kitchen);
+    Object.assign(objectLearning,s.objectLearning);
+    nextRefill=Number.isFinite(s.nextRefill)?s.nextRefill:0;
     Object.assign(equipmentSeen,s.equipmentSeen);
     Object.assign(ball,s.ball);
     people.forEach((p,i)=>Object.assign(p,s.people[i]));

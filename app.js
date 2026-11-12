@@ -5,6 +5,36 @@ const format = new Intl.NumberFormat('fr-BE');
 const saveKey = 'alex-simulacre-v3';
 const worker = new Worker('/sim.js');
 let snapshot, human = false, lastJournal = '';
+const personNames={alex:'Alex',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Françoise',rose:'Rose'};
+let followedPerson='alex', following=false;
+function showFollowState(){
+  const name=personNames[followedPerson];
+  ui('follow').textContent='Suivi '+(/^[AEIOUY]/i.test(name)?'d’':'de ')+name;
+  ui('follow').setAttribute('aria-pressed',String(following));
+  ui('choose-person').textContent=name+' ▾';
+}
+function selectPerson(id){
+  followedPerson=id;
+  following=true;
+  showFollowState();
+}
+ui('follow').onclick=()=>{following=!following;showFollowState();};
+ui('choose-person').onclick=()=>ui('person-dialog').showModal();
+for(const [id,name] of Object.entries(personNames)){
+  const button=document.createElement('button');
+  button.type='button';
+  button.textContent=name;
+  button.onclick=()=>{selectPerson(id);ui('person-dialog').close();};
+  ui('person-list').append(button);
+}
+ui('reset').onclick=()=>ui('reset-dialog').showModal();
+ui('reset-dialog').querySelector('form').addEventListener('submit',event=>{
+  if(event.submitter?.value!=='reset')return;
+  event.preventDefault();
+  worker.terminate();
+  try { localStorage.removeItem(saveKey); } catch {}
+  location.reload();
+});
 try { worker.postMessage({type:'restore',state:JSON.parse(localStorage.getItem(saveKey))}); } catch {}
 worker.onmessage = ({data}) => {
   if(data.type==='save'){
@@ -20,7 +50,12 @@ worker.onmessage = ({data}) => {
   ui('skill').textContent=stages[skill];
   ui('balance').textContent=score+' %';
   ui('bar').value=score;
-  ui('activity').textContent=alex.activity;
+  const observed=following&&followedPerson!=='alex'?snapshot.people.find(person=>person.id===followedPerson):alex;
+  ui('activity').textContent=observed?.activity||'Se déplace';
+  if(snapshot.kitchen){
+    ui('fridge-stock').textContent=snapshot.kitchen.ingredients+' / 8';
+    ui('meal-stock').textContent=snapshot.kitchen.meals;
+  }
   ui('trials').textContent=format.format(trials);
   ui('pecm').textContent=format.format(pecm);
   ui('hunger').textContent=Math.round(alex.hunger*100)+' %';
@@ -99,7 +134,7 @@ function softwareRenderer(T){
   const context=canvas.getContext('2d');
   const base=backdrop.getContext('2d');
   const screen=new T.Vector3(), point=new T.Vector3();
-  let width=1,height=1,lastChildren=-1,ratio=1;
+  let width=1,height=1,lastChildren=-1,ratio=1, overviewOrigin=null;
   function project(vector,camera){
     return [(vector.x*.5+.5)*width,(.5-vector.y*.5)*height,vector.z];
   }
@@ -108,7 +143,7 @@ function softwareRenderer(T){
     const triangles=[];
     scene.updateMatrixWorld(true);camera.updateMatrixWorld(true);
     for(const root of scene.children){
-      if(root.userData.dynamic)continue;
+      if(root.userData.dynamic||root.userData.ignoreSoftware)continue;
       root.traverse(mesh=>{
         if(!mesh.isMesh||!mesh.visible)return;
         const position=mesh.geometry.getAttribute('position'), index=mesh.geometry.index;
@@ -144,15 +179,24 @@ function softwareRenderer(T){
     setAnimationLoop(draw){requestAnimationFrame(function frame(time){draw(time);requestAnimationFrame(frame);});},
     render(scene,camera){
       if(lastChildren!==scene.children.length){
-        paintWorld(scene,camera);
+        const overview=camera.clone();
+        overview.position.set(23,27,31);
+        overview.lookAt(0,0,0);
+        overview.zoom=1;
+        overview.updateProjectionMatrix();
+        paintWorld(scene,overview);
+        overviewOrigin=project(screen.set(0,0,0).project(overview),overview);
         lastChildren=scene.children.length;
       }
-      context.drawImage(backdrop,0,0);
+      const origin=project(screen.set(0,0,0).project(camera),camera);
+      context.fillStyle='#59766a';
+      context.fillRect(0,0,width,height);
+      context.drawImage(backdrop,origin[0]-overviewOrigin[0]*camera.zoom,origin[1]-overviewOrigin[1]*camera.zoom,width*camera.zoom,height*camera.zoom);
       for(const object of scene.children.filter(item=>item.userData.dynamic)){
         object.updateMatrixWorld(true);
         const [x,y]=project(screen.copy(object.position).project(camera),camera);
         const style=object.userData;
-        const factor=height/(camera.top-camera.bottom);
+        const factor=height*camera.zoom/(camera.top-camera.bottom);
         if(style.door){
           const vertices=style.corners.map(corner=>project(screen.copy(corner).applyMatrix4(object.matrixWorld).project(camera),camera));
           context.fillStyle=style.color;
@@ -192,8 +236,51 @@ async function showWorld(){
   renderer.toneMappingExposure=1.25;
   ui('view').append(renderer.domElement);
   const camera=new T.OrthographicCamera();
-  camera.position.set(23,27,31);
-  camera.lookAt(0,0,0);
+  const offset=new T.Vector3(23,27,31);
+  const center=new T.Vector3();
+  const manualCenter=new T.Vector3();
+  const desiredCenter=new T.Vector3();
+  camera.position.copy(offset);
+  camera.lookAt(center);
+  let desiredZoom=1;
+  function zoomBy(ratio){
+    desiredZoom=Math.max(1,Math.min(28,desiredZoom*ratio));
+    ui('zoom-level').textContent=desiredZoom.toLocaleString('fr-BE',{maximumFractionDigits:1})+'×';
+  }
+  ui('zoom-in').onclick=()=>zoomBy(1.55);
+  ui('zoom-out').onclick=()=>zoomBy(1/1.55);
+  const view=ui('view');
+  view.addEventListener('wheel',event=>{
+    event.preventDefault();
+    zoomBy(Math.exp(-event.deltaY*.0025));
+  },{passive:false});
+  const pointers=new Map();
+  const position=event=>({x:event.clientX,y:event.clientY});
+  function pinchDistance(){
+    const [a,b]=pointers.values();
+    return b?Math.hypot(a.x-b.x,a.y-b.y):0;
+  }
+  view.addEventListener('pointerdown',event=>{
+    pointers.set(event.pointerId,position(event));
+    view.setPointerCapture(event.pointerId);
+  });
+  view.addEventListener('pointermove',event=>{
+    const previous=pointers.get(event.pointerId);
+    if(!previous)return;
+    const before=pinchDistance(), current=position(event);
+    pointers.set(event.pointerId,current);
+    if(before>0){zoomBy(pinchDistance()/before);return;}
+    if(following)return;
+    const unit=(camera.top-camera.bottom)/(Math.max(1,view.clientHeight)*camera.zoom);
+    const right=new T.Vector3().setFromMatrixColumn(camera.matrixWorld,0);
+    const up=new T.Vector3().setFromMatrixColumn(camera.matrixWorld,1);
+    up.y=0;
+    manualCenter.addScaledVector(right,(previous.x-current.x)*unit);
+    manualCenter.addScaledVector(up,(current.y-previous.y)*unit/Math.max(.25,up.lengthSq()));
+    manualCenter.x=Math.max(-19,Math.min(19,manualCenter.x));
+    manualCenter.z=Math.max(-12,Math.min(12,manualCenter.z));
+  });
+  for(const name of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(name,event=>pointers.delete(event.pointerId));
   const resize=()=>{
     const {clientWidth:w,clientHeight:h}=ui('view');
     if(!w||!h)return;
@@ -237,6 +324,7 @@ async function showWorld(){
   const actors=[];
   let physicalRope, trampolineMesh;
   const houseDoors=[];
+  let interiorVisuals;
   const ropeUp=new T.Vector3(0,1,0);
   const failures=[];
   let ready=0;
@@ -263,7 +351,7 @@ async function showWorld(){
     const bed=sourcePoint(2.43,-6.88,.922);
     const entry=sourcePoint(2.43,-4.7,0);
     const doors=[];
-    function makeDoor(source,id,name,mechanism,left,right,z,top,action,select){
+    function makeDoor(source,id,name,mechanism,left,right,z,top,action,select,options={}){
       if(!source?.isMesh)return;
       const geometry=source.geometry.clone();
       if(select){
@@ -272,15 +360,17 @@ async function showWorld(){
         const moving=[],fixed=[];
         for(let i=0;i<index.count;i+=3){
           const face=[index.getX(i),index.getX(i+1),index.getX(i+2)];
-          (face.every(vertex=>select(positions.getX(vertex),positions.getY(vertex)))?moving:fixed).push(...face);
+          (face.every(vertex=>select(positions.getX(vertex),positions.getY(vertex),positions.getZ(vertex)))?moving:fixed).push(...face);
         }
         if(!moving.length)return;
         geometry.setIndex(moving);
         source.geometry=source.geometry.clone().setIndex(fixed);
       }else source.visible=false;
       const hinge=id==='closet-right'?right:left;
-      const pivot=sourcePoint(hinge,z,0);
-      const center=sourcePoint((left+right)/2,z,0);
+      const alongDepth=options.axis==='x';
+      const at=(edge)=>alongDepth?sourcePoint(z,edge,0):sourcePoint(edge,z,0);
+      const pivot=at(hinge);
+      const center=at((left+right)/2);
       const width=(right-left)*.65;
       geometry.applyMatrix4(source.matrixWorld).translate(-pivot.x,-pivot.y,-pivot.z);
       const root=new T.Group();
@@ -289,16 +379,69 @@ async function showWorld(){
       root.add(new T.Mesh(geometry,material));
       const start=(left-hinge)*.65,end=(right-hinge)*.65;
       root.userData={dynamic:true,door:true,color:material.color.getStyle(),
-        corners:[[start,0],[end,0],[end,top*.65],[start,top*.65]].map(([x,y])=>new T.Vector3(x,y,0))};
+        corners:[[start,0],[end,0],[end,top*.65],[start,top*.65]].map(([x,y])=>alongDepth?new T.Vector3(0,y,-x):new T.Vector3(x,y,0))};
       scene.add(root);
       houseDoors.push({id,root,pivot,mechanism,width,sign:id==='closet-right'?-1:1});
-      doors.push({id,name,mechanism,x:center.x,z:center.z,width,action,passage:mechanism==='coulissante'});
+      if(!options.appliance){
+        doors.push({id,name,mechanism,x:center.x,z:center.z,width,action,passage:options.passage??mechanism==='coulissante'});
+      }
     }
     makeDoor(house.getObjectByName('Object_93'),'breezeway','porte coulissante','coulissante',-3.495,-2.704,-3.979,2.128,1);
     const closet=house.getObjectByName('Object_94');
     makeDoor(closet,'closet-left','porte gauche du placard','charnière',-13.62,-12.93,.49,1.9,2,(x,z)=>x>=-13.62&&x<=-12.93&&z>.305);
     makeDoor(closet,'closet-right','porte droite du placard','charnière',-12.50,-11.81,.49,1.9,2,(x,z)=>x>=-12.50&&x<=-11.81&&z>.305);
-    worker.postMessage({type:'house',geometry:{doors,trampoline:{x:bed.x,y:bed.y,z:bed.z,entryZ:entry.z}}});
+    const innerDoor=house.getObjectByName('Object_51');
+    makeDoor(innerDoor,'interior-east','porte intérieure du couloir','charnière',3.54,4.34,-1.025,2.02,2,
+      (x,z,y)=>x>=3.54&&x<=4.34&&z>=-1.057&&z<=-.993&&y<=2.04,{passage:true});
+    const glass=house.getObjectByName('Object_54');
+    makeDoor(glass,'shower-door','porte vitrée de la douche','charnière',-1.57,-1.04,-2.895,2.05,2,
+      (x,z,y)=>x>=-1.57&&x<=-1.04&&z>=-2.912&&z<=-2.875&&y<=2.07,{passage:true});
+    makeDoor(house.getObjectByName('Object_99'),'fridge','porte du frigo','charnière',2.87,3.88,4.22,2.05,2,null,
+      {axis:'x',appliance:true});
+    const points=(x,z)=>{const p=sourcePoint(x,z,0);return {x:p.x,z:p.z};};
+    const kitchen={fridge:points(3.75,3.37),stove:points(3.55,6.35)};
+    const objects={
+      sofa:points(-10.15,-1.5),tv:points(-6.25,-2.3),book:points(-5.75,-2.9),
+      water:points(-8.9,-5.23),shower:points(-1.16,-3.53),dishwasher:points(3.79,5.36),
+      fireplace:points(3.73,1.67)
+    };
+    const tv=house.getObjectByName('Object_32');
+    if(tv?.isMesh)tv.material=tv.material.clone();
+    const flame=house.getObjectByName('Object_22');
+    const lights={
+      oven:new T.PointLight(0xff902c,0,2),
+      dishwasher:new T.PointLight(0x73d6ff,0,1.4)
+    };
+    lights.oven.position.copy(sourcePoint(4.28,6.49,.56));
+    lights.dishwasher.position.copy(sourcePoint(4.28,5.38,.82));
+    scene.add(...Object.values(lights));
+    const water=new T.Group();
+    const dropsMaterial=new T.MeshBasicMaterial({color:0x9de8fa,transparent:true,opacity:.72});
+    const dropGeometry=new T.SphereGeometry(.018,6,4);
+    for(let i=0;i<14;i++){
+      const drop=new T.Mesh(dropGeometry,dropsMaterial);
+      drop.position.set(Math.sin(i*3.7)*.17,0,Math.cos(i*2.7)*.14);
+      water.add(drop);
+    }
+    water.position.copy(sourcePoint(-1.10,-3.49,1.94));
+    water.visible=false;
+    water.userData.ignoreSoftware=true;
+    scene.add(water);
+    const plates=[];
+    for(let i=0;i<6;i++){
+      const plate=new T.Group();
+      const dish=new T.Mesh(new T.CylinderGeometry(.10,.083,.018,16),mat('#f1ebd7'));
+      const food=new T.Mesh(new T.SphereGeometry(.055,10,7),mat(i%2?'#bd5e37':'#90ab52'));
+      food.scale.y=.48;food.position.y=.024;
+      plate.add(dish,food);
+      plate.position.copy(sourcePoint(4.53-(i%2)*.37,6.00+Math.floor(i/2)*.39,1.10));
+      plate.visible=false;
+      plate.userData.ignoreSoftware=true;
+      plates.push(plate);
+      scene.add(plate);
+    }
+    interiorVisuals={tv,flame,lights,water,plates};
+    worker.postMessage({type:'house',geometry:{doors,kitchen,objects,trampoline:{x:bed.x,y:bed.y,z:bed.z,entryZ:entry.z}}});
   })());
   load('aire de jeux', (async()=>{
     const files=await unzipPlayground(await assets.loadPlaygroundSourceZip());
@@ -386,7 +529,9 @@ async function showWorld(){
         };
         root.add(new T.Mesh(geometry,material));
       }
-      const label=document.createElement('span');label.className='tag'+(id==='alex'?' alex':'');label.textContent=profile.name;ui('labels').append(label);
+      const label=document.createElement('button');
+      label.type='button';label.className='tag'+(id==='alex'?' alex':'');label.textContent=profile.name;
+      label.title='Suivre '+profile.name;label.onclick=()=>selectPerson(id);ui('labels').append(label);
       scene.add(root);actors.push({id,root,profile,label,gait,crouch});
     }
     actors[0].ageProfiles=profiles.variants.slice(0,8);
@@ -395,12 +540,39 @@ async function showWorld(){
   let last=performance.now(), followTime=0;
   renderer.setAnimationLoop(now=>{
     const dt=Math.min(.05,(now-last)/1000);last=now;
+    const focus=following&&actors.find(actor=>actor.id===followedPerson);
+    if(focus){
+      desiredCenter.copy(focus.root.position);
+      desiredCenter.y+=focus.root.scale.x*.45;
+      manualCenter.copy(desiredCenter);
+    }else desiredCenter.copy(manualCenter);
+    const smoothing=1-Math.exp(-dt*12);
+    center.lerp(desiredCenter,smoothing);
+    camera.position.copy(center).add(offset);
+    camera.lookAt(center);
+    camera.zoom+=(desiredZoom-camera.zoom)*smoothing;
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
     if(snapshot){
       ball.position.set(snapshot.ball.x,.21,snapshot.ball.z);
       for(const door of houseDoors){
-        const amount=snapshot.doors?.[door.id]?.amount||0;
+        const amount=door.id==='fridge'?(snapshot.kitchen?.fridge||0):(snapshot.doors?.[door.id]?.amount||0);
         if(door.mechanism==='coulissante')door.root.position.x=door.pivot.x+door.width*amount;
         else door.root.rotation.y=door.sign*amount*1.5;
+      }
+      if(interiorVisuals){
+        const {tv,flame,lights,water,plates}=interiorVisuals;
+        const devices=snapshot.household||{};
+        if(tv?.material.emissive){
+          tv.material.emissive.set('#7fc3ef');
+          tv.material.emissiveIntensity=devices.tv?.35+Math.sin(snapshot.ticks*.08)*.13:0;
+        }
+        if(flame)flame.visible=Boolean(devices.fireplace);
+        lights.oven.intensity=snapshot.kitchen?.oven?3:0;
+        lights.dishwasher.intensity=devices.dishwasher?1.8:0;
+        water.visible=Boolean(devices.shower);
+        if(water.visible)water.children.forEach((drop,i)=>{drop.position.y=-((snapshot.ticks*.035+i*.17)%1.15);});
+        plates.forEach((plate,i)=>{plate.visible=i<(snapshot.kitchen?.meals||0);});
       }
       if(graphics&&trampolineMesh){
         const {mesh,original}=trampolineMesh;
@@ -434,6 +606,7 @@ async function showWorld(){
         actor.gait.value=main&&snapshot.skill<3?p.effort:Math.sin(human?p.phase:followTime*7+actor.profile.scale*8)*.6;
         actor.crouch.value=main?p.pose:0;
         point.copy(actor.root.position);point.y+=size*(1-actor.crouch.value*.43)+.25;point.project(camera);
+        actor.label.hidden=Math.abs(point.x)>1.04||Math.abs(point.y)>1.04;
         actor.label.style.left=(point.x*.5+.5)*100+'%';
         actor.label.style.top=(.5-point.y*.5)*100+'%';
       }

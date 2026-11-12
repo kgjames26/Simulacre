@@ -19,17 +19,23 @@
   <section class="scene" aria-label="Vue isométrique de la villa et du parc">
     <div id="view"></div>
     <div class="scene-top"><h1>Le monde d’Alex</h1><p id="scene-status" role="status">Chargement de la scène 3D…</p></div>
-    <div id="labels" aria-hidden="true"></div>
+    <div id="labels"></div>
+    <nav class="camera-tools" aria-label="Caméra">
+      <div class="follow-tools"><button id="follow" type="button" aria-pressed="false">Suivi d’Alex</button><button id="choose-person" type="button" aria-controls="person-dialog" aria-label="Choisir le personnage à suivre">Alex ▾</button></div>
+      <div class="zoom-tools"><button id="zoom-out" type="button" aria-label="Dézoomer">−</button><output id="zoom-level" aria-live="off">1×</output><button id="zoom-in" type="button" aria-label="Zoomer">+</button></div>
+    </nav>
     <div class="scene-bottom"><div><small>OBJECTIF ACTUEL</small><strong id="activity">Se redresser</strong></div><button id="speed" type="button" aria-pressed="false">Passer en temps réel</button></div>
   </section>
   <aside>
     <section><h2>Développement</h2><div id="age" class="large">Bébé</div><div class="line"><span id="skill">Se redresser</span><span id="balance">0 %</span></div><progress id="bar" max="100" value="0" aria-label="Stabilité du dernier essai"></progress></section>
     <section><h2>Apprentissage</h2><div class="metrics"><div><strong id="trials">0</strong><small>Essais moteurs</small></div><div><strong id="pecm">0</strong><small>PECM</small></div></div><div class="line time"><span id="year">Année fictive 1</span><span id="day">Jour 1</span></div></section>
-    <section><h2>Besoins</h2><div class="line"><span>Faim</span><span id="hunger">10 %</span></div><div class="line"><span>Fatigue</span><span id="fatigue">5 %</span></div></section>
+    <section><h2>Besoins</h2><div class="line"><span>Faim</span><span id="hunger">10 %</span></div><div class="line"><span>Fatigue</span><span id="fatigue">5 %</span></div><div class="line"><span>Frigo</span><span id="fridge-stock">8 / 8</span></div><div class="line"><span>Repas prêts</span><span id="meal-stock">0</span></div></section>
     <section><h2>Mémoire d’Alex</h2><ul id="journal" aria-live="off"><li>Premiers mouvements.</li></ul></section>
   </aside>
 </main>
-<footer>Kid’s Playground Cyprus v1.1 · astroarch / Sketchfab</footer>
+<footer><span>Kid’s Playground Cyprus v1.1 · astroarch / Sketchfab</span><div><span id="version" title="Identifiant de la révision Git déployée">v. __ALEX_VERSION__</span><button id="reset" type="button">Réinitialiser le jeu</button></div></footer>
+<dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><h2 id="reset-title">Réinitialiser le jeu ?</h2><p>La progression, les essais et la mémoire de cette partie seront effacés.</p><div class="dialog-actions"><button value="cancel" autofocus>Annuler</button><button value="reset" class="danger">Réinitialiser</button></div></form></dialog>
+<dialog id="person-dialog" aria-labelledby="person-title"><form method="dialog"><h2 id="person-title">Personnage à suivre</h2><div id="person-list"></div><div class="dialog-actions"><button value="cancel" autofocus>Fermer</button></div></form></dialog>
 <script type="module" src="/app.js"></script>
 </body>
 </html>
