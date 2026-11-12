@@ -16,3 +16,12 @@ export function applyCharacterVariant(root,variant){
   });
   return root;
 }
+
+export async function loadHouseModel(modelUrl='/assets/3d/big_housse.glb.gz',partCount=106){
+  if(typeof DecompressionStream==='undefined')throw new Error('Ce navigateur ne prend pas en charge la décompression gzip.');
+  const chunks=await Promise.all(Array.from({length:partCount},(_,i)=>fetch(modelUrl+'/part-'+String(i).padStart(3,'0')+'.bin').then(r=>{if(!r.ok)throw new Error('Partie de la maison manquante: '+i);return r.arrayBuffer()})));
+  const total=chunks.reduce((n,c)=>n+c.byteLength,0),joined=new Uint8Array(total);let offset=0;
+  for(const chunk of chunks){joined.set(new Uint8Array(chunk),offset);offset+=chunk.byteLength}
+  const stream=new Blob([joined]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Response(stream).arrayBuffer();
+}

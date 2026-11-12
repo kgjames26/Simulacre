@@ -155,5 +155,11 @@
       "suit": "#C96983",
       "accent": "#E6CA71"
     }
-  ]
+  ],
+  "houseModel": {
+    "compressedSource": "/assets/3d/big_housse.glb.gz",
+    "parts": 106,
+    "partBytes": 28000,
+    "compression": "gzip"
+  }
 }
