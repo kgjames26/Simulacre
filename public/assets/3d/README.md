@@ -1,11 +1,10 @@
 # Assets 3D ALEX
 
-Emplacement prévu pour les modèles du jeu : `public/assets/3d/`.
+- `low_poly_home_1.png` : image reçue sous l’extension `.glb`, vérifiée comme PNG.
+- `popo_stickman_helmet.glb/part-000.bin` à `part-056.bin` : modèle Popo original, découpé sans perte en 57 morceaux binaires pour le dépôt et reconstitué par le chargeur.
+- `characters.json` : 15 profils avec tailles, stades d’âge, teints et couleurs de combinaison pour Alex, sa famille et ses amis.
+- `load-character.js` : fonctions pour reconstruire le modèle et appliquer l’apparence du profil choisi.
 
-- `low_poly_home_1.png` — image fournie sous le nom `low_poly_home_1.glb`; vérifiée comme PNG et ajoutée au dépôt.
-- `villa-interior.glb` — modèle loft intérieur. Deux copies identiques ont été reçues ; une seule est utile.
-- `characters-cartoon.glb` — personnages cartoon.
-- `playground.glb` — structure de jeu.
-- `playground-cyprus.glb` — aire de jeu Cyprus.
+Les profils partagent le même maillage de base. La taille et les couleurs sont réglées à l’affichage, ce qui évite de stocker une copie lourde pour chaque personnage.
 
-Les quatre modèles GLB sont encore conservés dans les fichiers source, mais ne sont pas dans GitHub. Ensemble, les fichiers 3D font environ 96 Mo. Le canal d’envoi utilisé pour cette session accepte les textes et les petits binaires, mais tronque les transferts plus volumineux. Chaque modèle GLB peut être ajouté via GitHub (fichier individuel inférieur à 100 Mo) dans ce dossier.
+Les modèles de villa, de personnages cartoon et d’aires de jeux restent à ajouter.
