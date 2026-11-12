@@ -1,0 +1,19 @@
+{
+  "name": "ALEX — Simulacre",
+  "short_name": "ALEX",
+  "description": "Simulation expérimentale d'une intelligence évolutive.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#101920",
+  "theme_color": "#101920",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
