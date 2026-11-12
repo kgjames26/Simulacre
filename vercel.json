@@ -1,0 +1,4 @@
+{
+  "buildCommand": "mkdir -p dist && cp -R public/. dist/ && cp index.html manifest.webmanifest icon.svg sw.js app.js sim.js styles.css dist/",
+  "outputDirectory": "dist"
+}

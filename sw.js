@@ -1,4 +1,26 @@
-const CACHE="alex-shell-v1";const CORE=["/","/index.html","/manifest.webmanifest","/icon.svg"];
-self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)));self.skipWaiting()});
-self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim()});
-self.addEventListener("fetch",e=>{if(e.request.method!=="GET")return;e.respondWith(caches.match(e.request).then(hit=>hit||fetch(e.request).then(res=>{const copy=res.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return res}).catch(()=>caches.match("/index.html"))))});
+const CACHE = 'alex-shell-v3';
+const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/styles.css', '/app.js', '/sim.js'];
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('alex-shell-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(caches.open(CACHE).then(async cache => {
+    if (event.request.mode !== 'navigate') {
+      const hit = await cache.match(event.request);
+      if (hit) return hit;
+    }
+    try {
+      const response = await fetch(event.request);
+      if (response.ok || response.type === 'opaque') await cache.put(event.request, response.clone()).catch(() => {});
+      return response;
+    } catch (error) {
+      const fallback = await cache.match(event.request) || (event.request.mode === 'navigate' && await cache.match('/index.html'));
+      if (fallback) return fallback;
+      throw error;
+    }
+  }));
+});
