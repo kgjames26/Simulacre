@@ -1,5 +1,5 @@
 const residents=[alex,...people.slice(0,3)];
-const residentNames={alex:'Alex',joseph:'Joseph',marie:'Marie',juliette:'Juliette'};
+const residentNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette'};
 const floorHeight=1.9525;
 const sleeps=new Map();
 
@@ -161,7 +161,7 @@ function sleeping(person,s,canWalk=true){
   }
   if(sleep.phase==='pickup'){
     person.activity='Se fatigue';
-    carrier.activity='Va chercher Alex';
+    carrier.activity='Va chercher Néo';
     if(move(carrier,person.x,person.z,.83)<.24)sleep.phase='bed';
   }else if(sleep.phase==='stairs-start'){
     person.activity='Va vers l’escalier';
@@ -172,7 +172,7 @@ function sleeping(person,s,canWalk=true){
     traverseStairs(person,sleep,sleep.phase==='up'?1:-1);
   }else if(sleep.phase==='bed'){
     person.activity=carrier?'Est porté vers son lit':'Va se coucher';
-    if(carrier)carrier.activity='Porte Alex vers son lit';
+    if(carrier)carrier.activity='Porte Néo vers son lit';
     const distance=movePerson===alex?learnedMovement(alex,bed.approach.x,bed.approach.z):move(movePerson,bed.approach.x,bed.approach.z,speed);
     if(distance<.075){
       sleep.phase='settle';
