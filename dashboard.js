@@ -147,7 +147,7 @@ function renderStats(state){
     ['Marche · essais confirmés',fmt(state.validated)],
     ...Object.entries(countLabels).map(([key,label])=>[label,fmt(counts[key])]),
     ['Répliques entendues par Néo',fmt(dialogue.audible)],['Mots associés',fmt(dialogue.known)],
-    ['Imitations d’Néo',fmt(dialogue.spoken)],['Temps simulé',stamp(state.ticks/120)]
+    ['Imitations de Néo',fmt(dialogue.spoken)],['Temps simulé',stamp(state.ticks/120)]
   ].map(([label,value])=>stat(label,value)));
   ui('fridge-stock').textContent=kitchen.ingredients+' / 8';
   ui('meal-stock').textContent=kitchen.meals;
