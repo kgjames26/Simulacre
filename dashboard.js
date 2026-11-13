@@ -12,7 +12,7 @@ const tabLinks=[...document.querySelectorAll('.pages a')];
 const detailPages=Object.keys(pageNames).slice(2);
 const pageSize=48;
 let page, current, historyBefore=Infinity, historyStack=[], historyRequest=0, displayedLines='';
-let archive, recent=new Map(), latestArchived=0, archiveStatus='opening';
+let archive, recent=new Map(), latestArchived=0, archiveStatus='opening', pantrySignature='';
 
 const node=(tag,value,css)=>{
   const item=document.createElement(tag);
@@ -149,7 +149,11 @@ function renderStats(state){
     ['Répliques entendues par Néo',fmt(dialogue.audible)],['Mots associés',fmt(dialogue.known)],
     ['Imitations de Néo',fmt(dialogue.spoken)],['Temps simulé',stamp(state.ticks/120)]
   ].map(([label,value])=>stat(label,value)));
-  ui('fridge-stock').textContent=kitchen.ingredients+' / 8';
+  ui('fridge-stock').textContent=(kitchen.pantry?.length||0)+' aliments · '+fmt(kitchen.ingredients)+' unités';
+  const pantry=(kitchen.pantry||[]).slice().sort((a,b)=>a.group.localeCompare(b.group,'fr')||a.name.localeCompare(b.name,'fr'));
+  const signature=pantry.map(food=>food.id+':'+food.stock).join('|');
+  if(signature!==pantrySignature){pantrySignature=signature;ui('fridge-inventory').replaceChildren(...pantry.map(food=>{const item=node('div',null,'food-item');item.append(node('strong',food.name),node('small',food.group+' · '+food.stock));return item;}));}
+  ui('last-meal').textContent=kitchen.lastMeal?'Dernier plat : '+kitchen.lastMeal+' ('+(kitchen.lastIngredients||[]).join(', ')+')':'Aucun plat préparé pour le moment.';
   ui('meal-stock').textContent=kitchen.meals;
   ui('oven-temp').textContent=Math.round(kitchen.ovenTemperature)+' °C';
   ui('meal-quality').textContent=percent(kitchen.lastQuality);
