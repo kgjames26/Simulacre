@@ -1,4 +1,4 @@
-importScripts('/brain.js','/cortex.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js');
+importScripts('/brain.js','/cortex.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js','/famille-phrases.js');
 const dialogue=createDialogue();
 const languageScene={points:{},visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
 const DT = 1 / 120;
@@ -29,8 +29,11 @@ function knowledgeScore(){
   const gestes=Brain.APPRENABLES.filter(g=>Brain.state.gestes[g]?.appris).length;
   return Brain.confirmees().length+2*Cortex.confirmees()+mots+3*gestes+records.filter(r=>r.mastered).length;
 }
-const aEnvieDAider=p=>p.bond>=3;
-const aBesoin=p=>(p.faim||0)>=.5||(p.peine||0)>=.5;
+// Règle générale (pas une méthode) : qui apprécie quelqu'un veut qu'il aille mieux et se sente bien.
+// L'intensité vient du lien et du caractère (socialStyle.care). Rien ne dit COMMENT : chacun fait avec ce qu'il sait.
+const apprecie=autre=>Math.min(1,(autre.bond||0)/6);
+const malEtre=autre=>Math.max(autre.faim||0,autre.peine||0);
+const envieDeBienEtre=(qui,autre)=>apprecie(autre)*(socialStyle[qui]?.care??.5)*malEtre(autre);
 const milestones = [
   {motor:35, life:0, cognition:0, play:0, social:0},
   {motor:62, life:8, cognition:3, play:1, social:2},
@@ -734,7 +737,7 @@ function chooseGoal(s){
     const novelty=2.4/(1+observations+record.completed);
     const unfinished=record.choices>0&&record.completed===0?.32:0;
     const distance=Math.hypot(goal.x-alex.x,goal.z-alex.z);
-    return (novelty+unfinished+.23)*(goal.person&&aEnvieDAider(goal.person)&&aBesoin(goal.person)?3:1)*(1+2.5*(recall.get(goal.id)||0)+(Cortex.attendue(goal.id)?2:0))/(1+distance*.115+record.blocked*.12);
+    return (novelty+unfinished+.23)*(1+(goal.person?6*envieDeBienEtre('alex',goal.person):0))*(1+2.5*(recall.get(goal.id)||0)+(Cortex.attendue(goal.id)?2:0))/(1+distance*.115+record.blocked*.12);
   };
   let pick=rng()*candidates.reduce((sum,goal)=>sum+interest(goal),0);
   const selected=candidates.find(goal=>(pick-=interest(goal))<=0)||candidates[0];
@@ -832,12 +835,9 @@ function experience() {
       if(category==='social'){
         counts.social++; friend.bond++;
         relationshipEvent('alex',friend.id,'Rencontre',s,age);
-        if(aEnvieDAider(friend)&&aBesoin(friend)){
-          // Envie innée d'aider ceux qu'il aime bien ; la façon dépend de ce qu'il a appris.
-          const source=(friend.faim||0)>=.5?Brain.besoinCible('faim'):null;
-          if(source){friend.faim=.1;note('Néo apporte à manger à '+characterNames[friend.id]+', qu’il aime bien.','social');}
-          else{friend.peine=.1;note('Néo reste auprès de '+characterNames[friend.id]+' pour le réconforter.','social');}
-          friend.bond++;counts.social++;counts.aides=(counts.aides||0)+1;friend.aideRecue=(friend.aideRecue||0)+1;
+        if(envieDeBienEtre('alex',friend)>.15){
+          note('Néo vient voir '+characterNames[friend.id]+', qu’il aime bien et qui ne va pas très bien.','social');
+          counts.aides=(counts.aides||0)+1;friend.aideRecue=(friend.aideRecue||0)+1;
         }
         if(friend.id==='marie'||friend.id==='joseph') note('Un câlin apaise Néo.','social');
         else note('Néo rencontre '+characterNames[friend.id]+'.','social');

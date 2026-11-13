@@ -9,6 +9,6 @@ if (!revision) {
 const version = readFileSync('VERSION', 'utf8').trim();
 mkdirSync('dist', { recursive: true });
 cpSync('public', 'dist', { recursive: true });
-for (const file of ['manifest.webmanifest', 'icon.svg', 'app.js', 'sim.js', 'brain.js', 'cortex.js', 'world.js', 'dialogue.js', 'collision-map.js', 'navigation.js', 'home.js', 'dashboard.js', 'styles.css', 'motor.js', 'social.js', 'play.js', 'french-words.js', 'play-view.js', 'toy-rails.js']) cpSync(file, 'dist/' + file);
+for (const file of ['manifest.webmanifest', 'icon.svg', 'app.js', 'sim.js', 'brain.js', 'cortex.js', 'world.js', 'dialogue.js', 'collision-map.js', 'navigation.js', 'home.js', 'dashboard.js', 'styles.css', 'motor.js', 'social.js', 'play.js', 'french-words.js', 'play-view.js', 'toy-rails.js', 'panneaux.js', 'famille-phrases.js']) cpSync(file, 'dist/' + file);
 writeFileSync('dist/index.html', readFileSync('index.html', 'utf8').replaceAll('__NÉO_VERSION__', version));
 writeFileSync('dist/sw.js', readFileSync('sw.js', 'utf8').replaceAll('__NÉO_VERSION__', version));

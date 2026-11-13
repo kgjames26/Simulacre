@@ -13,7 +13,9 @@ if(!r.timeo||!r.rose||r.joseph||r.marie)throw new Error('paliers incorrects '+JS
 run(`dialogue.view=()=>({vocabulary:Array.from({length:40},(_,i)=>({word:'m'+i}))});activityData=null;snapshot();`);
 if(!run(`people.find(p=>p.id==='joseph').partage`)||!run(`Brain.state.synchro.famille`))throw new Error('famille ne reçoit pas');
 console.log('partage ok');
-// Aide : un ami aimé qui a faim reçoit de l'aide ; un inconnu non (logique de condition).
-run(`globalThis.__p={bond:3,faim:.8};globalThis.__q={bond:1,faim:.9};`);
-if(!run(`aEnvieDAider(__p)&&aBesoin(__p)`)||run(`aEnvieDAider(__q)`))throw new Error('aide');
-console.log('aide ok');
+// Règle d'envie de bien-être : dépend du lien, du caractère et du mal-être ; rien d'écrit sur la façon de faire.
+run(`globalThis.__p={bond:6,faim:.8};globalThis.__q={bond:0,faim:.9};globalThis.__r={bond:6,faim:0,peine:0};`);
+const ep=run(`envieDeBienEtre('alex',__p)`);
+if(!(ep>.3)||run(`envieDeBienEtre('alex',__q)`)!==0||run(`envieDeBienEtre('alex',__r)`)!==0)throw new Error('envie');
+if(!(run(`envieDeBienEtre('marie',__p)`)>ep))throw new Error('le caractère doit compter (Marie plus attentive)');
+console.log('envie ok');
