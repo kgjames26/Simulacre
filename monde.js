@@ -172,3 +172,61 @@ function miroirAmi(f,i,s){
   if(ticks%600===0){Brain.entraine(.006);evoluer(f.id,'curiosite',.004);}
   return {x:pt.x,z:pt.z,activity:'Refait ce que Néo a découvert au parc'};
 }
+
+// Tant que Néo ne marche pas, ses parents le prennent dans leurs bras et le déposent là où il faut :
+// à table s'il a faim, près de l'eau s'il a soif, à la douche s'il en a besoin. Personne ne lui explique rien.
+let portage=null,prochainPortage=60;
+const neoMarche=()=>skill===4&&records[4].mastered;
+function besoinPortage(){
+  const o=house?.objects,k=house?.kitchen;
+  if(alex.hunger>.5&&k?.table&&(kitchen.meals>0||kitchen.pantry?.some(f=>f.stock>0)))
+    return {type:'faim',lieu:k.table,vers:'la table',sert:'Donne à manger à Néo'};
+  if((alex.thirst||0)>.55&&o?.water)return {type:'soif',lieu:o.water,vers:'l’eau',sert:'Donne à boire à Néo'};
+  if((alex.hygiene??1)<.3&&o?.shower)return {type:'hygiene',lieu:o.shower,vers:'la douche',sert:'Lave Néo'};
+  return null;
+}
+function finPortage(s,pause=45){
+  if(portage){portage.parent.activity='Se déplace';portage.parent.moving=false;}
+  portage=null;prochainPortage=s+pause;alex.y=0;
+}
+function stepPorte(s){
+  if(portage){
+    const q=portage,p=q.parent;
+    if(neoMarche()||sleeps.has(alex)||sleeps.has(p)||contact||s>q.fin){finPortage(s,60);return false;}
+    alex.lie=0;alex.pose=0;alex.tilt=0;alex.effort=0;
+    if(q.phase==='cherche'){
+      alex.activity='Attend qu’on s’occupe de lui';p.activity='Va chercher Néo';
+      if(move(p,alex.x,alex.z,.9)<.5){q.phase='porte';q.fin=s+60;}
+    }else if(q.phase==='porte'){
+      alex.activity='Est porté vers '+q.besoin.vers;p.activity='Porte Néo vers '+q.besoin.vers;
+      const d=move(p,q.besoin.lieu.x,q.besoin.lieu.z,.8);
+      alex.x=p.x;alex.z=p.z;alex.y=.62;alex.heading=p.heading;
+      if(d<.9){q.phase='sert';q.jusqua=s+4;alex.y=0;}
+    }else{
+      alex.activity='Est auprès de '+q.besoin.vers;p.activity=q.besoin.sert;
+      const a=(p.heading||0)+Math.PI/2,x=p.x+Math.sin(a)*.5,z=p.z+Math.cos(a)*.5;
+      if(navigation.isFree(x,z,0)){alex.x=x;alex.z=z;}else{alex.x=p.x;alex.z=p.z;}
+      alex.y=0;
+      if(s>=q.jusqua){
+        const t=q.besoin.type;
+        if(t==='faim'){
+          if(kitchen.meals>0)takeServing(alex);
+          else{const f=kitchen.pantry?.find(x=>x.stock>0);if(f){f.stock--;ensureFoodStock();alex.hunger=Math.max(.08,alex.hunger-.4);alex.pleasure=clamp((alex.pleasure||0)+.1,0,1);}}
+        }else if(t==='soif')alex.thirst=.06;
+        else alex.hygiene=1;
+        alex.pleasure=clamp((alex.pleasure||0)+.15,0,1);
+        note(characterNames[p.id]+' porte Néo '+(t==='faim'?'à table et lui donne à manger':t==='soif'?'près de l’eau et lui donne à boire':'à la douche et le lave')+'.','care');
+        relationshipEvent('alex',p.id,'Prend soin de Néo',s,age);Brain.lien(opaque('personne:'+p.id),1);evoluer(p.id,'empathie',.002);
+        finPortage(s,t==='faim'?70:50);
+      }
+    }
+    return true;
+  }
+  if(neoMarche()||!house||s<prochainPortage||sleeps.has(alex)||contact||objectContact||(alex.floor||0)!==0||alex.lie)return false;
+  const besoin=besoinPortage();if(!besoin)return false;
+  const parent=people.slice(0,2).filter(p=>!(p.floor||0)&&!sleeps.has(p)&&p.id!==kitchenOwner&&!ROUT.has(p)&&!p.enCourse&&!doorHelp.has(p))
+    .sort((a,b)=>Math.hypot(a.x-alex.x,a.z-alex.z)-Math.hypot(b.x-alex.x,b.z-alex.z))[0];
+  if(!parent){prochainPortage=s+10;return false;}
+  portage={parent,besoin,phase:'cherche',fin:s+70};
+  return true;
+}

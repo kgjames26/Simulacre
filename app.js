@@ -34,6 +34,12 @@ function dire(texte,qui){
 // Sur la vue du monde : ce que Néo dit, ce qu'il entend, ce qu'il pense.
 let voixNeo=false,cleBulles='',bullesPrimees=false;
 const dejaDits=new Set();
+// Sur téléphone, l'encadré quitte la vue du monde pour ne pas la cacher.
+{
+  const bulles=ui('neo-bulles'),scene=document.querySelector('.stage'),mq=matchMedia('(max-width:720px)');
+  const placer=()=>{if(mq.matches){scene.after(bulles);bulles.classList.add('hors');}else{scene.append(bulles);bulles.classList.remove('hors');}};
+  placer();mq.addEventListener('change',placer);
+}
 const boutonVoixNeo=ui('voix-neo');
 if(!('speechSynthesis' in window))boutonVoixNeo.hidden=true;
 boutonVoixNeo.onclick=()=>{

@@ -395,7 +395,7 @@ function doorNear(p,door,depth,padding){
 // Deux corps ne se traversent pas : on ne s'approche pas à moins de 35 cm d'un autre (sauf câlin, portage, s'éloigner).
 function corpsLibre(p,x,z){
   if(p.hug||sleeps.has(p)||p===alex&&contact)return true;
-  const porte=sleeps.get(alex)?.carrier,etage=p.floor||0;
+  const porte=sleeps.get(alex)?.carrier||portage?.parent,etage=p.floor||0;
   const gene=o=>{
     if(o===p||Math.abs(o.x-x)>.4||Math.abs(o.z-z)>.4)return false;
     if(o.dedans||o.hug||(o.floor||0)!==etage||o.lie>.5||porte===o&&p===alex||porte===p&&o===alex)return false;
@@ -866,7 +866,7 @@ function experience() {
     if(r)penser('je rêve de '+r.elements.map(nomPense).join(' et ')+'.',s,true);
   }
   alex.dort=dort;
-  const usingEquipment=stepHouseObject(s)||stepPark(s)||sleeping(alex,s,skill===4&&records[4].mastered)||stepNeoUpstairs(s);
+  const usingEquipment=stepHouseObject(s)||stepPark(s)||sleeping(alex,s,skill===4&&records[4].mastered)||stepPorte(s)||stepNeoUpstairs(s);
   if(!usingEquipment){
   alex.y=Math.max(0,(alex.y||0)-DT*2.8);
   if(skill===4 && records[4].mastered){
@@ -947,6 +947,7 @@ function experience() {
   }
   for(let i=0;i<people.length;i++){
     const p=people[i];
+    if(portage?.parent===p)continue;
     if(i>=3&&amiAccompagne(p,s))continue;
     if(i===1&&stepVisiteAmi(p,s))continue;
     if(i<2&&stepCourses(p,i,s))continue;

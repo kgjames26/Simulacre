@@ -39,7 +39,7 @@ function humeurJauge(label,bien){
   const v=Math.max(0,Math.min(1,bien));
   const track=el('div',{className:'track'+(v<.35?' warn':'')},el('i',{style:'width:'+Math.round(v*100)+'%'}));
   return el('div',{className:'meter face',title:label+' : '+(v>.66?'ça va bien':v>.35?'moyen':'ça ne va pas')},el('span',{textContent:label}),
-    el('span',{className:'tete',textContent:'☹️'}),track,el('span',{className:'tete',textContent:'😊'}));
+    el('span',{className:'tete',style:'font-size:'+(13+12*(1-v)).toFixed(1)+'px',textContent:'☹️'}),track,el('span',{className:'tete',style:'font-size:'+(13+12*v).toFixed(1)+'px',textContent:'😊'}));
 }
 // Ne repeint un bloc que si son contenu a changé.
 function paint(id,key,build){const box=ui(id);if(!box||box.dataset.key===key)return;box.dataset.key=key;box.replaceChildren(...build());}

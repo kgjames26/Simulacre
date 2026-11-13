@@ -155,7 +155,7 @@ main{max-width:1480px;margin:auto;padding:18px 20px 30px}
 .track{height:9px;border-radius:99px;background:var(--soft);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(18,26,23,.06)}
 .track i{display:block;height:100%;border-radius:99px;background:var(--accent);transition:width .6s}
 .track.warn i{background:var(--warm)}
-.meter.face{grid-template-columns:90px 22px 1fr 22px;gap:8px}
+.meter.face{grid-template-columns:90px 28px 1fr 28px;gap:6px;align-items:center}
 .meter .tete{font-size:17px;line-height:1;text-align:center}
 
 /* pages */
@@ -265,7 +265,7 @@ dialog p{color:var(--ink2)}
 .meter.niveau{grid-template-columns:96px 52px 1fr 52px;gap:8px}
 .meter .bout{font-size:11.5px;color:var(--muted);font-weight:600;text-align:center;white-space:nowrap}
 .track.neutre i{background:#3c5d8f}
-@media (max-width:720px){.meter.face{grid-template-columns:82px 20px 1fr 20px}.meter.niveau{grid-template-columns:82px 44px 1fr 44px}.meter .bout{font-size:10.5px}}
+@media (max-width:720px){.meter.face{grid-template-columns:82px 26px 1fr 26px}.meter.niveau{grid-template-columns:82px 44px 1fr 44px}.meter .bout{font-size:10.5px}}
 .filters.deux{align-items:center;flex-wrap:wrap}.filters.deux select{flex:1;min-width:120px}.et{font-weight:700;color:var(--muted)}
 /* conversations de Néo en direct */
 .meta.live{color:#c0392b;font-weight:600}
@@ -290,3 +290,6 @@ dialog p{color:var(--ink2)}
 #bulles-liste li.vieux{opacity:.5}
 .btn-voix{white-space:nowrap}
 .filters select{flex:1}
+
+/* Téléphone : l'encadré d'écoute sort de la vue et se place sous elle */
+.bulles.hors{position:static;width:auto;margin:10px 0 0;box-shadow:none;background:#fff}

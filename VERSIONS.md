@@ -114,3 +114,8 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Croissance : « Où il en est » fusionne dans « Les étapes de sa vie ». « Son corps » (gestes, capacités, défis) passe du cerveau à la croissance.
 - Nouvelles capacités : saut, psychomotricité, motricité fine, gestion de la douleur (elles grandissent avec ce qu'il fait : sauter, essayer, manipuler, se faire mal).
 - Nouvelle page « Ses découvertes » : tout ce qu'il a trouvé, rangé par genre (corps, objets, jeux, aire de jeux, portes, endroits, besoins, personnes, mots, idées, familles, habitudes, lieux).
+
+## v3.9
+- Jauges à têtes : la tête vers laquelle va l'information grossit, celle dont elle s'éloigne rétrécit.
+- Téléphone : l'encadré « Néo dit, entend, pense » sort de la vue du monde et se place juste dessous.
+- Tant que Néo ne marche pas, ses parents le portent là où il faut : à table s'il a faim (ils lui donnent à manger), près de l'eau s'il a soif, à la douche s'il en a besoin, puis le reposent.
