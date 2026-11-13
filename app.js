@@ -611,6 +611,16 @@ async function showWorld(){
     sun.shadow.bias=-.0004;sun.shadow.normalBias=.05;sun.shadow.radius=3;
     sun.target.position.set(0,0,0);scene.add(sun.target);
   }
+  if(realGL){
+    // Fond en dégradé radial : le diorama se détache au lieu de flotter sur un aplat.
+    const bg=document.createElement('canvas');bg.width=bg.height=512;
+    const g=bg.getContext('2d'),grad=g.createRadialGradient(256,230,30,256,256,360);
+    grad.addColorStop(0,'#8fb0a3');grad.addColorStop(.55,'#5f8277');grad.addColorStop(1,'#2f4741');
+    g.fillStyle=grad;g.fillRect(0,0,512,512);
+    const tex=new T.CanvasTexture(bg);tex.colorSpace=T.SRGBColorSpace;scene.background=tex;
+    // Lumière de remplissage froide, sans ombre, pour donner du volume côté ombre.
+    const fill=new T.DirectionalLight(0xbfd8ff,.55);fill.position.set(14,10,-12);scene.add(fill);
+  }
   let shadowPass=0;
   const flagShadows=()=>{if(!realGL)return;scene.traverse(o=>{if(o.isMesh&&!o.userData.shadowSet&&!o.material?.transparent){o.userData.shadowSet=true;o.castShadow=true;o.receiveShadow=true;}});};
   const mat=color=>new T.MeshStandardMaterial({color,roughness:.9});
@@ -626,6 +636,7 @@ async function showWorld(){
     }
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
     texture.wrapS=texture.wrapT=T.RepeatWrapping;texture.repeat.set(...repeat);
+    if(realGL)texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy?.()||1);
     return texture;
   }
   const lawn=mat('#849b73');
