@@ -59,3 +59,12 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Contacts : aucune partie du corps ne passe sous le sol ; les personnages ne se traversent plus (pas de côté, croisement dans les passages étroits).
 - Démarche des personnages : accélération et freinage, virages progressifs, pas propre à chacun, contre-rotation bassin/épaules le long de la colonne (6 vertèbres), balancement des bras, genou fléchi, tête stable, respiration au repos.
 - Le jeu démarre à vitesse réelle.
+
+## v3.2
+- Croissance : chaque étape de vie se déplie : ce qui est prévu, ce qui est en cours, ce qui a été accompli (avec la date).
+- Les enfants du même âge que Néo ne parlent plus d'eux-mêmes : ils ne disent que des mots ou phrases que Néo a validés.
+- Jauges du monde : tête triste à gauche, tête heureuse à droite, la barre entre les deux (rassasié, reposé, désaltéré, bien-être, confiance).
+- Chaque chose du monde a un nom (avec son article) ; Joseph, Marie et Juliette en parlent en la montrant, Néo peut apprendre ces mots. Nouveaux lieux nommés : portail, petite porte, trottoir, rue, commerce, maison des voisins, tas de bois, robinet…
+- Calculs des parents vraiment rares.
+- Leadership pour chaque personnage ; celui de Néo se construit quand les autres le suivent ou reprennent ses découvertes. Les enfants qui en ont moins que lui le suivent.
+- Carte : déplacement au doigt ou à la souris réparé (bloqué après avoir choisi un étage), bouton plein écran, bouton Étage/Rez corrigé, murs et toits transparents devant le personnage suivi.

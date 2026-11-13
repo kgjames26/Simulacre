@@ -29,6 +29,13 @@ function meter(label,value,warn){
   const track=el('div',{className:'track'+(warn?' warn':'')},el('i',{style:'width:'+Math.round(Math.max(0,Math.min(1,value))*100)+'%'}));
   return el('div',{className:'meter'},el('span',{textContent:label}),track,el('b',{textContent:pct(value)}));
 }
+// Jauge lisible d'un coup d'œil : tête triste à gauche, tête heureuse à droite, la barre entre les deux (plus elle est pleine, mieux c'est).
+function humeurJauge(label,bien){
+  const v=Math.max(0,Math.min(1,bien));
+  const track=el('div',{className:'track'+(v<.35?' warn':'')},el('i',{style:'width:'+Math.round(v*100)+'%'}));
+  return el('div',{className:'meter face',title:label+' : '+(v>.66?'ça va bien':v>.35?'moyen':'ça ne va pas')},el('span',{textContent:label}),
+    el('span',{className:'tete',textContent:'☹️'}),track,el('span',{className:'tete',textContent:'😊'}));
+}
 // Ne repeint un bloc que si son contenu a changé.
 function paint(id,key,build){const box=ui(id);if(!box||box.dataset.key===key)return;box.dataset.key=key;box.replaceChildren(...build());}
 
@@ -97,8 +104,8 @@ function renderMonde(s){
   ui('age').textContent=AGES[s.age];
   if(z)ui('zone-chip').textContent='Permis : '+z.liste[z.niveau].nom;
   paint('neo-meters',[a.hunger,a.fatigue,a.thirst,a.pleasure,b?.emotions.confiance].map(v=>Math.round((v||0)*20)).join(),()=>[
-    meter('Faim',a.hunger,a.hunger>.65),meter('Fatigue',a.fatigue,a.fatigue>.7),meter('Soif',a.thirst??0,(a.thirst||0)>.65),
-    meter('Bien-être',a.pleasure||0),meter('Confiance',b?.emotions.confiance??.4)]);
+    humeurJauge('Rassasié',1-a.hunger),humeurJauge('Reposé',1-a.fatigue),humeurJauge('Désaltéré',1-(a.thirst??0)),
+    humeurJauge('Bien-être',a.pleasure||0),humeurJauge('Confiance',b?.emotions.confiance??.4)]);
   if(b){
     const sure=b.savoir.filter(c=>c.statut==='confirme').slice(0,4);
     paint('latest-understood',sure.map(c=>c.action+c.cible).join(),()=>sure.length?sure.map(c=>el('li',{textContent:(VERBES[c.action]||cap(c.action))+' '+c.cible+' : '+effets(c.effet)})):[el('li',{className:'muted',textContent:'Rien encore : il observe et essaie.'})]);
@@ -121,7 +128,7 @@ function renderCerveau(s){
     ['Sens',b.sens,'choses perçues en ce moment'],['Corps',b.gestes.innes.length+b.gestes.appris.length,'gestes qu’il sait faire'],
     ['Espace',b.lieux,'endroits connus · '+b.limites+' limite'+(b.limites>1?'s':'')],['Objets',b.nbObjets,'choses repérées · '+b.familles+' famille'+(b.familles>1?'s':'')],
     ['Mémoire',b.souvenirs,'souvenirs complets'],['Causes',b.compris,'choses comprises'],['Langage',b.mots,'mots compris'],
-    ['Social',b.personnes,'personnes connues'],['Émotions',Math.round(b.emotions.confiance*100)+' %','confiance en lui'],['Envies',b.envies,'questions et projets'],
+    ['Social',b.personnes,'personnes connues · leadership '+pct(b.leadership)],['Émotions',Math.round(b.emotions.confiance*100)+' %','confiance en lui'],['Envies',b.envies,'questions et projets'],
     ['Associations',c.liens,c.deductions+' idées · '+c.confirmees+' vérifiées',true]];
   paint('regions',JSON.stringify(regions),()=>regions.map(([nom,n,desc,hub])=>el('div',{className:'region'+(hub?' hub':''),dataset:{empty:String(!n||n==='0 %')}},el('strong',{textContent:typeof n==='number'?fmt(n):n}),el('span',{textContent:nom}),el('small',{textContent:desc}))));
   paint('brain-causes',JSON.stringify(b.savoir.slice(0,12)),()=>b.savoir.length?b.savoir.slice(0,12).map(k=>{
@@ -157,10 +164,19 @@ function renderVocabulary(d){
 // ---------- page : sa croissance ----------
 function renderCroissance(s){
   paint('age-timeline',String(s.age),()=>AGES.map((n,i)=>el('li',{dataset:{state:i<s.age?'done':i===s.age?'active':'later'}},n,el('small',{textContent:i<s.age?'franchi':i===s.age?'maintenant':'à venir'}))));
-  const goals=s.brain?.etape||[];
-  paint('stage-goals',JSON.stringify(goals)+s.age,()=>s.age>=8?[empty('Néo est adulte : il continue d’apprendre sans fin.')]:goals.length?
-    [el('p',{className:'eyebrow',textContent:'Son corps'}),...goals.filter(g=>g.type==='physique').map(g=>item(g.label,null,badge(g.done?'acquis':'pas encore',g.done?'good':''))),
-     el('p',{className:'eyebrow spaced',textContent:'Sa tête'}),...goals.filter(g=>g.type==='mental').map(g=>item(g.label,null,badge(g.done?'acquis':'pas encore',g.done?'good':'')))]:[empty('Évaluation en cours…')]);
+  const etapes=s.brain?.etapes||[];
+  paint('stage-goals',JSON.stringify(etapes),()=>etapes.length?etapes.map(e=>{
+    const box=el('details',{className:'etape',open:e.etat==='en cours',dataset:{etat:e.etat}});
+    const titre=e.etat==='fini'?'accompli'+(e.fin!=null?' · '+stamp(e.fin).replace(/, .*/,''):''):e.etat;
+    box.append(el('summary',{},el('strong',{textContent:e.nom}),badge(titre,e.etat==='fini'?'good':e.etat==='en cours'?'warm':'')));
+    for(const [type,nom] of [['physique','Son corps'],['mental','Sa tête']]){
+      const liste=e.objectifs.filter(g=>g.type===type);
+      if(!liste.length)continue;
+      box.append(el('p',{className:'eyebrow',textContent:nom}),...liste.map(g=>item(g.label,null,badge(g.done?'✓ acquis':e.etat==='à venir'?'prévu':'pas encore',g.done?'good':''))));
+    }
+    if(!e.objectifs.length)box.append(empty('Adulte : il continue d’apprendre sans fin.'));
+    return box;
+  }):[empty('Évaluation en cours…')]);
   const z=s.activityData?.zone;
   if(z)paint('zones',JSON.stringify(z),()=>z.liste.map(x=>el('li',{dataset:{open:String(x.ouvert)}},el('span',{textContent:cap(x.nom)}),badge(x.ouvert?'permis':'dès '+(AGES[x.age]||'plus tard').toLowerCase(),x.ouvert?'good':''))));
   const m=s.activityData?.motor||[];
@@ -176,10 +192,10 @@ function renderCroissance(s){
 function humeur(p){if(p.lie>.8)return 'dort';if(p.fatigue>.7)return 'fatigué';if(p.hunger>.65)return 'a faim';if((p.pleasure||0)>.2)return 'content';return 'calme';}
 function renderEntourage(s){
   const people=[{...s.alex,id:'alex'},...s.people];
-  paint('people',people.map(p=>[p.id,p.activity,humeur(p),p.partage,p.vieux].join()).join('|'),()=>people.map(p=>{
+  paint('people',people.map(p=>[p.id,p.activity,humeur(p),p.partage,p.vieux,Math.round((p.leadership||0)*50)].join()).join('|'),()=>people.map(p=>{
     const info=p.id==='alex'?badge(AGES[s.age]):p.partage?badge('reçoit ses découvertes','good'):badge('ne reçoit rien encore');
     return el('article',{className:'person'},el('header',{},el('h3',{textContent:names[p.id]+(p.vieux?' · âgé':'')}),badge(humeur(p),'')),
-      el('p',{textContent:p.activity||'—'}),info);
+      el('p',{textContent:p.activity||'—'}),meter('Leadership',p.leadership||0),info);
   }));
   renderRelation(s);
   const kind=ui('interaction-filter').value,events=(s.activityData?.events||[]).filter(e=>!kind||e.kind===kind).slice(0,40);

@@ -134,13 +134,36 @@ function createDialogue(){
   }
   const near=(a,b,range)=>(a.floor||0)===(b.floor||0)&&!a.lie&&!b.lie&&Math.hypot(a.x-b.x,a.z-b.z)<range;
   function landmarksInView(alex,scene){
-    if(alex.floor||alex.lie)return [];
-    return ALEX_TOPICS.flatMap(topic=>{
+    if(alex.lie)return [];
+    const out=alex.floor?[]:ALEX_TOPICS.flatMap(topic=>{
       const point=scene.points?.[topic.id]||topic;
       if(point.x===null||Math.hypot(point.x-alex.x,point.z-alex.z)>5.3||
          scene.visible&&!scene.visible(alex,point))return [];
       return [{cue:topicCue(topic.id),x:point.x,z:point.z}];
     });
+    for(const c of scene.choses?.()||[]){
+      if(c.floor!==(alex.floor||0)||Math.hypot(c.x-alex.x,c.z-alex.z)>5.3||out.some(o=>o.cue===c.cue))continue;
+      if(scene.visible&&!scene.visible(alex,c))continue;
+      out.push({cue:c.cue,x:c.x,z:c.z});
+    }
+    return out;
+  }
+  // Une chose nommée près de celui qui parle (et visible de Néo s'il faut qu'il puisse l'associer).
+  function choseProche(speaker,scene,alex){
+    const liste=(scene.choses?.()||[]).filter(c=>c.floor===(speaker.floor||0)&&Math.hypot(c.x-speaker.x,c.z-speaker.z)<3.6&&
+      (!alex||Math.hypot(c.x-alex.x,c.z-alex.z)<5.3)&&(!scene.visible||scene.visible(speaker,c)));
+    return liste.length?liste[Math.floor(rng()*liste.length)]:null;
+  }
+  function parlerDe(s,speaker,chose,listener,alex,scene){
+    const kind=LANGUAGE_GESTURES[Math.floor(rng()*LANGUAGE_GESTURES.length)];
+    const frames=LANGUAGE_FRAMES[kind];
+    speaker.languageGesture={kind,heading:Math.atan2(chose.x-speaker.x,chose.z-speaker.z),until:s+1.5};
+    languageCueNames[chose.cue]=chose.subject;
+    const text=sayText(frames[Math.floor(rng()*frames.length)],chose.subject,ALEX_ENDINGS[Math.floor(rng()*ALEX_ENDINGS.length)]);
+    const audible=near(speaker,alex,5.2);
+    emit(s,speaker.id,text,audible,listener.id);
+    if(audible){heard++;language.hear(text,observe(alex,speaker,scene),s,speaker.id);}
+    next=s+Math.max(2.8,text.length*.095);
   }
   function observe(alex,speaker,scene){
     const cues={};
@@ -224,13 +247,23 @@ function createDialogue(){
     const ordered=turn%3===1?groups:groups.slice().reverse();
     for(const group of ordered){
       const outside=group.length===4;
-      if(outside&&!hasNeoSpoken)continue;
       const pairs=group.flatMap((person,i)=>group.slice(i+1)
         .filter(other=>(outside||i===0)&&near(person,other,outside?4.5:3.5)).map(other=>[person,other]));
       if(!pairs.length)continue;
       const [first,second]=pairs[Math.floor(rng()*pairs.length)];
-      const bank=outside?parkLines:[...familyLines,...(typeof familyPhrases!=='undefined'?familyPhrases:[])];
-      let [text,reply]=!outside&&turn%53===0?mathLines[Math.floor(rng()*mathLines.length)]:bank[Math.floor(rng()*bank.length)];
+      // Les enfants du même âge que Néo ne parlent pas d'eux-mêmes : ils ne disent que ce que Néo sait déjà dire.
+      if(outside){
+        const mots=language.words().map(e=>e.word);
+        const dit=phrases.length?phrases[Math.floor(rng()*phrases.length)].text:mots.length?mots[Math.floor(rng()*mots.length)]:null;
+        if(!dit)continue;
+        emit(s,first.id,dit[0].toUpperCase()+dit.slice(1),near(first,alex,5.2),second.id);
+        next=s+Math.max(3.5,dit.length*.12);
+        return true;
+      }
+      const bank=[...familyLines,...(typeof familyPhrases!=='undefined'?familyPhrases:[])];
+      let [text,reply]=turn%97===0?mathLines[Math.floor(rng()*mathLines.length)]:bank[Math.floor(rng()*bank.length)];
+      const chose=turn%3===0?choseProche(first,scene,null):null;
+      if(chose){parlerDe(s,first,chose,second,alex,scene);pending={speaker:second,listener:first,reply:'Oui, je vois '+chose.subject+'.'};return true;}
       if(!outside&&typeof familyLexicons!=='undefined'&&turn%4===0){
         const allowed=familyComments.filter(([word])=>familyLexicons[first.id]?.has(word)&&familyLexicons[second.id]?.has(word));
         if(allowed.length){
@@ -317,6 +350,8 @@ function createDialogue(){
           const parent=nearbyParents[Math.floor(rng()*nearbyParents.length)];
           const shared=topicsNear(parent,scene).filter(({point})=>Math.hypot(point.x-alex.x,point.z-alex.z)<5.3&&
             (!scene.visible||scene.visible(alex,point)));
+          const chose=rng()<.6?choseProche(parent,scene,alex):null;
+          if(chose){parlerDe(s,parent,chose,{id:'alex'},alex,scene);return;}
           if(shared.length){
             const topic=shared[Math.floor(rng()*shared.length)];
             speak(s,parent,alex,topic.i,false,{id:'alex'},scene);
@@ -324,7 +359,7 @@ function createDialogue(){
           }
         }
       }
-      if(turn%11===0&&near(joseph,people[2],5.2)){
+      if(turn%173===0&&near(joseph,people[2],5.2)){
         const [text,reply]=mathLines[Math.floor(rng()*mathLines.length)];
         emit(s,joseph.id,text,near(joseph,alex,5.2),people[2].id);
         if(near(joseph,alex,5.2))language.hear(text,observe(alex,joseph,scene),s,joseph.id);
@@ -332,7 +367,7 @@ function createDialogue(){
         next=s+Math.max(3,text.length*.095);
         return;
       }
-      if(turn%7===0&&near(joseph,marie,5.4)){
+      if(turn%211===0&&near(joseph,marie,5.4)){
         const [text,reply]=mathLines[Math.floor(rng()*mathLines.length)];
         emit(s,joseph.id,text,near(joseph,alex,5.2),marie.id);
         if(near(joseph,alex,5.2))language.hear(text,observe(alex,joseph,scene),s,joseph.id);

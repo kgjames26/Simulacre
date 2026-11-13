@@ -2,6 +2,8 @@
 const BASE='/assets/kenney/';
 export async function chargerQuartier(T,GLTFLoader,scene,Q){
   const loader=new GLTFLoader();
+  const groupe=new T.Group();groupe.name='quartier';scene.add(groupe);
+  const scene0=scene;scene=groupe;
   const cache=new Map();
   const charger=async(kit,nom)=>{
     const cle=kit+'/'+nom;
@@ -68,4 +70,5 @@ export async function chargerQuartier(T,GLTFLoader,scene,Q){
     scene.add(employe);
   }
   await Promise.all(travaux);
+  return groupe;
 }

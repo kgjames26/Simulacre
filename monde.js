@@ -110,10 +110,19 @@ function amiAccompagne(f,s){
   return true;
 }
 // Les camarades ne progressent pas seuls : ils reprennent en miroir ce que Néo a déjà fait sur les équipements du parc.
+const leadershipDe=id=>id==='alex'?Brain.state.social.leadership||0:socialStyle[id]?.leadership||0;
 function miroirAmi(f,i,s){
+  // Si Néo entraîne davantage que cet enfant et qu'il est proche, l'enfant le suit.
+  const d=Math.hypot(alex.x-f.x,alex.z-f.z);
+  if((alex.floor||0)===(f.floor||0)&&d<9&&leadershipDe('alex')>leadershipDe(f.id)&&Math.sin(s*.03+i*2.1)>-.2){
+    if(d>1.2&&ticks%240===0)Brain.entraine(.004);
+    const a=i*1.6;
+    return {x:alex.x+Math.cos(a)*1.1,z:alex.z+Math.sin(a)*1.1,activity:'Suit Néo'};
+  }
   if(!park?.approaches)return null;
   const faits=Object.keys(parkMemory||{}).filter(id=>parkMemory[id]>=1&&park.approaches[id]);
   if(!faits.length||Math.sin(s*.05+i*1.7)<.25)return null;
   const id=faits[(Math.floor(s/40)+i)%faits.length],pt=park.approaches[id];
+  if(ticks%600===0)Brain.entraine(.006);
   return {x:pt.x,z:pt.z,activity:'Refait ce que Néo a découvert au parc'};
 }

@@ -28,12 +28,24 @@ const topicCue=topic=>'thing:'+opaque(topicKey(topic));
 const landmarks=[
   ['tapis',-8,2],['baie',-1,1],['table du salon',-5,-3],['cuisine',-2,-4],
   ['salon',-8,-2],['couloir',-7,0],['lettre N',-8,3],['lettre É',-5,1],['lettre O',-3,2],
-  ['jardin',3,4],['chemin',5,3],['parc',8,5],['gravier',11,5],
-  ['bordure',14,5],['bois',12,4],
+  ['jardin',3,4],['chemin',5,3],['aire de jeux',8,5],['gravier',11,5],
+  ['bordure',14,5],['tas de bois',.12,1.4],['pile de planches',.18,2.7],['robinet',-.46,-.3],['mur d’outils',-.46,-1.9],
+  ['portail',-4,12],['petite porte',4.3,4],['entrée de l’aire de jeux',10,12.2],['trottoir',0,16],['rue',10,21],['lampadaire',0,17.2],
+  ['maison des voisins',29,8.6],['commerce',62,16.2],['panneau stop',45.1,17],['carrefour',49,21],['massif de fleurs',2.6,7.6],
   ['panneau des chiffres',1.4,8.6],['panneau des lettres',3.9,8.6],['panneau des mots',-15.5,-7]
 ];
+// Le nom de chaque chose, avec son article, tel que la famille le prononce.
+const FEMININ=new Set(['baie','table du salon','cuisine','lettre N','lettre É','lettre O','aire de jeux','bordure','pile de planches','portail_','petite porte','entrée de l’aire de jeux','rue',
+  'maison des voisins','télévision','fontaine à eau','douche','cheminée','table à manger','hache','scie','boîte de clous','colle à bois','boîte de vis','fleur','pomme','corde','balançoire',
+  'porte','porte d’entrée','baie vitrée','chambre']);
+const PLURIEL=new Set(['barres de grimpe']);
+function avecArticle(nom){
+  if(PLURIEL.has(nom))return 'les '+nom;
+  if(/^[aeiouyéèêàâîôûh]/i.test(nom))return 'l’'+nom;
+  return (FEMININ.has(nom)||nom.startsWith('porte')?'la ':'le ')+nom;
+}
 // Traits : [hauteur, masse, mou, lumineux, vivant, écrit]
-const landmarkTraits=name=>name.startsWith('lettre')||name.startsWith('panneau')?[0,0,0,0,0,1]:[0,0,0,0,0,0];
+const landmarkTraits=name=>name.startsWith('lettre')||name.startsWith('panneau')&&name!=='panneau stop'?[0,0,0,0,0,1]:[0,0,0,0,0,0];
 
 // Ce que fait chaque équipement quand on lui applique le bon geste. Jamais lu par le cerveau.
 const HOUSE_EFFECTS={
@@ -117,6 +129,10 @@ function entities(){
   return list;
 }
 const entityById=id=>entities().find(entity=>entity.id===id);
+// Ce dont la famille peut parler : toutes les choses nommées du monde, à leur place actuelle.
+function chosesNommees(){
+  return entities().filter(e=>e.kind!=='personne').map(e=>{const src=e.dynamic||e;return {cue:'thing:'+e.id,subject:avecArticle(e.name),x:src.x,z:src.z,floor:src.floor||e.floor||0};});
+}
 
 // Seule porte d'entrée de Néo vers le monde : ce que ses sens captent depuis sa position.
 function percevoir(observer,range){

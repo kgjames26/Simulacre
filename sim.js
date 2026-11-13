@@ -1,6 +1,6 @@
 importScripts('/cerveau.js','/world.js','/dialogue.js','/collision-map.js','/quartier.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js','/famille-phrases.js','/bricolage.js','/monde.js');
 const dialogue=createDialogue();
-const languageScene={points:{},visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
+const languageScene={points:{},choses:chosesNommees,visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
 const DT = 1 / 120;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const motorGoals=[
@@ -876,7 +876,7 @@ function experience() {
         if(!house)note('Néo prend un repas.');
       }
       if(category==='social'){
-        friend.bond++;Brain.lien(friend.id,2);
+        friend.bond++;Brain.lien(friend.id,2);Brain.entraine(.003);
         relationshipEvent('alex',friend.id,'Rencontre',s,age);
         if(envieDeBienEtre('alex',friend)>.15){
           note('Néo vient voir '+characterNames[friend.id]+', qu’il aime bien et qui ne va pas très bien.','social');
@@ -988,12 +988,13 @@ function experience() {
     Brain.consolider(s);
     Cortex.deduire(s,{lexique:dialogue.view().vocabulary});
     if(age>=2)Brain.publier(s);
-    if(age>=2&&Brain.ouvrirPartage('amis'))note('Ses amis du parc commencent à reprendre ce que Néo découvre.','social');
+    if(age>=2&&Brain.ouvrirPartage('amis')&&(Brain.entraine(.05),true))note('Ses amis du parc commencent à reprendre ce que Néo découvre.','social');
     for(const p of people){p.faim=Math.min(1,(p.faim||0)+.06);p.peine=Math.min(1,(p.peine||0)+.03);if(p.faim>=1)p.faim=.15;if(p.peine>=1)p.peine=.2;}
   }
   if(ticks%600===0){
     stageGoals=evaluateStageGoals();
     if(age<8&&stageGoals.length&&stageGoals.every(goal=>goal.done)){
+      historiqueEtapes.push({age,at:Math.round(s)});
       age++;note('Néo grandit : il devient '+AGES[age].toLowerCase()+'.');
       leverInterdits();
       stageGoals=evaluateStageGoals();
@@ -1010,7 +1011,7 @@ function recordBallPlay(id,s){
 // Compétences attendues pour quitter chaque stade, comme pour un enfant : le corps (physique) et la compréhension (mental).
 // Elles se lisent dans l'état du corps et dans les fichiers du cerveau ; rien n'est donné à Néo.
 let stageGoals=[];
-function evaluateStageGoals(){
+function tableEtapes(){
   const st=Brain.state;
   const mots=dialogue.view().vocabulary.length,phrases=dialogue.view().composed||0;
   const sure=Brain.confirmees();
@@ -1031,7 +1032,18 @@ function evaluateStageGoals(){
     [[P,'Être endurant',Brain.capacite('endurance')>=.6],[M,'Acquérir une habitude',habitudes>=1],[M,'Former 5 phrases',phrases>=5],[M,'Comprendre 25 mots',mots>=25]],
     [[P,'Être fort',Brain.capacite('force')>=.7],[M,'Avoir 3 habitudes',habitudes>=3],[M,'Comprendre 15 choses',sure.length>=15],[M,'Vérifier 10 de ses idées',idees>=10]]
   ];
-  return (table[age]||[]).map(([type,label,done])=>({type,label,done:!!done}));
+  return table;
+}
+let historiqueEtapes=[];
+function evaluateStageGoals(){return (tableEtapes()[age]||[]).map(([type,label,done])=>({type,label,done:!!done}));}
+// Toutes les étapes : ce qui est prévu, ce qui est en cours, et ce qui a été accompli (avec le moment).
+function vueEtapes(){
+  const table=tableEtapes();
+  return AGES.map((nom,i)=>{
+    const fait=historiqueEtapes.find(h=>h.age===i);
+    return {age:i,nom,etat:i<age?'fini':i===age?'en cours':'à venir',fin:fait?.at??null,
+      objectifs:i===age?stageGoals:(table[i]||[]).map(([type,label])=>({type,label,done:i<age}))};
+  });
 }
 let activityData, nextActivitySnapshot=0, brainView=null;
 function snapshot() {
@@ -1042,7 +1054,7 @@ function snapshot() {
     for(const p of people){
       if(p.id==='juliette')p.age=Math.min(8,age+2);else if(playgroundFriends.includes(p.id))p.age=age;
       const recoit=FRIEND_IDS.includes(p.id)?partage.amis:(partage.amis&&K>BASE_LEVEL[p.id]);
-      p.niveau=BASE_LEVEL[p.id];p.partage=recoit;
+      p.niveau=BASE_LEVEL[p.id];p.partage=recoit;p.leadership=socialStyle[p.id]?.leadership||0;
       p.inherited=recoit?Brain.confirmees().length+vocabulary.length:0;
       if(recoit&&familyLexicons[p.id])for(const word of vocabulary)familyLexicons[p.id].add(word);
       p.baseWords=familyLexicons[p.id]?.size||0;
@@ -1053,10 +1065,12 @@ function snapshot() {
       motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered}))};
     brainView=Brain.view(observerLabel);
     brainView.etape=stageGoals;
+    brainView.etapes=vueEtapes();
     brainView.mots=vocabulary.length;
     brainView.cortex=Cortex.view(observerLabel);
     nextActivitySnapshot=ticks+36;
   }
+  alex.leadership=Brain.state.social.leadership||0;
   return {commerce:{stock:commerce.stock,visites:commerce.visites,quota:QUOTA_JOUR,prelev:{...commerce.prelev}},acces:{...acces},
     atelier:{outils:atelier.outils.map(o=>({...o})),arbre:{...atelier.arbre},bois:{...atelier.bois},fleurs:atelier.fleurs.map(f=>({...f})),pommes:atelier.pommes.map(p=>({...p}))},
     computer:house?.computer||null,ticks,skill,age,score,alex,people,playItems,relationships,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,
@@ -1064,7 +1078,7 @@ function snapshot() {
     playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
 }
 function save() {
-  return {commerce,acces,atelier,courrier,brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
+  return {historiqueEtapes,commerce,acces,atelier,courrier,brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -1123,6 +1137,7 @@ onmessage=({data})=>{
     Object.assign(objectLearning,s.objectLearning);
     if(s.courrier)courrier=s.courrier;
     if(s.commerce)commerce=s.commerce;
+    if(Array.isArray(s.historiqueEtapes))historiqueEtapes=s.historiqueEtapes;
     if(s.acces)acces=s.acces;
     if(s.atelier?.outils&&s.atelier.fleurs)atelier=s.atelier;
     nextRefill=Number.isFinite(s.nextRefill)?s.nextRefill:0;

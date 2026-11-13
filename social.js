@@ -1,8 +1,10 @@
 const playgroundFriends=['timeo','nathan','francoise','rose'];
+// Caractère de chacun. leadership : envie et capacité d'entraîner les autres. Celui de Néo n'est pas écrit :
+// il le construit (voir Brain.state.social.leadership) quand les autres reprennent ce qu'il fait.
 const socialStyle={
-  alex:{outreach:.64,care:.58},joseph:{outreach:.49,care:.83},marie:{outreach:.77,care:.92},
-  juliette:{outreach:.58,care:.68},timeo:{outreach:.88,care:.62},nathan:{outreach:.61,care:.72},
-  francoise:{outreach:.54,care:.82},rose:{outreach:.72,care:.76}
+  alex:{outreach:.64,care:.58,leadership:0},joseph:{outreach:.49,care:.83,leadership:.72},marie:{outreach:.77,care:.92,leadership:.64},
+  juliette:{outreach:.58,care:.68,leadership:.5},timeo:{outreach:.88,care:.62,leadership:.46},nathan:{outreach:.61,care:.72,leadership:.28},
+  francoise:{outreach:.54,care:.82,leadership:.38},rose:{outreach:.72,care:.76,leadership:.33}
 };
 const adultCircle=new Set(['alex',...playgroundFriends]);
 const female=new Set(['francoise','rose','marie','juliette']);

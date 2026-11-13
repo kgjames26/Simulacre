@@ -450,8 +450,24 @@ async function showWorld(){
   const baseOffset=new T.Vector3(23,27,31);
   const offset=baseOffset.clone();
   let cameraQuarter=0;
+  // Plein écran : l'API du navigateur si elle existe, sinon la scène occupe tout l'écran.
+  const scene3d=document.querySelector('.stage');
+  ui('fullscreen').onclick=async()=>{
+    const actif=document.fullscreenElement||scene3d.classList.contains('plein');
+    if(actif){if(document.fullscreenElement)await document.exitFullscreen().catch(()=>{});scene3d.classList.remove('plein');}
+    else{scene3d.classList.add('plein');await scene3d.requestFullscreen?.().catch(()=>{});}
+    ui('fullscreen').setAttribute('aria-pressed',String(!actif));
+  };
+  document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement)scene3d.classList.remove('plein');ui('fullscreen').setAttribute('aria-pressed',String(!!document.fullscreenElement));});
   ui('rotate-camera').onclick=()=>{cameraQuarter=(cameraQuarter+1)%4;offset.copy(baseOffset).applyAxisAngle(new T.Vector3(0,1,0),cameraQuarter*Math.PI/2);};
-  ui('floor-view').onclick=()=>{upperFloorView=upperFloorView===true?false:true;desiredZoom=upperFloorView?1.4:1;ui('floor-view').textContent=upperFloorView?'Rez':'Étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
+  // Le bouton montre l'étage que l'on va voir : « Étage » quand on regarde le rez, « Rez » quand on regarde l'étage.
+  let vueEtage=false;
+  ui('floor-view').onclick=()=>{
+    upperFloorView=!vueEtage;vueEtage=upperFloorView;
+    following=false;showFollowState();
+    manualCenter.set(-3.65,upperFloorView?2.65:.65,2.6);desiredZoom=Math.max(desiredZoom,1.4);
+    ui('floor-view').textContent=upperFloorView?'Rez':'Étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));
+  };
   const center=new T.Vector3();
   const manualCenter=new T.Vector3();
   const desiredCenter=new T.Vector3();
@@ -587,7 +603,7 @@ async function showWorld(){
     panneau.position.set(x,base+h/2-.2,z+.06);scene.add(panneau);
   }
   const atelier3d=creerAtelier(T,scene,mat,{murX:-.46,arbre:{x:1.8,z:-8},tas:{x:.12,z:1.4},planches:{x:.18,z:2.7},fleurs:[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]]});
-  chargerQuartier(T,GLTFLoader,scene,QUARTIER).catch(error=>console.warn('quartier indisponible',error));
+  chargerQuartier(T,GLTFLoader,scene,QUARTIER).then(g=>occultants.push(g)).catch(error=>console.warn('quartier indisponible',error));
   const play=bindPlayViews(T,scene,worker,mat,id=>{
     const item=snapshot?.playItems?.[id];
     if(!item)return;
@@ -600,6 +616,7 @@ async function showWorld(){
   let physicalRope, trampolineMesh, swingSeat;
   const houseDoors=[];
   let ordinateur3d=null, interiorVisuals, houseCut, houseRoofMeshes=[];
+  const occultants=[];
   const ropeUp=new T.Vector3(0,1,0);
   const failures=[];
   let ready=0;
@@ -614,7 +631,7 @@ async function showWorld(){
     const {scene:house}=await parse(new GLTFLoader(),await assets.loadHouseModel());
     house.scale.setScalar(.65);house.position.set(-3.65,.035,2.6);
     const cut=houseCut=new T.Plane(new T.Vector3(0,-1,0),1.45);
-    scene.add(house);
+    scene.add(house);occultants.push(house);
     house.updateMatrixWorld(true);
     houseRoofMeshes=[];
     house.traverse(object=>{
@@ -908,13 +925,37 @@ async function showWorld(){
     })()
   ]).then(results=>{for(const result of results)if(result.status==='rejected')console.warn(result.reason);});
   const point=new T.Vector3();
+  // En suivi, ce qui cache le personnage (murs, toits, maisons) devient transparent pour l'observateur.
+  const voile=new T.Raycaster(),cible=new T.Vector3(),dir=new T.Vector3();
+  let voiles=new Set();
+  function transparence(focus){
+    const nouveaux=new Set();
+    if(focus&&focus.root.visible){
+      cible.copy(focus.root.position);cible.y+=focus.root.scale.x*.5;
+      dir.copy(offset).normalize();
+      voile.set(cible.clone().addScaledVector(dir,80),dir.clone().negate());
+      for(const hit of voile.intersectObjects(occultants,true)){
+        if(hit.distance>80-.35)break;
+        if(hit.object.isMesh)nouveaux.add(hit.object);
+      }
+    }
+    for(const m of nouveaux)if(!voiles.has(m)){
+      m.userData.matOrig||=m.material;
+      if(!m.userData.matVoile){
+        const faire=x=>{const c=x.clone();c.clippingPlanes=x.clippingPlanes;c.transparent=true;c.opacity=.18;c.depthWrite=false;return c;};
+        m.userData.matVoile=Array.isArray(m.userData.matOrig)?m.userData.matOrig.map(faire):faire(m.userData.matOrig);
+      }
+      m.material=m.userData.matVoile;
+    }
+    for(const m of voiles)if(!nouveaux.has(m)&&m.userData.matOrig){m.material=m.userData.matOrig;}
+    voiles=nouveaux;
+  }
   let last=performance.now(),renderError=false;
   renderer.setAnimationLoop(now=>{
     if(ui('page-monde').hidden){last=now;return;}
     const dt=Math.min(.05,(now-last)/1000);last=now;
     const focus=following&&actors.find(actor=>actor.id===followedPerson);
-    if(upperFloorView!==null){desiredCenter.set(-3.65,upperFloorView?2.65:.65,2.6);manualCenter.copy(desiredCenter);}
-    else if(focus){
+    if(focus){
       desiredCenter.copy(focus.root.position);
       desiredCenter.y+=focus.root.scale.x*.45;
       manualCenter.copy(desiredCenter);
@@ -929,7 +970,8 @@ async function showWorld(){
     if(snapshot)try{
       const tracked=focus&&(focus.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===focus.id));
       const upstairs=upperFloorView===null?Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity?.includes('escalier')):upperFloorView;
-      if(upperFloorView===null)ui('floor-view').textContent=upstairs?'Rez':'Étage';
+      vueEtage=upstairs;
+      if(upperFloorView===null){ui('floor-view').textContent=upstairs?'Rez':'Étage';ui('floor-view').setAttribute('aria-pressed',String(upstairs));}
       if(houseCut){houseCut.normal.set(0,upstairs?1:-1,0);houseCut.constant=upstairs?-1.8:1.45;scene.userData.floorCut=upstairs?'upper':'ground';
       for(const roof of houseRoofMeshes)roof.visible=!upstairs;}
       play.update(snapshot.playItems);
@@ -1037,7 +1079,8 @@ async function showWorld(){
         actor.label.style.top=(.5-point.y*.5)*100+'%';
       }
     }catch(error){if(!renderError){renderError=true;console.error('Rendu',error);}}
-    if(++shadowPass%60===1)flagShadows();
+    if(++shadowPass%6===0)transparence(focus);
+    if(shadowPass%60===1)flagShadows();
     renderer.render(scene,camera);
   });
 }

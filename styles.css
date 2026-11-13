@@ -219,3 +219,16 @@ dialog p{color:#4a544f}
   .steps{grid-template-columns:repeat(2,1fr)}
   .intro h2{font-size:23px}
 }
+
+.meter.face{grid-template-columns:86px 22px 1fr 22px;gap:6px}
+.meter .tete{font-size:16px;line-height:1;text-align:center}
+.person .meter{grid-template-columns:76px 1fr 40px;font-size:12px}
+.etape{border:1px solid var(--soft);border-radius:12px;padding:8px 12px;background:#faf7f0}
+.etape summary{display:flex;justify-content:space-between;align-items:center;cursor:pointer;list-style:none;gap:8px}
+.etape summary::-webkit-details-marker{display:none}
+.etape[open]{background:var(--card)}
+.etape[open] summary{margin-bottom:8px}
+.etape .item{margin-top:6px}
+.etape[data-etat="en cours"]{border-color:var(--warm)}
+.stage.plein{position:fixed;inset:0;z-index:80;height:100dvh;border-radius:0}
+.stage:fullscreen{height:100%;border-radius:0}

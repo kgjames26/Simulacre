@@ -32,7 +32,7 @@ const Brain=(()=>{
       objets:{registre:{},concepts:[],glyphes:{}},
       memoire:{essais:[],episodes:[],total:0},
       causes:{liste:[]},
-      social:{personnes:{}},
+      social:{personnes:{},leadership:0},
       emotions:{valence:0,peur:0,frustration:0,ennui:0,confiance:.4,historique:[]},
       envies:{questions:[],objectifs:[],habitudes:[]},
       associations:{noeuds:{},liens:{},idees:[],travail:{items:[],t:0},surprise:0,deductions:0,v:0,sceneAt:-1e9},
@@ -118,6 +118,8 @@ const Brain=(()=>{
     return p;
   }
   function lien(id,delta){const p=S.social.personnes[id];if(p)p.lien=clamp(p.lien+delta,0,100);}
+  // Leadership : grandit quand les autres le suivent ou reprennent ce qu'il a découvert, s'use un peu sinon.
+  function entraine(gain){S.social.leadership=clamp((S.social.leadership||0)+gain*(1-(S.social.leadership||0)),0,1);}
   function soulagement(besoin,id){const p=S.social.personnes[id];if(p)p.soulage[besoin]=(p.soulage[besoin]||0)+1;}
 
   // ---------- corps ----------
@@ -325,7 +327,7 @@ const Brain=(()=>{
         S.envies.objectifs.push({id:'g-'+(S.next.g++),cible:o.id,source:'reve',statut:'actif',cree:Math.round(t)});
       nuit.reves.push({elements,envie:o.vivant?null:o.id,valence:+S.emotions.valence.toFixed(2)});
     }
-    S.emotions.frustration*=.5;S.emotions.peur*=.6;
+    S.emotions.frustration*=.5;S.emotions.peur*=.6;S.social.leadership=(S.social.leadership||0)*.98;
     Z.dernier=Math.round(t);
     Z.nuits.push(nuit);if(Z.nuits.length>20)Z.nuits.shift();
     return nuit;
@@ -362,7 +364,7 @@ const Brain=(()=>{
       objets:registre().filter(o=>!o.vivant).sort((a,b)=>b.vu-a.vu).slice(0,24).map(o=>({nom:nom(o.id),vu:o.vu,essais:o.essais,mot:o.mot})),
       lieux:Object.keys(S.espace.cases).length,
       limites:Object.keys(S.espace.interdits).length,
-      personnes:Object.keys(S.social.personnes).length,
+      personnes:Object.keys(S.social.personnes).length,leadership:S.social.leadership||0,
       partage:{amis:S.partage.amis,famille:S.partage.famille},
       nuits:S.sommeil.nuits.slice().reverse().map(n=>({...n,reves:n.reves.map(r=>({elements:r.elements.map(nom),envie:r.envie?nom(r.envie):null,valence:r.valence}))})),
       compris:confirmees().length,essais:S.memoire.total,souvenirs:S.memoire.episodes.length,
@@ -372,7 +374,7 @@ const Brain=(()=>{
   }
 
   return {PRIMITIVES,APPRENABLES,CAPACITES,init,save,restore,bind,rand,note,sentir,vu,connu,registre,familleDe,
-    lieu,retenu,interdit,personne,lien,soulagement,repertoire,appris,entrainer,capacite,defi,
+    lieu,retenu,interdit,personne,lien,entraine,soulagement,repertoire,appris,entrainer,capacite,defi,
     essai,cause,confirmees,choisir,besoinCible,question,atteint,nbAtteints,habitudes,consolider,sommeil,attraitReve,publier,ouvrirPartage,view,
     get state(){return S;}};
 })();
