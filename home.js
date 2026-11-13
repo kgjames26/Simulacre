@@ -10,9 +10,9 @@ const FOOD_CATALOG=[
   ['huile-olive','Huile d’olive','Assaisonnement'],['basilic','Basilic','Assaisonnement'],['herbes','Herbes aromatiques','Assaisonnement'],['chocolat','Chocolat','Sucré'],['miel','Miel','Sucré']
 ].map(([id,name,group])=>({id,name,group,stock:2}));
 const INCOMPATIBLE_FOODS=new Set([
-  'saumon|chocolat','thon|fraises','poulet|bananes','boeuf|chocolat',
-  'ail|fraises','oignons|bananes','tomates|chocolat','concombre|chocolat',
-  'poivrons|yaourt','thon|miel','jambon|miel','lentilles|fraises'
+  'chocolat|saumon','fraises|thon','bananes|poulet','boeuf|chocolat',
+  'ail|fraises','bananes|oignons','chocolat|tomates','chocolat|concombre',
+  'poivrons|yaourt','miel|thon','jambon|miel','fraises|lentilles'
 ]);
 function ensureFoodStock(){
   if(!Array.isArray(kitchen.pantry)||kitchen.pantry.length!==40)kitchen.pantry=FOOD_CATALOG.map(food=>({...food}));
