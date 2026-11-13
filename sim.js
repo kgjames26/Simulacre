@@ -371,7 +371,7 @@ function stepParentOuting(person,index,s){
   const outing=person.outing;if(!outing)return false;
   if(outing.phase==='walk'){
     person.activity='Se promène vers la plaine de jeux';
-    const target=park?.approaches?.slide||navigation.point(Math.max(0,navigation.nearest(8,5,0,null,1.5)));
+    const nearest=navigation.nearest(8,5,0,null,1.5);const target=park?.approaches?.slide||(nearest>=0?navigation.point(nearest):null);
     if(target&&move(person,target.x,target.z,.86)<.65){outing.phase='observe';outing.until=s+13;}
   }else if(outing.phase==='observe'){
     person.activity='Observe les enfants jouer à la plaine de jeux';if(s>=outing.until)outing.phase='return';
