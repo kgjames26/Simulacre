@@ -1,5 +1,5 @@
 import {bindPlayViews} from '/play-view.js';
-import {setupDashboard} from '/dashboard.js';
+import {setupDashboard,TIME_SCALE} from '/dashboard.js';
 document.getElementById('enter-simulacre')?.addEventListener('click',()=>{document.getElementById('welcome-screen').hidden=true;try{sessionStorage.setItem('simulacre-intro-seen','1');}catch{}});
 const ui = id => document.getElementById(id);
 const ages = ['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
@@ -98,7 +98,7 @@ worker.onmessage = ({data}) => {
   dashboard.update(snapshot);
   updateDialogue(snapshot.dialogue);
   const {ticks,age,skill,score,alex,trials,pecm,journal}=snapshot;
-  const days=Math.floor(ticks/120/86400);
+  const days=Math.floor(ticks/120*TIME_SCALE/86400);
   ui('year').textContent='Année '+format.format(1+Math.floor(days/365));
   ui('day').textContent='Jour '+(1+days%365);
   ui('age').textContent=ages[age];

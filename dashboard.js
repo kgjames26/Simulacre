@@ -25,8 +25,10 @@ function row(label,value){
   element.append(node('span',label),node('strong',value));
   return element;
 }
+// 1 jour fictif = 10 minutes de simulation (144× plus vite que le temps réel).
+export const TIME_SCALE=144;
 function stamp(seconds){
-  const total=Math.max(0,Math.floor(seconds));
+  const total=Math.max(0,Math.floor(seconds*TIME_SCALE));
   const clock=[Math.floor(total/3600)%24,Math.floor(total/60)%60,total%60]
     .map(part=>String(part).padStart(2,'0')).join(':');
   return 'J'+fmt(1+Math.floor(total/86400))+' · '+clock;
