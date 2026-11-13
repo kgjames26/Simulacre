@@ -704,7 +704,7 @@ async function showWorld(){
     const panneau=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:texture}));
     panneau.position.set(x,base+h/2-.2,z+.06);scene.add(panneau);
   }
-  const atelier3d=creerAtelier(T,scene,mat,{murX:-.46,arbre:{x:5,z:-4.2},tas:{x:.12,z:1.4},fleurs:[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]]});
+  const atelier3d=creerAtelier(T,scene,mat,{murX:-.46,arbre:{x:5,z:-4.2},tas:{x:.12,z:1.4},planches:{x:.18,z:2.7},fleurs:[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]]});
   const play=bindPlayViews(T,scene,worker,mat,id=>{
     const item=snapshot?.playItems?.[id];
     if(!item)return;

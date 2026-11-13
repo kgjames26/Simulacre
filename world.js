@@ -105,6 +105,7 @@ function entities(){
   }
   if(typeof atelier!=='undefined'){
     for(const o of atelier.outils)add('objet:outil-'+o.id,'objet',o.nom,o.x,o.z,[.3,.4,0,0,0,0],{outilId:o.id,dynamic:o});
+    for(const m of atelier.pommes)add('objet:pomme-'+m.id,'objet','pomme',m.x,m.z,[.05,.1,0,0,0,0],{pommeId:m.id,dynamic:m});
     add('objet:arbre','objet','arbre',ARBRE_POS.x,ARBRE_POS.z,[3,1,0,0,1,0]);
     atelier.fleurs.forEach((f,i)=>add('objet:fleur-'+i,'objet','fleur',f.x,f.z,[.3,.1,.8,0,1,0],{plante:true}));
   }
@@ -146,6 +147,13 @@ function respond(entity,prim,s){
     if(o.etat.startsWith('porte'))return none;
     neoToucheOutil(o,s);
     return {flags:['objet_bouge','outil'],plaisir:.04};
+  }
+  if(entity.pommeId){
+    if(prim!=='saisir')return none;
+    const k=atelier.pommes.findIndex(m=>m.id===entity.pommeId);
+    if(k<0)return none;
+    atelier.pommes.splice(k,1);entityCache=null;alex.hunger=Math.max(0,alex.hunger-.1);
+    return {flags:['objet_bouge','rond','gout'],besoins:{faim:Math.max(0,alex.hunger-.1)},plaisir:.1};
   }
   if(entity.plante){return prim==='saisir'?{flags:['vivant','doux'],plaisir:.05}:none;}
   if(entity.computerId){

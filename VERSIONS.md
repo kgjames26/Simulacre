@@ -32,3 +32,4 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - 4 fleurs près de la maison, arrosées par Marie (arrosoir déposé, tuyau, remplissage, arrosage) : plaisir et confiance.
 - Sentiments amoureux : tendresse, attirance, complicité ; actes (regard, main, cadeau, câlin, baiser, dispute) avec effets individuels ; une seule relation, sexe opposé, jamais la famille ; séparations possibles ; jamais un objectif.
 - Confiance en soi ajoutée aux personnages. Tous les nouveaux objets sont modélisés en 3D (atelier-view.js).
+- v2.7b : Joseph âgé n'ira plus au bois. La hache abat l'arbre (il tombe) et le débite vite ; la scie, plus lente, produit de jolies planches rangées près de la maison. L'arbre laisse tomber des pommes qui disparaissent après un moment ; Néo peut en manger (en saisissant), personne d'autre ne le sait.

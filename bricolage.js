@@ -2,19 +2,22 @@
 // personne ne « sait » rien de plus que ce que montrent ces gestes, et Néo n'a jamais à y toucher.
 // Si Néo touche un outil ou en assemble quelque chose de lui-même, il y gagne du plaisir et de la confiance.
 const OUTILS_DEF=[
-  ['scie','scie',-2.8],['marteau','marteau',-2.5],['clous','boîte de clous',-2.2],['colle','colle à bois',-1.9],
+  ['hache','hache',-3.1],['scie','scie',-2.8],['marteau','marteau',-2.5],['clous','boîte de clous',-2.2],['colle','colle à bois',-1.9],
   ['vis','boîte de vis',-1.6],['tournevis','tournevis',-1.3],['arrosoir','arrosoir',-1.0],['tuyau','tuyau d’eau',-0.7]
 ];
 const MUR_X=-0.46,STAND_X=0.28;
 const ARBRE_POS={x:5,z:-4.2,stand:{x:4.1,z:-4.2}};
 const TAS_POS={x:0.12,z:1.4,stand:{x:0.75,z:1.4}};
+const PLANCHES_POS={x:0.18,z:2.7,stand:{x:0.75,z:2.7}};
 const FLEURS_POS=[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]];
 const ROBINET={x:MUR_X,z:-0.3,stand:{x:STAND_X,z:-0.3}};
 function atelierInitial(){
   return {
     outils:OUTILS_DEF.map(([id,nom,z])=>({id,nom,x:MUR_X,z,floor:0,etat:'mur',plein:false})),
-    arbre:{t:1,coupes:0,morceaux:0},
-    bois:{tas:3,poele:.7},
+    arbre:{t:1,coupes:0,morceaux:0,chute:0},
+    bois:{tas:3,poele:.7,planches:0},
+    pommes:[],
+    prochainePomme:30,
     fleurs:FLEURS_POS.map(([x,z])=>({x,z,soif:.2})),
     suivant:{joseph:60,marie:40},
     neo:{touches:{},fabrications:0},
@@ -54,21 +57,33 @@ function stepRoutine(p,s){
 }
 function prendre(p,id){const o=outil(id);o.etat='porte:'+p.id;p.carry=id;}
 function poser(p,id){const o=outil(id);if(p.carry===id)p.carry=null;return o;}
-function routineScier(p){
-  const stand=standOutil('scie');
+// La hache abat l'arbre et le débite vite : le but n'est pas de passer du temps, mais d'avoir du bois près de la maison.
+function routineAbattre(p){
+  const stand=standOutil('hache');
   const E=[
-    {go:stand,activity:'Va chercher la scie',act:q=>prendre(q,'scie')},
-    {go:ARBRE_POS.stand,activity:'Scie l’arbre',duree:9,act:()=>{atelier.arbre={t:.12,coupes:atelier.arbre.coupes+1,morceaux:6};note('Joseph scie l’arbre du jardin. Il repoussera.','object');}},
-    {go:{x:ARBRE_POS.stand.x,z:ARBRE_POS.stand.z+.7},activity:'Scie le tronc en plus petits morceaux',duree:8,act:()=>{note('Joseph scie le tronc en morceaux plus petits.','object');}},
-    {go:stand,activity:'Range la scie',act:q=>{const o=poser(q,'scie');placeOutil(o);}}
+    {go:stand,activity:'Va chercher la hache',act:q=>prendre(q,'hache')},
+    {go:ARBRE_POS.stand,activity:'Frappe l’arbre à la hache',duree:5,act:()=>{atelier.arbre.chute=.001;atelier.pommes.length=0;atelier.arbre.coupes++;note('Joseph abat l’arbre du jardin à la hache. Il repoussera.','object');}},
+    {activity:'Regarde l’arbre tomber',duree:3,go:{x:ARBRE_POS.stand.x-.5,z:ARBRE_POS.stand.z}},
+    {go:{x:ARBRE_POS.stand.x,z:ARBRE_POS.stand.z+.8},activity:'Coupe le tronc en morceaux à la hache',duree:4,act:()=>{note('Joseph coupe le tronc en petits morceaux.','object');}},
+    {go:stand,activity:'Range la hache',act:q=>{const o=poser(q,'hache');placeOutil(o);}}
   ];
   for(let k=0;k<3;k++){
     E.push({go:ARBRE_POS.stand,activity:'Ramasse du bois',act:q=>{if(atelier.arbre.morceaux>0){atelier.arbre.morceaux--;q.carry='bûche';}}});
     E.push({go:TAS_POS.stand,activity:'Empile le bois contre le mur',duree:2,act:q=>{if(q.carry==='bûche'){q.carry=null;atelier.bois.tas++;}}});
   }
-  E.push({go:ARBRE_POS.stand,activity:'Ramasse du bois',act:q=>{while(atelier.arbre.morceaux>0){atelier.arbre.morceaux--;}}});
-  E.push({go:TAS_POS.stand,act:q=>{atelier.bois.tas+=3;gagner('joseph',.1,.03);}});
+  E.push({go:TAS_POS.stand,act:()=>{atelier.bois.tas+=3;atelier.arbre.morceaux=0;gagner('joseph',.1,.03);}});
   lancerRoutine(p,'Bricole dehors',E);
+}
+// La scie, plus lente, sert à faire de jolies planches, rangées près de la maison.
+function routinePlanches(p){
+  const stand=standOutil('scie');
+  lancerRoutine(p,'Fait des planches',[
+    {go:stand,activity:'Va chercher la scie',act:q=>prendre(q,'scie')},
+    {go:TAS_POS.stand,activity:'Prend une bûche',act:q=>{if(atelier.bois.tas>0)atelier.bois.tas--;}},
+    {go:{x:PLANCHES_POS.stand.x,z:PLANCHES_POS.stand.z-.5},activity:'Scie des planches',duree:16,act:()=>{atelier.bois.planches+=2;}},
+    {go:PLANCHES_POS.stand,activity:'Empile les planches contre le mur',duree:2,act:()=>{gagner('joseph',.08,.03);note('Joseph range de nouvelles planches près de la maison.','object');}},
+    {go:stand,activity:'Range la scie',act:q=>{const o=poser(q,'scie');placeOutil(o);}}
+  ]);
 }
 function routineChauffage(p){
   const feu=house?.objects?.fireplace;if(!feu)return false;
@@ -97,9 +112,10 @@ function routineArroser(p){
 function stepBricolage(p,i,s){
   if(!house||(p.floor||0)!==0||!navigation)return false;
   if(ROUT.has(p))return stepRoutine(p,s);
-  if(p.id==='joseph'){
+  if(p.id==='joseph'&&!vieux(p)){
     if(froid()&&atelier.bois.poele<.35&&atelier.bois.tas>0&&s>=atelier.suivant.joseph-30){if(routineChauffage(p)){atelier.suivant.joseph=s+60;return stepRoutine(p,s);}}
-    if(atelier.bois.tas<3&&atelier.arbre.t>=.95&&s>=atelier.suivant.joseph){atelier.suivant.joseph=s+240;routineScier(p);return stepRoutine(p,s);}
+    if(atelier.bois.tas<3&&atelier.arbre.t>=.95&&atelier.arbre.chute===0&&s>=atelier.suivant.joseph){atelier.suivant.joseph=s+240;routineAbattre(p);return stepRoutine(p,s);}
+    if(atelier.bois.planches<8&&atelier.bois.tas>=3&&s>=atelier.suivant.joseph){atelier.suivant.joseph=s+200;routinePlanches(p);return stepRoutine(p,s);}
   }
   if(p.id==='marie'&&!vieux(p)&&s>=atelier.suivant.marie&&atelier.fleurs.some(f=>f.soif>.5)){atelier.suivant.marie=s+200;routineArroser(p);return stepRoutine(p,s);}
   return false;
@@ -107,7 +123,15 @@ function stepBricolage(p,i,s){
 // À chaque pas : repousse de l'arbre, soif des fleurs, feu, vieillesse.
 function stepAtelier(s){
   const a=atelier;
-  if(a.arbre.t<1)a.arbre.t=Math.min(1,a.arbre.t+DT/420);
+  if(a.arbre.chute>0){a.arbre.chute+=DT/2.5;if(a.arbre.chute>=1){a.arbre.chute=0;a.arbre.t=.12;a.arbre.morceaux=6;entityCache=null;}}
+  else if(a.arbre.t<1)a.arbre.t=Math.min(1,a.arbre.t+DT/420);
+  // Pommes : elles tombent, restent un moment, puis disparaissent. Personne ne sait qu'on peut les manger.
+  if(a.arbre.t>=.95&&a.arbre.chute===0&&s>=a.prochainePomme&&a.pommes.length<5){
+    const ang=rng()*Math.PI*2,r=.5+rng()*1.1;
+    a.pommes.push({id:'p'+Math.floor(s),x:ARBRE_POS.x+Math.cos(ang)*r,z:ARBRE_POS.z+Math.sin(ang)*r,floor:0,nee:s});
+    a.prochainePomme=s+45;entityCache=null;
+  }
+  if(a.pommes.some(m=>s-m.nee>150)){a.pommes=a.pommes.filter(m=>s-m.nee<=150);entityCache=null;}
   for(const f of a.fleurs)f.soif=Math.min(1,f.soif+DT/500);
   a.bois.poele=Math.max(0,a.bois.poele-DT*(froid()?.0035:.0006));
   for(const p of people.slice(0,2))p.vieux=vieux(p);

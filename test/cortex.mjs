@@ -9,7 +9,7 @@ globalThis.cycle=()=>{for(const entity of entities().filter(e=>e.kind==='objet'|
   alex.thirst=.9;alex.hunger=.8;T+=70;Brain.consolider(T,{});Cortex.deduire(T,{lexique:[]});};`);
 const mesure=()=>JSON.parse(run(`JSON.stringify((()=>{const v=Cortex.view(observerLabel,Brain.taille());return {liens:v.liens,idees:v.idees.length,deduit:v.deductions,confirmees:v.confirmees,souvenirs:Cortex.tailles()['episodes.json']}})())`));
 const stats=[];
-for(let i=0;i<8;i++){run('cycle()');if(i%2===1)stats.push(mesure());}
+for(let i=0;i<16;i++){run('cycle()');if(i%2===1)stats.push(mesure());}
 console.log(stats.map(s=>JSON.stringify(s)).join('\n'));
 const view=JSON.parse(run(`JSON.stringify(Cortex.view(observerLabel,Brain.taille()))`));
 const multi=view.idees.filter(i=>i.regions.length>=2).length;
