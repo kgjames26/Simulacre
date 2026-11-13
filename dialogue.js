@@ -229,8 +229,8 @@ function createDialogue(){
         .filter(other=>(outside||i===0)&&near(person,other,outside?4.5:3.5)).map(other=>[person,other]));
       if(!pairs.length)continue;
       const [first,second]=pairs[Math.floor(rng()*pairs.length)];
-      const bank=outside?parkLines:familyLines;
-      let [text,reply]=!outside&&turn%7===0?mathLines[Math.floor(rng()*mathLines.length)]:bank[Math.floor(rng()*bank.length)];
+      const bank=outside?parkLines:[...familyLines,...(typeof familyPhrases!=='undefined'?familyPhrases:[])];
+      let [text,reply]=!outside&&turn%53===0?mathLines[Math.floor(rng()*mathLines.length)]:bank[Math.floor(rng()*bank.length)];
       if(!outside&&typeof familyLexicons!=='undefined'&&turn%4===0){
         const allowed=familyComments.filter(([word])=>familyLexicons[first.id]?.has(word)&&familyLexicons[second.id]?.has(word));
         if(allowed.length){

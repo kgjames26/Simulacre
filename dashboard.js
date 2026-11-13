@@ -200,14 +200,15 @@ function renderDevelopment(state){
     if(i===state.skill&&!record.mastered)item.append(row('Réussites récentes',record.recent+' sur 6 nécessaires'));
     return item;
   }));
-  const gate=state.activityData.gate;
-  const gates=gate?[
-    ['Points de progrès',fmt(state.pecm)+' / '+fmt(gate.motor)],
-    ...Object.entries(countLabels).filter(([key])=>gate[key]>0).map(([key,label])=>[label,fmt(state.counts[key])+' / '+fmt(gate[key])])
-  ]:[['Stade final','Atteint']];
-  const need=SIGNATURE[state.age];
-  if(need&&state.brain)gates.push(['Compréhension : '+need,state.brain.signature?'Acquis ✓':'Pas encore']);
-  ui('age-gates').replaceChildren(...gates.map(([label,value])=>row(label,value)));
+  const goals=state.brain?.etape||[];
+  const part=(type,title)=>{
+    const list=goals.filter(g=>g.type===type);
+    if(!list.length)return [];
+    return [el('p',{className:'eyebrow spaced-sm',textContent:title}),...list.map(g=>row(g.label,g.done?'Acquis ✓':'Pas encore'))];
+  };
+  ui('age-gates').replaceChildren(...(state.age>=8?[row('Stade final','Atteint')]:
+    goals.length?[...part('physique','Ce que son corps doit savoir faire'),...part('mental','Ce qu’il doit avoir compris')]:
+    [el('p',{className:'muted',textContent:'En cours d’évaluation…'})]));
   ui('language-stats').replaceChildren(row('Phrases entendues',fmt(state.dialogue.audible)),
     row('Mots compris',fmt(state.dialogue.known)),row('Mots répétés',fmt(state.dialogue.spoken)),
     row('Phrases formées',fmt(state.dialogue.composed)),
@@ -270,7 +271,8 @@ function renderRelations(state){
     if(person.id==='alex')item.append(row('Soif',percent(person.thirst)),row('Hygiène',percent(person.hygiene)));
     else{
       if(person.age!=null)item.append(row('Stade',ageNames[person.age]));
-      item.append(row('Connaissances reçues de Néo',fmt(person.inherited)));
+      item.append(row('Connaissances reçues de Néo',person.partage?fmt(person.inherited):'pas encore (niveau '+person.niveau+')'));
+      if(person.aideRecue)item.append(row('Visites de Néo (quand ça ne va pas)',fmt(person.aideRecue)+' fois'));
       if(person.baseWords)item.append(row('Mots connus en plus',fmt(person.baseWords)));
     }
     return item;
@@ -305,10 +307,10 @@ function update(state,force=false){
 }
 
 const el=(tag,props={},...kids)=>{const {dataset,...rest}=props;const node=Object.assign(document.createElement(tag),rest);if(dataset)Object.assign(node.dataset,dataset);node.append(...kids);return node;};
-const VERBES={pousser:'Pousser',tirer:'Tirer',saisir:'Attraper',frapper:'Frapper',tourner:'Tourner',monter:'Monter sur',regarder:'Regarder'};
+const VERBES={pousser:'Pousser',tirer:'Tirer',saisir:'Attraper',frapper:'Frapper',tourner:'Tourner',monter:'Monter sur',tourner:'Tourner',grimper:'Grimper',sauter:'Sauter',regarder:'Regarder'};
 const EFFETS={mou:'c’est mou',soi_monte:'il peut monter dessus',lumiere:'ça s’allume',bruit:'ça fait du bruit',objet_bouge:'ça bouge',
   papier:'ça se feuillette',eau:'de l’eau coule',chaud:'c’est chaud',froid:'c’est froid',nourriture:'il y a de la nourriture',gout:'ça a du goût',
-  perles:'les perles glissent',roues:'les roues tournent',mal:'ça fait mal',passage:'on peut passer'};
+  perles:'les perles glissent',roues:'les roues tournent',mal:'ça fait mal',passage:'on peut passer',rebond:'ça rebondit',hauteur:'on monte haut',glisse:'ça glisse',balance:'ça se balance',tient:'on s’accroche',effort:'ça demande de l’effort'};
 const effets=list=>(list||[]).map(e=>EFFETS[e]||e).join(' · ')||'rien de visible';
 const STATUT={confirme:['Il en est sûr','sure'],hypothese:['Il le pense','maybe'],essai:['Il teste','test'],contredite:['Il s’est trompé','wrong']};
 const cap=text=>text.charAt(0).toUpperCase()+text.slice(1);
@@ -330,11 +332,39 @@ function renderLatest(b){
 }
 const FILE_HELP={'sens.log':'ce qu’il a ressenti','essais.jsonl':'tout ce qu’il a essayé','corps.json':'ce que son corps sait faire','objets.json':'les choses repérées',
   'lieux.json':'les endroits visités','personnes.json':'les personnes connues','humeur.json':'son humeur dans le temps','causes.json':'les liens cause → effet','concepts.json':'les familles de choses',
-  'lexique.json':'les mots compris','ecriture.json':'les signes écrits repérés','savoir-faire.json':'ses habitudes','questions.json':'ses questions','objectifs.json':'ses envies'};
-const QUESTION={objet_non_essaye:q=>'Que peut-on faire avec « '+q.ref+' » ?',mot_sans_lien:q=>'Que veut dire « '+q.ref+' » ?'};
+  'lexique.json':'les mots compris','ecriture.json':'les signes écrits repérés','savoir-faire.json':'ses habitudes','episodes.json':'ses souvenirs complets','associations.json':'ce qui va ensemble','idees.json':'ses idées à vérifier','questions.json':'ses questions','objectifs.json':'ses envies'};
+const QUESTION={surprise:q=>'Pourquoi « '+q.ref+' » a-t-il réagi autrement que prévu ?',objet_non_essaye:q=>'Que peut-on faire avec « '+q.ref+' » ?',mot_sans_lien:q=>'Que veut dire « '+q.ref+' » ?'};
+
+const BESOIN={faim:'faim',soif:'soif',fatigue:'sommeil',hygiene:'besoin de se laver'};
+const IDEE={idee:['À vérifier','test'],confirmee:['Vérifiée ✓','sure'],refutee:['Fausse','wrong']};
+function ideeTexte(i){
+  if(i.type==='mot')return 'Le mot « '+i.mot+' » désigne « '+i.cible+' ».';
+  if(i.type==='besoin')return 'Quand il a '+(BESOIN[i.besoin]||i.besoin)+', « '+i.cible+' » pourrait l’aider.';
+  return '« '+i.cible+' » devrait réagir quand il fait « '+(VERBES[i.prim]||i.prim).toLowerCase()+' »'+(i.sources.length?', comme '+i.sources.map(s=>'« '+s+' »').join(' et '):'')+'.';
+}
+function renderCortex(b){
+  const c=b.cortex;
+  if(!c)return;
+  ui('brain-regions').replaceChildren(...c.regions.map(r=>el('div',{className:'region',dataset:{empty:String(!r.elements)}},
+    el('strong',{textContent:r.nom}),el('small',{textContent:fmt(r.elements)+' élément'+(r.elements>1?'s':'')}))));
+  ui('brain-cortex-stats').textContent=fmt(c.liens)+' liens solides entre ses souvenirs · '+fmt(c.deductions)+' idées formées · '+fmt(c.confirmees)+' vérifiées'+
+    (c.surprise>.05?' · surprise '+Math.round(c.surprise*100)+' %':'');
+  ui('brain-ideas').replaceChildren(...(c.idees.length?c.idees.slice(0,10).map(i=>{
+    const [label,kind]=IDEE[i.statut]||[i.statut,'test'];
+    return el('div',{className:'know',dataset:{kind}},
+      el('div',{},el('strong',{textContent:ideeTexte(i)}),el('small',{textContent:'Croise : '+i.regions.join(' + ')})),
+      el('span',{className:'pill',textContent:label}));
+  }):[el('p',{className:'muted',textContent:'Pas encore d’idée : il lui faut d’abord vivre et essayer des choses.'})]));
+  ui('brain-memories').replaceChildren(...(c.souvenirs.length?c.souvenirs.map(m=>
+    el('div',{className:'know',dataset:{kind:m.succes?'sure':'test'}},
+      el('div',{},el('strong',{textContent:(VERBES[m.geste]||cap(m.geste))+' · '+m.cible}),
+        el('small',{textContent:(m.succes?'→ '+effets(m.effet):'rien ne s’est passé')+(m.soulage.length?' · soulage : '+m.soulage.map(x=>BESOIN[x]||x).join(', '):'')})))):
+    [el('p',{className:'muted',textContent:'Aucun souvenir pour le moment.'})]));
+}
 function renderBrain(state){
   const b=state.brain;
   if(!b)return;
+  renderCortex(b);
   const sure=b.savoir.filter(c=>c.statut==='confirme').length;
   ui('brain-head').replaceChildren(...[['Choses comprises',sure],['Essais tentés',b.tailles['essais.jsonl']],
     ['Choses remarquées',b.tailles['objets.json']],['Mots compris',b.tailles['lexique.json']],['Endroits visités',b.lieux]].map(([label,value])=>
@@ -342,6 +372,11 @@ function renderBrain(state){
   ui('brain-seed').textContent='Chaque fichier se remplit au fil de ses expériences. Les noms sont ceux de l’observateur ; Néo ne manipule que des identifiants anonymes.';
   ui('brain-files').replaceChildren(...Object.entries(b.tailles).map(([name,count])=>
     el('div',{className:'file',dataset:{empty:String(!count)}},el('code',{textContent:name}),el('strong',{textContent:fmt(count)}),el('small',{textContent:FILE_HELP[name]||''}))));
+  const g=b.gestes||{innes:[],appris:[],enCours:[]};
+  ui('brain-gestures').replaceChildren(
+    ...g.innes.map(x=>el('span',{className:'chip',textContent:cap(x)+' · inné'})),
+    ...g.appris.map(x=>el('span',{className:'chip good',textContent:cap(x)+' · appris'})),
+    ...g.enCours.map(x=>el('span',{className:'chip',textContent:cap(x)+' · il s’entraîne'})));
   ui('brain-knowledge').replaceChildren(...(b.savoir.length?b.savoir.slice(0,12).map(knowCard):
     [el('p',{className:'muted',textContent:'Pas encore. Il doit d’abord essayer des gestes sur les objets autour de lui.'})]));
   ui('brain-trials').replaceChildren(...(b.derniers.length?b.derniers.map(t=>

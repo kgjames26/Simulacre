@@ -1,4 +1,4 @@
-importScripts('/brain.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js');
+importScripts('/brain.js','/cortex.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js','/famille-phrases.js');
 const dialogue=createDialogue();
 const languageScene={points:{},visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
 const DT = 1 / 120;
@@ -20,6 +20,20 @@ const people = [
   ['timeo', 8, 4], ['nathan', 10, 6], ['francoise', 12, 3], ['rose', 14, 5]
 ].map(([id,x,z])=>({id,x,z,homeX:x,homeZ:z,heading:0,phase:0,bond:0,inherited:0}));
 const bounds = {x:19,z:12};
+// Personne n'apprend seul : ce sont des niveaux écrits d'avance. Les savoirs de Néo vont d'abord aux amis du parc,
+// puis à chacun des autres quand Néo en sait davantage que son niveau.
+const BASE_LEVEL={timeo:6,nathan:6,francoise:6,rose:6,juliette:14,joseph:30,marie:30};
+const FRIEND_IDS=['timeo','nathan','francoise','rose'];
+function knowledgeScore(){
+  const mots=dialogue.view().vocabulary.length;
+  const gestes=Brain.APPRENABLES.filter(g=>Brain.state.gestes[g]?.appris).length;
+  return Brain.confirmees().length+2*Cortex.confirmees()+mots+3*gestes+records.filter(r=>r.mastered).length;
+}
+// Règle générale (pas une méthode) : qui apprécie quelqu'un veut qu'il aille mieux et se sente bien.
+// L'intensité vient du lien et du caractère (socialStyle.care). Rien ne dit COMMENT : chacun fait avec ce qu'il sait.
+const apprecie=autre=>Math.min(1,(autre.bond||0)/6);
+const malEtre=autre=>Math.max(autre.faim||0,autre.peine||0);
+const envieDeBienEtre=(qui,autre)=>apprecie(autre)*(socialStyle[qui]?.care??.5)*malEtre(autre);
 const milestones = [
   {motor:35, life:0, cognition:0, play:0, social:0},
   {motor:62, life:8, cognition:3, play:1, social:2},
@@ -157,6 +171,7 @@ function advanceBody(person,body,heading){
   walkStep(person,person.x+Math.sin(heading)*amount,person.z+Math.cos(heading)*amount);
 }
 const walkingBodies=new WeakMap();
+const COURSE_GOAL=60;
 function learnedMovement(person,x,z){
   const distance=Math.hypot(x-person.x,z-person.z);
   const candidate=records[4].mastered&&records[4].champions.find(champion=>champion.valid);
@@ -167,10 +182,29 @@ function learnedMovement(person,x,z){
     walkingBodies.set(person,body);
   }
   const route=navigation.next(person,x,z,person.floor||0,ticks*DT);
-  if(route&&distance>.05){
+  const t=ticks*DT;
+  // Courir : Néo s'y essaie de lui-même sur les longs trajets, trébuche au début, puis s'améliore avec la pratique.
+  let mult=1;
+  if(person===alex&&age>=2&&distance>3&&!(alex.stumbleUntil>t)){
+    if(!(alex.runUntil>t)&&t>=(alex.runRetry||0)&&rng()<.004){alex.runUntil=t+3.5;alex.runRetry=t+9;}
+    if(alex.runUntil>t){
+      const mastery=Math.min(1,(alex.courseXp||0)/COURSE_GOAL);
+      const before=alex.courseXp||0;
+      alex.courseXp=before+DT;
+      mult=1+.9*(.25+.75*mastery);
+      if(before<COURSE_GOAL&&alex.courseXp>=COURSE_GOAL)note('Néo sait maintenant courir.');
+      if(rng()<(1-mastery)*.0015){
+        alex.stumbleUntil=t+1.2;alex.runUntil=0;
+        if(!alex.stumbled){alex.stumbled=true;note('Néo trébuche en essayant de courir.');}
+      }
+    }
+  }
+  alex.running=person===alex&&mult>1;
+  if(route&&distance>.05&&!(person===alex&&alex.stumbleUntil>t)){
     person.heading=Math.atan2(route.x-person.x,route.z-person.z);
-    if(ticks%2===0)simulateMotor(body);
+    if(ticks%2===0){simulateMotor(body);if(mult>1)simulateMotor(body);}
     advanceBody(person,body,person.heading);
+    if(mult>1&&ticks%2===0&&Math.abs(body.delta)>=.0001)walkStep(person,person.x+Math.sin(person.heading)*body.delta*(mult-1),person.z+Math.cos(person.heading)*body.delta*(mult-1));
   }
   bodyPose(person,body);
   return distance;
@@ -228,22 +262,35 @@ function useDoor(p,door,s) {
 }
 // Néo choisit un geste, le monde répond par des sensations, le cerveau en tire (ou non) une cause.
 function tryEntity(entity,s){
+  if(entity.equipId&&(contact||s<(entity.equipId==='trampoline'?trampolineCooldown:parkCooldown[entity.equipId]||0)))return false;
   const record=objectLearning[entity.id] ||= {attempts:0,success:0,next:0};
   if(record.next>s)return false;
   record.next=s+20;
   record.attempts++;
-  const prim=Brain.choisir(entity.id);
+  const prim=Cortex.idee(entity.id)||Brain.choisir(entity.id);
+  const prevu=Cortex.prevoir(prim,entity.id);
   const out=respond(entity,prim,s);
   const succes=out.flags.length>0;
   const result=Brain.essai({t:s,cible:entity.id,prim,succes,effet:out.flags,besoins:out.besoins||{},
     plaisir:out.plaisir||0,douleur:out.douleur||0});
   if(out.contact){objectContact=out.contact;household[out.contact.id]=1;}
+  const verdict=Cortex.apprendre({t:s,cible:entity.id,prim,succes,effet:out.flags,besoins:out.besoins||{},plaisir:out.plaisir||0,douleur:out.douleur||0},
+    prevu,{lieu:cellOf(alex)});
+  if(verdict)note('Néo vérifie une de ses idées et elle se confirme.','object');
+  Brain.atteint(entity.id,s);
+  if(out.start)beginEquipment(out.start,s);
+  if(result.geste)note('Néo apprend un nouveau geste : '+result.geste+'.','object');
   if(out.douleur)alex.pleasure=Math.max(0,(alex.pleasure||0)-out.douleur*2);
   if(succes)record.success++;
   if(result.nouveau){
     counts.cognition++;
     if(entity.kind==='jeu')counts.play++;
     knowledge[entity.id]={visits:result.cause.essais,senses:['vision','contact','effet'],type:'objet',action:prim};
+    if(entity.playId==='toy'||entity.playId&&entity.playId.startsWith('bike')){
+      // Les proches peuvent ensuite imiter ce que Néo a découvert.
+      const label=entity.playId==='toy'?playNames.toy:'tricycle';
+      knowledge['usage · '+label]={visits:result.cause.essais,action:entity.playId==='toy'?2:3,senses:['contact','mouvement','mémoire'],type:'objet'};
+    }
     note('Néo découvre comment utiliser · '+entity.name+'.','object');
   }else if(!succes&&record.attempts===1)note('Néo essaie de comprendre · '+entity.name+'.');
   return succes;
@@ -631,6 +678,7 @@ function beginEquipment(item,s){
   }
 }
 // Néo ne connaît que ce qu'il a perçu : les objectifs viennent de son registre, jamais de la carte du monde.
+const cellOf=p=>Math.floor(p.x/2)+','+Math.floor(p.z/2)+','+(p.floor||0);
 let lastPerception=-1e9,nextConsolidation=60;
 function perceiveStep(s){
   if(s-lastPerception<.5)return;
@@ -641,6 +689,9 @@ function perceiveStep(s){
     if(p.vivant)Brain.personne(p.id,{x:p.x,z:p.z},s);
   }
   Brain.lieu(alex.x,alex.z,alex.floor||0);
+  const seen=percevoir(alex,range);
+  Cortex.scene(s,{lieu:cellOf(alex),obj:seen.filter(p=>!p.vivant).map(p=>p.id),pers:seen.filter(p=>p.vivant).map(p=>p.id),
+    besoins:{faim:alex.hunger,soif:alex.thirst,fatigue:alex.fatigue,hygiene:1-alex.hygiene}});
 }
 function frontierPoint(){
   const angle=rng()*Math.PI*2,r=3+rng()*4;
@@ -650,9 +701,9 @@ function makeGoalOptions(){
   const options=[];
   for(const o of Brain.registre()){
     const entity=entityById(o.id);
-    if(!entity||entity.kind==='equipement'||(entity.floor||0)!==(alex.floor||0))continue;
+    if(!entity||(entity.floor||0)!==(alex.floor||0))continue;
     const source=entity.dynamic||o.pos||entity;
-    const category=entity.kind==='personne'?'social':entity.kind==='jeu'?'jeu':entity.kind==='objet'?'objet':'exploration';
+    const category=entity.kind==='personne'?'social':entity.kind==='jeu'?'jeu':entity.kind==='objet'?'objet':entity.kind==='equipement'?'équipement':'exploration';
     if(entity.kind==='personne'&&(entity.dynamic.floor||entity.dynamic.lie))continue;
     const base={name:entity.id,x:source.x,z:source.z,id:entity.id,category};
     if(category==='social')base.person=entity.dynamic;
@@ -679,13 +730,14 @@ function chooseGoal(s){
     Math.hypot(goal.x-alex.x,goal.z-alex.z)<(age>2?14:9)&&curiosityRecord(goal.name).retryAt<=s);
   if(!candidates.length)candidates=options.filter(goal=>curiosityRecord(goal.name).retryAt<=s);
   if(!candidates.length)return null;
+  const recall=Cortex.rappel(s);
   const interest=goal=>{
     const record=curiosityRecord(goal.name);
     const known=Brain.connu(goal.name);const observations=(known?known.essais:0)+(known&&known.vu>3?1:0);
-    const novelty=1.7/(1+observations+record.completed);
+    const novelty=2.4/(1+observations+record.completed);
     const unfinished=record.choices>0&&record.completed===0?.32:0;
     const distance=Math.hypot(goal.x-alex.x,goal.z-alex.z);
-    return (novelty+unfinished+.23)/(1+distance*.115+record.blocked*.12);
+    return (novelty+unfinished+.23)*(1+(goal.person?6*envieDeBienEtre('alex',goal.person):0))*(1+2.5*(recall.get(goal.id)||0)+(Cortex.attendue(goal.id)?2:0))/(1+distance*.115+record.blocked*.12);
   };
   let pick=rng()*candidates.reduce((sum,goal)=>sum+interest(goal),0);
   const selected=candidates.find(goal=>(pick-=interest(goal))<=0)||candidates[0];
@@ -700,7 +752,7 @@ function finishGoal(s,completed){
   const record=curiosityRecord(explorationTarget.name);
   if(completed)record.completed++;
   else record.blocked++;
-  record.retryAt=s+(completed?50:20);
+  record.retryAt=s+(completed?30:15);
   explorationTarget=null;
 }
 function languageVisibility(observer,target){
@@ -742,7 +794,6 @@ function experience() {
     const friend=intention?.person;
     let goal=intention?[intention.name,intention.x,intention.z,intention.id]:['observe',alex.x,alex.z];
     let category=intention?.category||'observation';
-    const equipment=tryEquipment(s);
     const objects=house?.objects;
     const need=alex.hunger>.66?'faim':alex.thirst>.7?'soif':alex.hygiene<.25?'hygiene':null;
     const relief=need?Brain.besoinCible(need):null;
@@ -751,10 +802,9 @@ function experience() {
       goal=[reliefEntity.id,reliefEntity.x,reliefEntity.z,reliefEntity.id];
       category=reliefEntity.kind==='objet'?'objet':'exploration';
     }else if(alex.hunger>.86&&!house){goal=['repas',-2,-4];category='repas';}
-    else if(equipment){goal=[equipment.name,equipment.x,equipment.z];category='équipement';}
-    alex.activity=category==='objet'?'Explore · '+goal[0]:category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category==='équipement'?'Observe · '+goal[0]:category;
+    const goalLabel=observerLabel(goal[0])||goal[0];
+    alex.activity=category==='objet'||category==='exploration'||category==='équipement'?'Explore · '+goalLabel:category==='social'?'Rencontre · '+goalLabel:category;
     const near=learnedMovement(alex,goal[1],goal[2]);
-    if(category==='équipement'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.23)beginEquipment(equipment,s);
 
     const pursuingIntention=intention&&goal[0]===intention.name&&category===intention.category;
     if(pursuingIntention){
@@ -762,11 +812,14 @@ function experience() {
       if(distance<closestGoal-.16){closestGoal=distance;progressAt=s;}
       if(distance>1&&s-progressAt>22)finishGoal(s,false);
     }
-    if(category==='objet'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.22){
-      {const entity=entityById(goal[3]);if(entity)tryEntity(entity,s);}
-      if(objectContact&&pursuingIntention)finishGoal(s,true);
+    const handsOn=category==='objet'||category==='équipement'||
+      (category==='jeu'&&!/^(football|softBall)$/.test(entityById(goal[3])?.playId||''));
+    if(handsOn&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.22){
+      const entity=entityById(goal[3]);
+      if(entity)tryEntity(entity,s);
+      if(pursuingIntention)finishGoal(s,true);
     }
-    if(category!=='observation'&&category!=='objet'&&category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock && (category!=='social'||navigation.clear(alex.x,alex.z,friend.x,friend.z,0))){
+    if(category!=='observation'&&!handsOn&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock && (category!=='social'||navigation.clear(alex.x,alex.z,friend.x,friend.z,0))){
       eventClock=s+3;
       learn(goal[0],category);
       if(pursuingIntention)finishGoal(s,true);
@@ -782,6 +835,10 @@ function experience() {
       if(category==='social'){
         counts.social++; friend.bond++;
         relationshipEvent('alex',friend.id,'Rencontre',s,age);
+        if(envieDeBienEtre('alex',friend)>.15){
+          note('Néo vient voir '+characterNames[friend.id]+', qu’il aime bien et qui ne va pas très bien.','social');
+          counts.aides=(counts.aides||0)+1;friend.aideRecue=(friend.aideRecue||0)+1;
+        }
         if(friend.id==='marie'||friend.id==='joseph') note('Un câlin apaise Néo.','social');
         else note('Néo rencontre '+characterNames[friend.id]+'.','social');
       }
@@ -798,7 +855,7 @@ function experience() {
   }
   }
   for(const [id,item] of Object.entries(playItems)){
-    if(Math.hypot(alex.x-item.x,alex.z-item.z)<.49)tryPlayObject(alex,id,s);
+    if((id==='football'||id==='softBall')&&Math.hypot(alex.x-item.x,alex.z-item.z)<.49)tryPlayObject(alex,id,s);
   }
   for(let i=0;i<people.length;i++){
     const p=people[i];
@@ -882,12 +939,17 @@ function experience() {
   if(s>=nextConsolidation){
     nextConsolidation=s+60;
     Brain.consolider(s,{});
+    Cortex.deduire(s,{lexique:dialogue.view().vocabulary});
     if(age>=2)Brain.publier(s);
-    if(age>=5)Brain.synchroniser?.('parents');
+    if(age>=2&&Brain.synchroniser('amis'))note('Néo partage ses découvertes avec ses amis du parc.','social');
+    for(const p of people){p.faim=Math.min(1,(p.faim||0)+.06);p.peine=Math.min(1,(p.peine||0)+.03);if(p.faim>=1)p.faim=.15;if(p.peine>=1)p.peine=.2;}
   }
-  const gate=milestones[age];
-  if(gate&&skill===4&&pecm>=gate.motor&&Object.keys(counts).every(key=>counts[key]>=gate[key])&&Brain.signature(age)){
-    age++;note('Nouveau stade de développement · '+(age+1));
+  if(ticks%600===0){
+    stageGoals=evaluateStageGoals();
+    if(age<8&&stageGoals.length&&stageGoals.every(goal=>goal.done)){
+      age++;note('Nouveau stade de développement · '+(age+1));
+      stageGoals=evaluateStageGoals();
+    }
   }
 }
 const characterNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Lyra',rose:'Rose'};
@@ -897,25 +959,55 @@ function recordBallPlay(id,s){
   nextBallEvent[id]=s+9;
   note(characterNames[id]+' joue avec la balle.','play');
 }
+// Compétences attendues pour quitter chaque stade, comme pour un enfant : le corps (physique) et la compréhension (mental).
+// Elles se lisent dans l'état du corps et dans les fichiers du cerveau ; rien n'est donné à Néo.
+let stageGoals=[];
+function evaluateStageGoals(){
+  const B=Brain.state;
+  const mots=dialogue.view().vocabulary.length,phrases=dialogue.view().composed||0;
+  const sure=Brain.confirmees();
+  const gestes=Brain.APPRENABLES.filter(g=>B.gestes[g]?.appris).length;
+  const proches=Object.values(B.personnes).filter(p=>p.vu>=3).length;
+  const parc=new Set(sure.filter(c=>entityById(c.enonce.cible)?.kind==='equipement').map(c=>c.enonce.cible)).size;
+  const besoins=new Set(sure.flatMap(c=>Object.keys(c.besoins).filter(k=>c.besoins[k]>.08))).size;
+  const P='physique',M='mental';
+  const table=[
+    [[P,'Se redresser et ramper',records[0].mastered&&records[1].mastered],[M,'Reconnaître ses proches',proches>=2],[M,'Comprendre un premier mot',mots>=1]],
+    [[P,'Tenir debout et faire ses premiers pas',records[2].mastered&&records[3].mastered],[M,'Voir que ses gestes ont des effets (2 choses comprises)',sure.length>=2],[M,'Comprendre 3 mots',mots>=3]],
+    [[P,'Marcher seul',records[4].mastered],[P,'Apprendre un nouveau geste',gestes>=1],[M,'Comprendre 6 mots',mots>=6]],
+    [[P,'Maîtriser tous ses gestes',gestes>=4],[P,'Courir',(alex.courseXp||0)>=COURSE_GOAL],[M,'Regrouper les choses par famille',B.concepts.length>=1],[M,'Dire sa première phrase',phrases>=1],[M,'Comprendre 4 choses',sure.length>=4],[M,'Avoir une idée et la vérifier',Cortex.confirmees()>=1]],
+    [[P,'Jouer avec 2 équipements du parc',parc>=2],[M,'Atteindre 3 envies',Brain.nbAtteints()>=3],[M,'Comprendre 12 mots',mots>=12]],
+    [[M,'Se débrouiller seul pour ses besoins',besoins>=2],[M,'Partager ses découvertes avec ses amis du parc',!!B.synchro.amis],[M,'Comprendre 8 choses',sure.length>=8],[M,'Vérifier 4 de ses idées',Cortex.confirmees()>=4]],
+    [[M,'Acquérir une habitude',B.savoirFaire.length>=1],[M,'Former 5 phrases',phrases>=5],[M,'Comprendre 25 mots',mots>=25]],
+    [[M,'Atteindre 6 envies',Brain.nbAtteints()>=6],[M,'Partager avec sa famille',!!B.synchro.famille],[M,'Avoir 3 habitudes',B.savoirFaire.length>=3],[M,'Comprendre 15 choses',sure.length>=15],[M,'Vérifier 10 de ses idées',Cortex.confirmees()>=10]]
+  ];
+  return (table[age]||[]).map(([type,label,done])=>({type,label,done:!!done}));
+}
 let activityData, nextActivitySnapshot=0, brainView=null;
 function snapshot() {
   if(!activityData||ticks>=nextActivitySnapshot){
     const names=Object.keys(knowledge).map(k=>observerLabel(k)||k);
     const vocabulary=dialogue.view().vocabulary.map(entry=>entry.word);
     const shared={skills:records.flatMap((record,i)=>record.mastered?[goals[i]]:[]),discoveries:names,vocabulary};
+    const K=knowledgeScore();const B=Brain.state;
     for(const p of people){
       if(p.id==='juliette')p.age=Math.min(8,age+2);else if(playgroundFriends.includes(p.id))p.age=age;
-      p.inherited=names.length+vocabulary.length;
-      p.learnedFromNeo=[...names,...vocabulary];
-      p.inheritedSkills=shared.skills.slice();
-      if(familyLexicons[p.id])for(const word of vocabulary)familyLexicons[p.id].add(word);
+      const recoit=FRIEND_IDS.includes(p.id)?B.synchro.amis:(B.synchro.amis&&K>BASE_LEVEL[p.id]);
+      p.niveau=BASE_LEVEL[p.id];p.partage=recoit;
+      p.inherited=recoit?names.length+vocabulary.length:0;
+      p.learnedFromNeo=recoit?[...names,...vocabulary]:[];
+      p.inheritedSkills=recoit?shared.skills.slice():[];
+      if(recoit&&familyLexicons[p.id])for(const word of vocabulary)familyLexicons[p.id].add(word);
       p.baseWords=familyLexicons[p.id]?.size||0;
     }
+    if(!B.synchro.famille&&K>BASE_LEVEL.marie&&Brain.synchroniser('famille'))note('Néo en sait maintenant plus que ses parents : il partage aussi avec eux.','social');
     activityData={equipment:parkMemory,gate:milestones[age],events:interactions,shared,
       motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered})),
       knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};
     brainView=Brain.view(observerLabel);
-    brainView.signature=Brain.signature(age);
+    brainView.etape=stageGoals;
+    Object.assign(brainView.tailles,Cortex.tailles());
+    brainView.cortex=Cortex.view(observerLabel,brainView.tailles);
     nextActivitySnapshot=ticks+36;
   }
   return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};

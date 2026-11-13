@@ -1,4 +1,5 @@
 import {bindPlayViews} from '/play-view.js';
+import {dessinerPanneau} from '/panneaux.js';
 import {setupDashboard,TIME_SCALE} from '/dashboard.js';
 document.getElementById('enter-simulacre')?.addEventListener('click',()=>{document.getElementById('welcome-screen').hidden=true;try{sessionStorage.setItem('simulacre-intro-seen','1');}catch{}});
 const ui = id => document.getElementById(id);
@@ -665,6 +666,15 @@ async function showWorld(){
     const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
     const plaque=new T.Mesh(new T.PlaneGeometry(1.55,.36),new T.MeshBasicMaterial({map:texture}));
     plaque.position.set(x,.65,z);scene.add(plaque);
+  }
+  // Trois pancartes dans le jardin : les chiffres, les lettres, 500 mots dessinés.
+  for(const [type,x,z,w,h,pw,ph] of [['chiffres',1.4,8.6,1.7,.85,640,320],['lettres',3.9,8.6,2.1,1.5,840,600],['mots',7.6,8.9,5.6,4.2,3000,2250]]){
+    const texture=new T.CanvasTexture(dessinerPanneau(type,pw,ph));texture.colorSpace=T.SRGBColorSpace;
+    if(realGL)texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy?.()||1);
+    const base=h/2+.55;
+    box(.09,base,.09,x-w/2+.15,base/2,z,mat('#886746'));box(.09,base,.09,x+w/2-.15,base/2,z,mat('#886746'));
+    const panneau=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:texture}));
+    panneau.position.set(x,base+h/2-.2,z+.06);scene.add(panneau);
   }
   const play=bindPlayViews(T,scene,worker,mat,id=>{
     const item=snapshot?.playItems?.[id];
