@@ -157,6 +157,7 @@ function advanceBody(person,body,heading){
   walkStep(person,person.x+Math.sin(heading)*amount,person.z+Math.cos(heading)*amount);
 }
 const walkingBodies=new WeakMap();
+const COURSE_GOAL=60;
 function learnedMovement(person,x,z){
   const distance=Math.hypot(x-person.x,z-person.z);
   const candidate=records[4].mastered&&records[4].champions.find(champion=>champion.valid);
@@ -167,10 +168,29 @@ function learnedMovement(person,x,z){
     walkingBodies.set(person,body);
   }
   const route=navigation.next(person,x,z,person.floor||0,ticks*DT);
-  if(route&&distance>.05){
+  const t=ticks*DT;
+  // Courir : Néo s'y essaie de lui-même sur les longs trajets, trébuche au début, puis s'améliore avec la pratique.
+  let mult=1;
+  if(person===alex&&age>=2&&distance>3&&!(alex.stumbleUntil>t)){
+    if(!(alex.runUntil>t)&&t>=(alex.runRetry||0)&&rng()<.004){alex.runUntil=t+3.5;alex.runRetry=t+9;}
+    if(alex.runUntil>t){
+      const mastery=Math.min(1,(alex.courseXp||0)/COURSE_GOAL);
+      const before=alex.courseXp||0;
+      alex.courseXp=before+DT;
+      mult=1+.9*(.25+.75*mastery);
+      if(before<COURSE_GOAL&&alex.courseXp>=COURSE_GOAL)note('Néo sait maintenant courir.');
+      if(rng()<(1-mastery)*.0015){
+        alex.stumbleUntil=t+1.2;alex.runUntil=0;
+        if(!alex.stumbled){alex.stumbled=true;note('Néo trébuche en essayant de courir.');}
+      }
+    }
+  }
+  alex.running=person===alex&&mult>1;
+  if(route&&distance>.05&&!(person===alex&&alex.stumbleUntil>t)){
     person.heading=Math.atan2(route.x-person.x,route.z-person.z);
-    if(ticks%2===0)simulateMotor(body);
+    if(ticks%2===0){simulateMotor(body);if(mult>1)simulateMotor(body);}
     advanceBody(person,body,person.heading);
+    if(mult>1&&ticks%2===0&&Math.abs(body.delta)>=.0001)walkStep(person,person.x+Math.sin(person.heading)*body.delta*(mult-1),person.z+Math.cos(person.heading)*body.delta*(mult-1));
   }
   bodyPose(person,body);
   return distance;
@@ -926,7 +946,7 @@ function evaluateStageGoals(){
     [[P,'Se redresser et ramper',records[0].mastered&&records[1].mastered],[M,'Reconnaître ses proches',proches>=2],[M,'Comprendre un premier mot',mots>=1]],
     [[P,'Tenir debout et faire ses premiers pas',records[2].mastered&&records[3].mastered],[M,'Voir que ses gestes ont des effets (2 choses comprises)',sure.length>=2],[M,'Comprendre 3 mots',mots>=3]],
     [[P,'Marcher seul',records[4].mastered],[P,'Apprendre un nouveau geste',gestes>=1],[M,'Comprendre 6 mots',mots>=6]],
-    [[P,'Maîtriser tous ses gestes',gestes>=4],[M,'Regrouper les choses par famille',B.concepts.length>=1],[M,'Dire sa première phrase',phrases>=1],[M,'Comprendre 4 choses',sure.length>=4]],
+    [[P,'Maîtriser tous ses gestes',gestes>=4],[P,'Courir',(alex.courseXp||0)>=COURSE_GOAL],[M,'Regrouper les choses par famille',B.concepts.length>=1],[M,'Dire sa première phrase',phrases>=1],[M,'Comprendre 4 choses',sure.length>=4]],
     [[P,'Jouer avec 2 équipements du parc',parc>=2],[M,'Atteindre 3 envies',Brain.nbAtteints()>=3],[M,'Comprendre 12 mots',mots>=12]],
     [[M,'Se débrouiller seul pour ses besoins',besoins>=2],[M,'Partager ses découvertes avec ses parents',!!B.synchro.parents],[M,'Comprendre 8 choses',sure.length>=8]],
     [[M,'Acquérir une habitude',B.savoirFaire.length>=1],[M,'Former 5 phrases',phrases>=5],[M,'Comprendre 25 mots',mots>=25]],
