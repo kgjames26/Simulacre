@@ -2,15 +2,11 @@ import {bindPlayViews} from '/play-view.js';
 import {dessinerPanneau} from '/panneaux.js';
 import {creerAtelier} from '/atelier-view.js';
 import {chargerQuartier} from '/quartier-view.js';
-import {setupDashboard,TIME_SCALE} from '/dashboard.js';
-document.getElementById('enter-simulacre')?.addEventListener('click',()=>{document.getElementById('welcome-screen').hidden=true;try{sessionStorage.setItem('simulacre-intro-seen','1');}catch{}});
+import {setupDashboard} from '/dashboard.js';
 const ui = id => document.getElementById(id);
-const ages = ['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
-const stages = ['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
-const format = new Intl.NumberFormat('fr-BE');
-const saveKey = 'neo-simulacre-v4';
+const saveKey = 'neo-simulacre-v5';   // v5 : cerveau réorganisé en régions, on repart d'une partie neuve
 const worker = new Worker('/sim.js');
-let snapshot, human = false, speedMode='turbo', upperFloorView=null, lastJournal = '', resetting=false, initialized=false;
+let snapshot, human = false, upperFloorView=null, resetting=false, initialized=false;
 const personNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Lyra',rose:'Rose'};
 let lastDialogueId=0, lastDialoguePaint=0, voiceEnabled=false, conversationRows=[];
 const dashboard=setupDashboard(personNames);
@@ -20,7 +16,7 @@ if('speechSynthesis' in window){
   voiceButton.onclick=()=>{
     voiceEnabled=!voiceEnabled;
     voiceButton.setAttribute('aria-pressed',String(voiceEnabled));
-    voiceButton.textContent=voiceEnabled?'Couper les voix':'Activer les voix';
+    voiceButton.textContent=voiceEnabled?'Couper les voix':'Écouter les voix';
     if(!voiceEnabled)speechSynthesis.cancel();
   };
 }
@@ -34,7 +30,7 @@ function updateDialogue(state){
   const previousId=lastDialogueId;
   lastDialogueId=latest.id;
   conversationRows=state.lines;
-  ui('latest-line').textContent=personNames[latest.speaker]+' · '+latest.text;
+  ui('latest-line').textContent=personNames[latest.speaker]+' : « '+latest.text+' »';
   if(voiceEnabled&&human&&previousId&&!speechSynthesis.speaking&&!speechSynthesis.pending){
     const speech=new SpeechSynthesisUtterance(latest.text);
     speech.lang='fr-FR';
@@ -48,7 +44,7 @@ function updateDialogue(state){
 let followedPerson='alex', following=false;
 function showFollowState(){
   const name=personNames[followedPerson];
-  ui('follow').textContent='Suivi '+(/^[AEIOUY]/i.test(name)?'d’':'de ')+name;
+  ui('follow').textContent=following?'Suivi en cours':'Suivre';
   ui('follow').setAttribute('aria-pressed',String(following));
   ui('choose-person').textContent=name+' ▾';
 }
@@ -82,9 +78,11 @@ ui('reset-dialog').querySelector('form').addEventListener('submit',async event=>
     ui('reset-dialog').querySelector('p').textContent='Impossible d’effacer l’historique local. Réessayez.';
   }
 });
-dashboard.archiveReady.then(archivedId=>{
+dashboard.archiveReady.then(async archivedId=>{
   let state;
-  try { state=JSON.parse(localStorage.getItem(saveKey)); } catch {}
+  try { state=JSON.parse(localStorage.getItem(saveKey)); localStorage.removeItem('neo-simulacre-v4'); } catch {}
+  // Nouvelle partie : on efface aussi les conversations d'une ancienne partie.
+  if(!state){await dashboard.clearHistory().catch(()=>{});archivedId=0;}
   if(state?.dialogue?.lines)dashboard.capture(state.dialogue.lines);
   worker.postMessage({type:'restore',state,archivedId});
   initialized=true;
@@ -101,34 +99,9 @@ worker.onmessage = ({data}) => {
   dashboard.capture(data.lines);
   dashboard.update(snapshot);
   updateDialogue(snapshot.dialogue);
-  const {ticks,age,skill,score,alex,trials,pecm,journal}=snapshot;
-  const days=Math.floor(ticks/120*TIME_SCALE/86400);
-  ui('year').textContent='Année '+format.format(1+Math.floor(days/365));
-  ui('day').textContent='Jour '+(1+days%365);
-  ui('age').textContent=ages[age];
-  ui('skill').textContent=stages[skill];
-  ui('balance').textContent=score+' %';
-  ui('bar').value=score;
-  const observed=following&&followedPerson!=='alex'?snapshot.people.find(person=>person.id===followedPerson):alex;
+  const observed=following&&followedPerson!=='alex'?snapshot.people.find(person=>person.id===followedPerson):snapshot.alex;
   ui('activity').textContent=observed?.activity||'Se déplace';
   ui('activity-person').textContent=following?personNames[followedPerson]:'Néo';
-  ui('trials').textContent=format.format(trials);
-  ui('motor-progress').textContent=format.format(pecm);
-  ui('hunger').textContent=Math.round(alex.hunger*100)+' %';
-  ui('fatigue').textContent=Math.round(alex.fatigue*100)+' %';
-  ui('pleasure').textContent=Math.round((alex.pleasure||0)*100)+' %';
-  const feelings=[];
-  if(alex.hunger>.65)feelings.push('la faim');
-  if(alex.fatigue>.7)feelings.push('la fatigue');
-  if((alex.thirst||0)>.65)feelings.push('la soif');
-  if((alex.pleasure||0)>.65)feelings.push('du plaisir');
-  if(!feelings.length)feelings.push('un état calme et confortable');
-  ui('neo-perception').lastElementChild.textContent='Il remarque : '+(alex.activity||'son environnement')+'. Il ressent : '+feelings.join(', ')+'.';
-  const journalKey=journal.map(event=>event.ticks+' '+event.message).join('|');
-  if(journalKey!==lastJournal){
-    lastJournal=journalKey;
-    ui('journal').replaceChildren(...journal.map(event=>Object.assign(document.createElement('li'),{textContent:event.message})));
-  }
 };
 // Boîte aux lettres : aucun texte d'explication. Elle n'apparaît que lorsque Néo a écrit quelque chose.
 const boite=document.getElementById('boite');
@@ -156,25 +129,22 @@ if(boite){
     boite.classList.toggle('alerte',!ouverte&&courrier.nonLus>0);
   };
 }
-worker.onerror=()=>{ui('mode').textContent='Simulation interrompue';};
-function setSpeedMode(next){
-  speedMode=next;
-  human=speedMode!=='turbo';
-  if(!human&&voiceEnabled)speechSynthesis.cancel();
-  worker.postMessage({type:'mode',mode:speedMode});
-  const button=ui('speed-global');
-  button.textContent=human?'Accélérer':'Ralentir';
-  button.setAttribute('aria-pressed',String(human));
-  ui('mode').textContent=human?'Vitesse normale · ×1':'Simulation accélérée';
+worker.onerror=error=>{console.error(error);ui('scene-status').textContent='La simulation s’est arrêtée. Rechargez la page.';};
+// Un seul bouton : accéléré par défaut (un jour fictif toutes les 10 minutes), vitesse réelle à la demande.
+function setSpeed(fast){
+  human=!fast;
+  if(fast&&voiceEnabled)speechSynthesis.cancel();
+  worker.postMessage({type:'mode',mode:fast?'turbo':'human'});
+  ui('speed-global').textContent=fast?'Ralentir':'Accélérer';
+  ui('speed-global').setAttribute('aria-pressed',String(!fast));
 }
-// Un seul bouton : accéléré par défaut, ralenti à la demande, puis ré-accélération.
-ui('speed-global').onclick=()=>setSpeedMode(human?'turbo':'human');
-setSpeedMode('turbo');
+ui('speed-global').onclick=()=>setSpeed(human);
+setSpeed(true);
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);
 
 const welcome=ui('welcome-screen');
-if(sessionStorage.getItem('simulacre-intro-seen')==='1')welcome.hidden=true;
-ui('enter-simulacre').addEventListener('click',()=>{welcome.hidden=true;sessionStorage.setItem('simulacre-intro-seen','1');});
+try{if(localStorage.getItem('simulacre-accueil')==='vu')welcome.hidden=true;}catch{}
+ui('enter-simulacre').addEventListener('click',()=>{welcome.hidden=true;try{localStorage.setItem('simulacre-accueil','vu');}catch{}});
 
 async function unzipPlayground(blob) {
   const data=new Uint8Array(await blob.arrayBuffer());
@@ -227,143 +197,6 @@ function modernizePopo(buffer) {
   result.set(encoded,20);
   result.set(bin,20+padded);
   return result.buffer;
-}
-function softwareRenderer(T){
-  const canvas=document.createElement('canvas');
-  const backdrop=document.createElement('canvas');
-  const context=canvas.getContext('2d');
-  const base=backdrop.getContext('2d');
-  const screen=new T.Vector3(), point=new T.Vector3();
-  let width=1,height=1,lastChildren=-1,ratio=1, overviewOrigin=null,lastCut=null;
-  function project(vector,camera){
-    return [(vector.x*.5+.5)*width,(.5-vector.y*.5)*height,vector.z];
-  }
-  function paintWorld(scene,camera){
-    base.fillStyle='#59766a';base.fillRect(0,0,width,height);
-    const triangles=[];
-    scene.updateMatrixWorld(true);camera.updateMatrixWorld(true);
-    for(const root of scene.children){
-      if(root.userData.dynamic||root.userData.ignoreSoftware)continue;
-      root.traverse(mesh=>{
-        if(!mesh.isMesh||!mesh.visible)return;
-        const position=mesh.geometry.getAttribute('position'), index=mesh.geometry.index;
-        const count=Math.floor((index?.count||position.count)/3);
-        const stride=Math.max(1,Math.ceil(count/1100));
-        const material=Array.isArray(mesh.material)?mesh.material[0]:mesh.material;
-        const plane=material.clippingPlanes?.[0];
-        const cut=plane?(plane.normal.y>0?-plane.constant:plane.constant):Infinity;
-        const upper=Boolean(plane&&plane.normal.y>0);
-        const color=material.color||new T.Color('#b5b28a');
-        const style=color.getStyle();
-        for(let i=0;i<count;i+=stride){
-          const vertices=[];let visible=false;
-          for(let j=0;j<3;j++){
-            const k=index?index.getX(i*3+j):i*3+j;
-            point.fromBufferAttribute(position,k).applyMatrix4(mesh.matrixWorld);
-            visible||=upper?point.y>cut:point.y<cut;
-            point.y=upper?Math.max(point.y,cut):Math.min(point.y,cut);
-            vertices.push(project(screen.copy(point).project(camera),camera));
-          }
-          if(visible)triangles.push({vertices,style,depth:vertices.reduce((sum,p)=>sum+p[2],0)});
-        }
-      });
-    }
-    triangles.sort((a,b)=>b.depth-a.depth);
-    for(const {vertices,style} of triangles){
-      base.beginPath();base.moveTo(vertices[0][0],vertices[0][1]);
-      base.lineTo(vertices[1][0],vertices[1][1]);base.lineTo(vertices[2][0],vertices[2][1]);
-      base.closePath();base.fillStyle=style;base.fill();
-    }
-  }
-  return {domElement:canvas,
-    setPixelRatio(value){ratio=Math.min(1.25,value);},
-    setSize(w,h){width=w*ratio;height=h*ratio;canvas.width=backdrop.width=width;canvas.height=backdrop.height=height;lastChildren=-1;},
-    setAnimationLoop(draw){requestAnimationFrame(function frame(time){draw(time);requestAnimationFrame(frame);});},
-    render(scene,camera){
-      if(lastChildren!==scene.children.length||lastCut!==scene.userData.floorCut){
-        const overview=camera.clone();
-        overview.position.set(23,27,31);
-        overview.lookAt(0,0,0);
-        overview.zoom=1;
-        overview.updateProjectionMatrix();
-        paintWorld(scene,overview);
-        overviewOrigin=project(screen.set(0,0,0).project(overview),overview);
-        lastChildren=scene.children.length;lastCut=scene.userData.floorCut;
-      }
-      const origin=project(screen.set(0,0,0).project(camera),camera);
-      context.fillStyle='#59766a';
-      context.fillRect(0,0,width,height);
-      context.drawImage(backdrop,origin[0]-overviewOrigin[0]*camera.zoom,origin[1]-overviewOrigin[1]*camera.zoom,width*camera.zoom,height*camera.zoom);
-      for(const object of scene.children.filter(item=>item.userData.dynamic&&item.visible)){
-        object.updateMatrixWorld(true);
-        const [x,y]=project(screen.copy(object.position).project(camera),camera);
-        const style=object.userData;
-        const factor=height*camera.zoom/(camera.top-camera.bottom);
-        if(style.door){
-          const vertices=style.corners.map(corner=>project(screen.copy(corner).applyMatrix4(object.matrixWorld).project(camera),camera));
-          context.fillStyle=style.color;
-          context.beginPath();
-          vertices.forEach(([px,py],i)=>i?context.lineTo(px,py):context.moveTo(px,py));
-          context.closePath();context.fill();continue;
-        }
-        if(style.rope){
-          const [ax,ay]=project(screen.copy(style.anchor).project(camera),camera);
-          const [bx,by]=project(screen.copy(style.end).project(camera),camera);
-          context.strokeStyle='#6a4b32';context.lineWidth=Math.max(2,.045*factor);
-          context.beginPath();context.moveTo(ax,ay);context.lineTo(bx,by);context.stroke();continue;
-        }
-        if(style.ball){
-          context.fillStyle='#f9b650';context.beginPath();context.arc(x,y,Math.max(2,style.ball*factor),0,Math.PI*2);context.fill();continue;
-        }
-        if(style.playSymbol){
-          context.fillStyle=style.playSymbol==='bike'?'#df7245':'#ad8158';
-          context.fillRect(x-factor*.28,y-factor*.34,factor*.56,factor*.34);continue;
-        }
-        const size=object.scale.x*factor;
-        if(style.rig){
-          const projectJoint=joint=>project(screen.setFromMatrixPosition(joint.matrixWorld).project(camera),camera);
-          const stroke=(joints,color,weight)=>{
-            context.strokeStyle=color;context.lineWidth=Math.max(1,size*weight);
-            context.lineCap='round';context.lineJoin='round';context.beginPath();
-            joints.forEach((joint,i)=>{const [px,py]=projectJoint(joint);if(i)context.lineTo(px,py);else context.moveTo(px,py);});
-            context.stroke();
-          };
-          for(const side of style.rig.sides){
-            stroke([side.hip,side.knee,side.ankle],style.suit,.083);
-            stroke([side.hip,side.shoulder],style.suit,.115);
-            stroke([side.shoulder,side.elbow,side.wrist],style.suit,.062);
-            if(size>43)for(const finger of side.fingers)stroke([side.wrist,finger.base,finger.tip],style.skin,.014);
-          }
-          const [hx,hy]=project(screen.set(0,.107,0).applyMatrix4(style.rig.spine.at(-1).matrixWorld).project(camera),camera);
-          const face=style.face;
-          const radius=Math.max(2,size*.109);
-          context.fillStyle=style.skin;context.beginPath();
-          context.ellipse(hx,hy,radius*(face?.shape[0]||1),radius*(face?.shape[1]||1),0,0,Math.PI*2);context.fill();
-          if(face&&size>34){
-            context.fillStyle=face.hair;context.beginPath();
-            context.ellipse(hx,hy-radius*.33,radius*.96,radius*.73,0,Math.PI,Math.PI*2);context.fill();
-            if(face.style==='bun'||face.style==='tuft'){
-              context.beginPath();context.arc(hx+radius*(face.style==='bun'?.61:-.3),hy-radius*.93,radius*.32,0,Math.PI*2);context.fill();
-            }
-            for(const side of [-1,1]){
-              const eye=hx+side*radius*.37;
-              context.fillStyle=face.eyes;context.beginPath();context.arc(eye,hy,radius*.085,0,Math.PI*2);context.fill();
-              if(face.glasses){context.strokeStyle='#24374e';context.lineWidth=Math.max(1,radius*.05);context.beginPath();context.arc(eye,hy,radius*.24,0,Math.PI*2);context.stroke();}
-            }
-            context.strokeStyle=face.beard?face.hair:'#8b514b';context.lineWidth=Math.max(1,radius*(face.beard?.18:.055));
-            context.beginPath();context.ellipse(hx,hy+radius*.40,radius*.22*face.mouth,radius*.085,0,0,Math.PI);context.stroke();
-          }
-          continue;
-        }
-        context.strokeStyle=style.suit;context.lineWidth=Math.max(2,size*.19);context.lineCap='round';
-        const lean=object.rotation.x, crouch=style.crouch||0;
-        const reach=size*(1-crouch*.52);
-        const leanX=Math.sin(lean)*reach*.45, upright=Math.cos(lean)*reach;
-        context.beginPath();context.moveTo(x,y-upright*.17);context.lineTo(x+leanX,y-upright*.49);context.stroke();
-        context.fillStyle=style.skin;context.beginPath();context.arc(x+leanX*1.3,y-upright*.62,Math.max(2,size*.16),0,Math.PI*2);context.fill();
-      }
-    }
-  };
 }
 const faceProfiles={
   alex:{shape:[1,1,1],hair:'#604332',style:'tuft',eyes:'#405a49',mouth:1},
@@ -565,7 +398,8 @@ async function showWorld(){
   scene.background=new T.Color('#5d7a70');
   const canvas=document.createElement('canvas');
   const graphics=canvas.getContext('webgl2')||canvas.getContext('webgl');
-  const renderer=graphics?new T.WebGLRenderer({canvas,context:graphics,antialias:true,powerPreference:'high-performance'}):softwareRenderer(T);
+  if(!graphics)throw new Error('WebGL indisponible');
+  const renderer=new T.WebGLRenderer({canvas,context:graphics,antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.65));
   renderer.localClippingEnabled=true;
   renderer.toneMapping=T.ACESFilmicToneMapping;
@@ -578,7 +412,7 @@ async function showWorld(){
   const offset=baseOffset.clone();
   let cameraQuarter=0;
   ui('rotate-camera').onclick=()=>{cameraQuarter=(cameraQuarter+1)%4;offset.copy(baseOffset).applyAxisAngle(new T.Vector3(0,1,0),cameraQuarter*Math.PI/2);};
-  ui('floor-view').onclick=()=>{upperFloorView=upperFloorView===true?false:true;desiredZoom=upperFloorView?1.4:1;ui('zoom-level').textContent=desiredZoom.toLocaleString('fr-BE',{maximumFractionDigits:1})+'×';ui('floor-view').textContent=upperFloorView?'Voir le rez-de-chaussée':'Voir l’étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
+  ui('floor-view').onclick=()=>{upperFloorView=upperFloorView===true?false:true;desiredZoom=upperFloorView?1.4:1;ui('zoom-level').textContent=desiredZoom.toLocaleString('fr-BE',{maximumFractionDigits:1})+'×';ui('floor-view').textContent=upperFloorView?'Rez':'Étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
   const center=new T.Vector3();
   const manualCenter=new T.Vector3();
   const desiredCenter=new T.Vector3();
@@ -676,28 +510,22 @@ async function showWorld(){
   box(39,.27,25,0,-.78,0,mat('#304e44'));
   const gravel=mat('#c3a582');gravel.map=surfaceTexture('#f8eddd',['#cfbaa0','#e2ceb5','#fff4dc'],[13,2]);
   box(15,.035,1.5,3,0,4,gravel);
+  // Clôtures : la propriété de Néo (portail sur la rue, petite porte vers le parc) et l'aire de jeux publique, ouverte sur la rue.
   const fence=mat('#d9c6a3');
-  for(const y of [.28,.7]){
-    for(const x of [-19,19])box(.10,.10,24,x,y,0,fence);
-    box(38,.10,.10,0,y,-12,fence);box(14,.10,.10,-12,y,12,fence);box(16,.10,.10,11,y,12,fence);
-  }
-  for(let x=-19;x<=19;x+=2)for(const z of [-12,12])box(.15,.95,.15,x,.46,z,fence);
-  for(let z=-10;z<=10;z+=2)for(const x of [-19,19])box(.15,.95,.15,x,.46,z,fence);
-  for(const [i,[x,z]] of [[-17,-10],[-15,10],[-2,-10],[5,-10],[16,-9],[17,10],[-10,10]].entries()){
+  const cloture=(x0,z0,x1,z1)=>{
+    const long=Math.hypot(x1-x0,z1-z0),ax=x0===x1;
+    for(const y of [.28,.7])box(ax?.1:long,.1,ax?long:.1,(x0+x1)/2,y,(z0+z1)/2,fence);
+    for(let k=0;k<=Math.round(long/2);k++){const f=k/Math.max(1,Math.round(long/2));box(.15,.95,.15,x0+(x1-x0)*f,.46,z0+(z1-z0)*f,fence);}
+  };
+  for(const [x0,z0,x1,z1] of [[-19,-12,-19,12],[-19,-12,4.3,-12],[-19,12,-5,12],[-3,12,4.3,12],[4.3,-12,4.3,3],[4.3,5,4.3,12],
+    [4.3,-12,19,-12],[19,-12,19,12],[4.3,12,8,12],[12,12,19,12]])cloture(x0,z0,x1,z1);
+  for(const [i,[x,z]] of [[-17,-10.5],[-15,10],[-6,-10],[7,-10],[16,-9],[17,9],[-10,10]].entries()){
     box(.24,1.3,.24,x,.65,z,mat('#886746'));
     const crown=new T.Mesh(new T.IcosahedronGeometry(1.15+i%2*.2,1),mat(i%2?'#739854':'#547d52'));
     crown.position.set(x,1.75,z);scene.add(crown);
   }
-  for(const [text,x,z] of [['SALON',-8,-2],['CUISINE',-2,-3],['A · L · E · X',-7,3]]){
-    const canvas=document.createElement('canvas');canvas.width=384;canvas.height=90;
-    const context=canvas.getContext('2d');context.fillStyle='#28443a';context.fillRect(0,0,384,90);
-    context.fillStyle='#fff0cf';context.font='bold 44px system-ui';context.textAlign='center';context.textBaseline='middle';context.fillText(text,192,47);
-    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
-    const plaque=new T.Mesh(new T.PlaneGeometry(1.55,.36),new T.MeshBasicMaterial({map:texture}));
-    plaque.position.set(x,.65,z);scene.add(plaque);
-  }
   // Trois pancartes dans le jardin : les chiffres, les lettres, 500 mots dessinés.
-  for(const [type,x,z,w,h,pw,ph] of [['chiffres',1.4,8.6,1.7,.85,640,320],['lettres',3.9,8.6,2.1,1.5,840,600],['mots',7.6,8.9,5.6,4.2,3000,2250]]){
+  for(const [type,x,z,w,h,pw,ph] of [['chiffres',1.4,8.6,1.7,.85,640,320],['lettres',3.9,8.6,2.1,1.5,840,600],['mots',-15.5,-7,5,3.75,3000,2250]]){
     const texture=new T.CanvasTexture(dessinerPanneau(type,pw,ph));texture.colorSpace=T.SRGBColorSpace;
     if(realGL)texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy?.()||1);
     const base=h/2+.55;
@@ -705,7 +533,7 @@ async function showWorld(){
     const panneau=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:texture}));
     panneau.position.set(x,base+h/2-.2,z+.06);scene.add(panneau);
   }
-  const atelier3d=creerAtelier(T,scene,mat,{murX:-.46,arbre:{x:5,z:-4.2},tas:{x:.12,z:1.4},planches:{x:.18,z:2.7},fleurs:[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]]});
+  const atelier3d=creerAtelier(T,scene,mat,{murX:-.46,arbre:{x:1.8,z:-8},tas:{x:.12,z:1.4},planches:{x:.18,z:2.7},fleurs:[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]]});
   chargerQuartier(T,GLTFLoader,scene,QUARTIER).catch(error=>console.warn('quartier indisponible',error));
   const play=bindPlayViews(T,scene,worker,mat,id=>{
     const item=snapshot?.playItems?.[id];
@@ -724,7 +552,9 @@ async function showWorld(){
   let ready=0;
   function load(name, task){
     return task.then(()=>{ready++;}).catch(error=>{failures.push(name);console.error(name,error);}).finally(()=>{
-      ui('scene-status').textContent=failures.length?'Chargement indisponible · '+failures.join(', '):ready===3?graphics?'Villa et parc · Vue en coupe':'Villa et parc · Rendu simplifié':'Chargement de la scène 3D…';
+      const status=ui('scene-status');
+      status.textContent=failures.length?'Certains éléments n’ont pas pu se charger : '+failures.join(', '):'Chargement du monde…';
+      status.hidden=!failures.length&&ready===3;
     });
   }
   load('villa', (async()=>{
@@ -1025,9 +855,9 @@ async function showWorld(){
     })()
   ]).then(results=>{for(const result of results)if(result.status==='rejected')console.warn(result.reason);});
   const point=new T.Vector3();
-  let last=performance.now();
+  let last=performance.now(),renderError=false;
   renderer.setAnimationLoop(now=>{
-    if(ui('world-layout').hidden){last=now;return;}
+    if(ui('page-monde').hidden){last=now;return;}
     const dt=Math.min(.05,(now-last)/1000);last=now;
     const focus=following&&actors.find(actor=>actor.id===followedPerson);
     if(upperFloorView!==null){desiredCenter.set(-3.65,upperFloorView?2.65:.65,2.6);manualCenter.copy(desiredCenter);}
@@ -1043,10 +873,10 @@ async function showWorld(){
     camera.zoom+=(desiredZoom-camera.zoom)*smoothing;
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld(true);
-    if(snapshot){
+    if(snapshot)try{
       const tracked=focus&&(focus.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===focus.id));
-      const upstairs=upperFloorView===null?Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier')):upperFloorView;
-      if(upperFloorView===null)ui('floor-view').textContent=upstairs?'Voir le rez-de-chaussée':'Voir l’étage';
+      const upstairs=upperFloorView===null?Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity?.includes('escalier')):upperFloorView;
+      if(upperFloorView===null)ui('floor-view').textContent=upstairs?'Rez':'Étage';
       if(houseCut){houseCut.normal.set(0,upstairs?1:-1,0);houseCut.constant=upstairs?-1.8:1.45;scene.userData.floorCut=upstairs?'upper':'ground';
       for(const roof of houseRoofMeshes)roof.visible=!upstairs;}
       play.update(snapshot.playItems);
@@ -1149,7 +979,7 @@ async function showWorld(){
         actor.label.style.left=(point.x*.5+.5)*100+'%';
         actor.label.style.top=(.5-point.y*.5)*100+'%';
       }
-    }
+    }catch(error){if(!renderError){renderError=true;console.error('Rendu',error);}}
     if(++shadowPass%60===1)flagShadows();
     renderer.render(scene,camera);
   });

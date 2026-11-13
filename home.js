@@ -255,7 +255,6 @@ function sleeping(person,s,canWalk=true){
     person.fatigue=Math.max(.025,person.fatigue-DT*.028);
     if(s>=sleep.until){
       sleep.phase='rise';sleep.started=s;
-      if(person===alex)counts.life++;
       note(residentNames[id]+' se réveille.','sleep');
     }
   }else if(sleep.phase==='exit'){

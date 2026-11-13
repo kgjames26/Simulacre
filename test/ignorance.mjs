@@ -11,7 +11,7 @@ for(const w of forbidden){
   const m=brain.match(re);
   if(m){bad++;console.log('FUITE',w,m[0].slice(0,80));}
 }
-console.log('taille',JSON.stringify(run('Brain.taille()')));
+console.log('vue',JSON.stringify(run('(({compris,essais,lieux})=>({compris,essais,lieux}))(Brain.view())')));
 console.log('causes confirmées',run('Brain.confirmees().length'),'objets',run('Brain.registre().length'));
 console.log(bad?'ECHEC ignorance':'OK ignorance');
 process.exit(bad?1:0);

@@ -1,14 +1,12 @@
-import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-
-let revision = process.env.VERCEL_GIT_COMMIT_SHA;
-if (!revision) {
-  try { revision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(); } catch {}
-}
-// Version affichée : fichier VERSION (vMAJEUR.MINEUR). Le hash Git ne sert plus à l'affichage.
+// Construit le site statique dans dist/ : tous les scripts du dossier, les ressources, la version.
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 const version = readFileSync('VERSION', 'utf8').trim();
+rmSync('dist', { recursive: true, force: true });
 mkdirSync('dist', { recursive: true });
 cpSync('public', 'dist', { recursive: true });
-for (const file of ['manifest.webmanifest', 'icon.svg', 'app.js', 'sim.js', 'brain.js', 'cortex.js', 'world.js', 'dialogue.js', 'collision-map.js', 'navigation.js', 'home.js', 'dashboard.js', 'styles.css', 'motor.js', 'social.js', 'play.js', 'french-words.js', 'play-view.js', 'toy-rails.js', 'panneaux.js', 'famille-phrases.js', 'bricolage.js', 'atelier-view.js', 'quartier.js', 'quartier-view.js', 'monde.js']) cpSync(file, 'dist/' + file);
+const files = readdirSync('.').filter(f => /\.(js|css|svg|webmanifest)$/.test(f) && !['build.mjs', 'sw.js'].includes(f));
+for (const file of files) cpSync(file, 'dist/' + file);
+const shell = ['/', '/index.html', ...files.map(f => '/' + f)];
 writeFileSync('dist/index.html', readFileSync('index.html', 'utf8').replaceAll('__NÉO_VERSION__', version));
-writeFileSync('dist/sw.js', readFileSync('sw.js', 'utf8').replaceAll('__NÉO_VERSION__', version));
+writeFileSync('dist/sw.js', readFileSync('sw.js', 'utf8').replaceAll('__NÉO_VERSION__', version).replace('__SHELL__', JSON.stringify(shell)));
+console.log('dist prêt · v' + version + ' · ' + files.length + ' fichiers');

@@ -97,7 +97,6 @@ function tryPlayObject(person,id,s){
   if(person===alex){
     memory.action=action;
     if(++memory.success===3){
-      counts.play++;counts.cognition++;
       knowledge['usage · '+label]={visits:memory.success,action,senses:['contact','mouvement','mémoire'],type:'objet'};
       note('Néo découvre comment faire bouger le '+playNames[id]+'.','object');
     }

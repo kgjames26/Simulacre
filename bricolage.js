@@ -6,7 +6,7 @@ const OUTILS_DEF=[
   ['vis','boîte de vis',-1.6],['tournevis','tournevis',-1.3],['arrosoir','arrosoir',-1.0],['tuyau','tuyau d’eau',-0.7]
 ];
 const MUR_X=-0.46,STAND_X=0.28;
-const ARBRE_POS={x:5,z:-4.2,stand:{x:4.1,z:-4.2}};
+const ARBRE_POS={x:1.8,z:-8,stand:{x:.8,z:-8}};
 const TAS_POS={x:0.12,z:1.4,stand:{x:0.75,z:1.4}};
 const PLANCHES_POS={x:0.18,z:2.7,stand:{x:0.75,z:2.7}};
 const FLEURS_POS=[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]];
@@ -45,10 +45,11 @@ function stepRoutine(p,s){
   const e=r.etapes[r.i];
   if(!e){ROUT.delete(p);return false;}
   p.activity=e.activity||r.nom;
-  if(r.debut==null)r.debut=s;
+  // Délai de marche proportionnel à la distance : on ne « téléporte » plus personne au bout de 50 s.
+  if(r.debut==null){r.debut=s;r.limite=s+(e.go?Math.hypot(e.go.x-p.x,e.go.z-p.z)/(.8*(p.vieux?.6:1))*1.6+15:0);}
   if(e.go){
     const reste=move(p,e.go.x,e.go.z,.8);
-    if(reste>.4&&s-r.debut<50)return true;
+    if(reste>.4&&s<r.limite)return true;
   }
   if(e.duree&&e.until==null)e.until=s+e.duree*(vieux(p)?1.6:1);
   if(e.until&&s<e.until)return true;

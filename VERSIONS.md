@@ -42,3 +42,13 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Camarades : ils ne progressent pas seuls ; ils reprennent en miroir ce que Néo a déjà fait sur les équipements du parc.
 - Un commerçant silencieux tient la caisse. Personne n'explique jamais rien.
 - Crédits : Kenney (kenney.nl), City Kit Roads, City Kit Suburban, Mini Shop — CC0.
+
+## v3.0 — remise à plat
+- Cerveau réorganisé en un seul fichier (`cerveau.js`) avec des régions claires (sens, corps, espace, objets, mémoire, causes, social, émotions, envies) et un carrefour d'associations. Capacités physiques (équilibre, course, force, endurance) et confiance en soi dans le cerveau.
+- Interdits des parents évolutifs : maison → jardin → étage → aire de jeux → chemin du commerce → quartier. Néo est retenu au bord, s'en souvient, puis retente.
+- Monde cohérent : l'aire de jeux devient un parc public à côté de la propriété (clôture, petite porte, entrée sur la rue) ; arbre et pancarte des mots ramenés dans le jardin ; plaque « A·L·E·X » retirée.
+- Néo se déplace vraiment (vitesse liée à son équilibre) : il explore et apprend bien plus.
+- Site refait : 4 pages (monde, cerveau, croissance, entourage), thème clair, mobile revu.
+- Bugs corrigés : conversations jamais affichées, rendu 3D bloqué par les pommes, ordinateur jamais dessiné, courses impossibles (câlin des parents qui les retenait, marche coupée à 50 s), journal répétitif.
+- Allègement : ancien système de « découvertes » et compteurs retirés, rendu de secours supprimé, construction automatique de la liste des fichiers.
+- Nouvelle partie (sauvegarde v5).

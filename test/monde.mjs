@@ -23,4 +23,19 @@ let n=0;while(run(`ROUT.has(__m)`)&&n<400000){run(`ticks++;stepRoutine(__m,ticks
 if(run(`kitchen.ingredients`)<6||run(`commerce.visites`)!==1)throw new Error('course '+run(`kitchen.ingredients`)+' '+n);
 // Un ami n'entre que accompagné, et pas avant l'adolescence.
 if(run(`peutEntrerChezNeo({id:'timeo'},null)`)||run(`age=3;acces.amisAccompagnes=false;peutEntrerChezNeo({id:'timeo'},people[1])`))throw new Error('invitation');
+// Interdits des parents qui s'élargissent avec l'âge.
+const permis=(a,x,z,f=0)=>run(`age=${a};autorise(${x},${z},${f})`);
+if(!permis(0,-8,0)||permis(0,0,-8)||permis(0,-8,0,1))throw new Error('nourrisson : seulement la maison');
+if(!permis(2,0,-8)||permis(2,10,2)||permis(2,-8,0,1))throw new Error('petit enfant : jardin');
+if(!permis(3,-8,0,1)||permis(3,10,2))throw new Error('enfant : étage');
+if(!permis(4,10,2)||permis(4,30,16))throw new Error('grand enfant : aire de jeux');
+if(!permis(5,30,16)||!permis(5,62,10)||permis(5,49,0))throw new Error('jeune ado : chemin du commerce');
+if(!permis(6,49,0))throw new Error('ado : quartier');
+// Néo est retenu au bord, et s'en souvient (un peu).
+run(`age=2;acces.niveau=1;alex.floor=0;alex.x=4.2;alex.z=4;`);
+if(!run(`navigation.clear(4.2,4,4.45,4,0)`))throw new Error('porte du parc fermée');
+if(run(`walkStep(alex,4.45,4)`))throw new Error('Néo devait être retenu');
+if(!run(`Brain.interdit(4.45,4,0)`))throw new Error('limite non mémorisée');
+run(`age=4;leverInterdits();`);
+if(run(`acces.niveau`)!==3||!run(`journal.some(j=>j.message.includes('aire de jeux'))`))throw new Error('levée des interdits');
 console.log('monde ok');

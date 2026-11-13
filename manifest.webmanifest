@@ -1,13 +1,13 @@
 {
   "name": "Néo — Simulacre",
   "short_name": "Néo",
-  "description": "Simulation expérimentale d'une intelligence évolutive.",
+  "description": "Néo apprend tout par lui-même.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#101920",
-  "theme_color": "#101920",
+  "background_color": "#f4f1ea",
+  "theme_color": "#2f6b4c",
   "icons": [
     {
       "src": "/icon.svg",

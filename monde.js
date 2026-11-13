@@ -2,7 +2,32 @@
 // Argent = 0 : pas de prix ni de caisse. Chaque agent a un quota de prélèvement par jour fictif.
 const QUOTA_JOUR=8,STOCK_JOUR_COMMERCE=60;
 let commerce={jour:0,stock:STOCK_JOUR_COMMERCE,prelev:{},total:0,visites:0};
-let acces={amisAccompagnes:false,invitation:false,visites:0};
+let acces={amisAccompagnes:false,visites:0,niveau:0};
+// Interdits des parents : zones où Néo peut aller, élargies petit à petit avec l'âge. Jamais chez les autres.
+const ZONES=[
+  {nom:'la maison',rects:[{x0:-13.2,x1:-.7,z0:-3.9,z1:6.3}]},
+  {nom:'le jardin',rects:[QUARTIER.propriete]},
+  {nom:'l’étage',etage:true,rects:[]},
+  {nom:'l’aire de jeux',rects:[QUARTIER.parc,QUARTIER.entreeParc]},
+  {nom:'le chemin du commerce',rects:[{x0:-6,x1:71,z0:11.4,z1:QUARTIER.ROUTE_Z+QUARTIER.T/2},QUARTIER.commerce.interieur,
+    {x0:QUARTIER.commerce.porte.x-1.5,x1:QUARTIER.commerce.porte.x+1.5,z0:QUARTIER.commerce.interieur.z1-.2,z1:QUARTIER.trottoir.z1}]},
+  {nom:'tout le quartier',rects:[QUARTIER.region]}
+];
+const AGE_ZONE=[0,0,1,2,3,4,5,5,5];
+const niveauAcces=()=>AGE_ZONE[age]??5;
+function autorise(x,z,floor){
+  if(sleeps.has(alex))return true;
+  const n=niveauAcces();
+  if(floor===1)return n>=2;
+  for(let i=0;i<=n;i++)for(const r of ZONES[i].rects)if(x>=r.x0&&x<=r.x1&&z>=r.z0&&z<=r.z1)return true;
+  return false;
+}
+function leverInterdits(){
+  const n=niveauAcces();
+  if(n<=acces.niveau)return;
+  acces.niveau=n;
+  note('Les parents laissent maintenant Néo aller dans '+ZONES[n].nom+'.','limite');
+}
 let visiteAmi=null;
 function majJourCommerce(){
   const {jour}=jourFictif();

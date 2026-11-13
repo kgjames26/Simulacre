@@ -83,10 +83,15 @@ const QUARTIER=(()=>{
     {x0:19.4,x1:44,z0:-14,z1:14.4,nom:'jardin des voisins'},{x0:-44,x1:-19.4,z0:-14,z1:14.4,nom:'jardin des voisins de l’ouest'}];
   // --- zones praticables par tout le monde (hors de la propriété de Néo) ---
   const trottoir={x0:region.x0,x1:region.x1,z0:14.5,z1:ROUTE_Z-T/2};
-  const portail={x0:-5,x1:-3,z0:11.5,z1:14.6};          // portail de la propriété de Néo
+  const portail={x0:-5,x1:-3,z0:11.5,z1:14.6};          // portail de la propriété de Néo (sur la rue)
+  // La propriété de Néo s'arrête à x=4.3 ; à l'est, l'aire de jeux publique des petits voisins, ouverte sur la rue.
+  const propriete={x0:-19,x1:4.3,z0:-12,z1:12};
+  const parc={x0:4.3,x1:19,z0:-12,z1:12};
+  const entreeParc={x0:8,x1:12,z0:11.5,z1:14.6};
+  const barriere={x0:4.15,x1:4.45,z0:-12,z1:12,porte:{z0:3,z1:5}};   // clôture entre jardin et parc, avec une petite porte
   const rects=[];                                          // rectangles praticables
   for(const t of tuiles)rects.push({x0:t.x-T/2,x1:t.x+T/2,z0:t.z-T/2,z1:t.z+T/2});
-  rects.push(trottoir,portail);
+  rects.push(trottoir,portail,entreeParc);
   const praticable=(x,z)=>{
     for(const r of rects)if(x>=r.x0&&x<=r.x1&&z>=r.z0&&z<=r.z1)return true;
     const c=commerce,i=c.interieur;
@@ -96,5 +101,5 @@ const QUARTIER=(()=>{
   };
   const c=commerce;
   const libres=[...rects,c.interieur,{x0:c.porte.x-1.4,x1:c.porte.x+1.4,z0:c.interieur.z1,z1:ROUTE_Z-T/2}];
-  return {T,ROUTE_Z,COTE_X,region,monde,tuiles,maisons,arbres,lampadaires,panneaux,commerce,privees,praticable,portail,trottoir,libres,bloques:c.obstacles};
+  return {T,ROUTE_Z,COTE_X,region,monde,tuiles,maisons,arbres,lampadaires,panneaux,commerce,privees,praticable,portail,trottoir,libres,bloques:c.obstacles,propriete,parc,entreeParc,barriere};
 })();

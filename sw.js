@@ -1,5 +1,5 @@
 const CACHE = 'neo-shell-v__NÉO_VERSION__';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/styles.css', '/app.js', '/sim.js', '/brain.js', '/cortex.js', '/world.js', '/dialogue.js', '/collision-map.js', '/navigation.js', '/home.js', '/dashboard.js', '/motor.js', '/social.js', '/play.js', '/french-words.js', '/play-view.js', '/toy-rails.js', '/panneaux.js', '/famille-phrases.js', '/bricolage.js', '/atelier-view.js', '/quartier.js', '/quartier-view.js', '/monde.js'];
+const SHELL = __SHELL__;
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
 });

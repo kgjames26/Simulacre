@@ -34,10 +34,10 @@ const navigation=(()=>{
     for(const r of QUARTIER.bloques)remplir(r,false);
     originX=nx;originZ=nz;width=w;height=h;grids=grandes.slice(0,2);
     // la bande de clôture reste fermée hors portail (les trottoirs ne la recouvrent pas)
-    const bande={x0:-19.2,x1:19.2,z0:11.6,z1:12.4};
-    for(let z=bande.z0;z<=bande.z1;z+=cell*.9)for(let x=bande.x0;x<=bande.x1;x+=cell*.9){
-      if(x>=QUARTIER.portail.x0&&x<=QUARTIER.portail.x1)continue;set(x,z,false);
-    }
+    const ouvert=x=>x>=QUARTIER.portail.x0&&x<=QUARTIER.portail.x1||x>=QUARTIER.entreeParc.x0&&x<=QUARTIER.entreeParc.x1;
+    for(let z=11.6;z<=12.4;z+=cell*.9)for(let x=-19.2;x<=19.2;x+=cell*.9)if(!ouvert(x))set(x,z,false);
+    const B=QUARTIER.barriere;
+    for(let z=B.z0;z<=B.z1;z+=cell*.9)for(let x=B.x0;x<=B.x1;x+=cell*.9)if(z<B.porte.z0||z>B.porte.z1)set(x,z,false);
   }
   const size=width*height;
   const cells=(x,z)=>{

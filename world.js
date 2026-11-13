@@ -30,7 +30,7 @@ const landmarks=[
   ['salon',-8,-2],['couloir',-7,0],['lettre N',-8,3],['lettre É',-5,1],['lettre O',-3,2],
   ['jardin',3,4],['chemin',5,3],['parc',8,5],['gravier',11,5],
   ['bordure',14,5],['bois',12,4],
-  ['panneau des chiffres',1.4,8.6],['panneau des lettres',3.9,8.6],['panneau des mots',7.6,8.9]
+  ['panneau des chiffres',1.4,8.6],['panneau des lettres',3.9,8.6],['panneau des mots',-15.5,-7]
 ];
 // Traits : [hauteur, masse, mou, lumineux, vivant, écrit]
 const landmarkTraits=name=>name.startsWith('lettre')||name.startsWith('panneau')?[0,0,0,0,0,1]:[0,0,0,0,0,0];

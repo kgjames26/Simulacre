@@ -11,7 +11,7 @@ if(n<1)throw new Error('Néo devrait pouvoir écrire');
 const txt=run(`courrier.sortant[0].text`);
 if(!/^(chat|eau)( (chat|eau)){0,2}$/.test(txt))throw new Error('texte inattendu '+txt);
 // Seul, après une surprise : le message est signalé avec son contexte.
-run(`alex.floor=1;for(const p of people){p.x=50;p.z=50;}(Brain.state.cortex||={}).surprise=.4;courrier.prochain=0;utiliserOrdinateur(9000);`);
+run(`alex.floor=1;for(const p of people){p.x=50;p.z=50;}Brain.state.associations.surprise=.4;courrier.prochain=0;utiliserOrdinateur(9000);`);
 if(!run(`courrier.sortant.at(-1).createur`)||!run(`courrier.sortant.at(-1).contexte.join(' ')`).includes('Jour'))throw new Error('contexte créateur');
 // Ce que l'utilisateur écrit est lu à l'écran, une fois.
 run(`dialogue.lireEcran=(t)=>{globalThis.__lu=t};onmessage({data:{type:'courrier',text:'bonjour'}});utiliserOrdinateur(5000);`);
