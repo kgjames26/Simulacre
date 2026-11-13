@@ -8,6 +8,7 @@ export function creerAtelier(T,scene,mat,pos){
 
   // --- Outils (axe long le long de y, face vers +x : ils s'accrochent au mur) ---
   const modeles={
+    sac(){const g=new T.Group();mesh(box(.28,.34,.16),'#c9a46a',0,.17,0,g);mesh(cyl(.03,.03,.14,6),'#4a8a3a',-.07,.4,0,g);mesh(cyl(.03,.03,.12,6),'#d9792b',.06,.39,0,g);return g;},
     hache(){const g=new T.Group();mesh(cyl(.016,.016,.55),BOIS,0,0,0,g);const tete=mesh(box(.05,.14,.1),ACIER,0,.24,.04,g);mesh(box(.04,.06,.03),NOIR,0,.3,-.02,g);return g;},
     scie(){const g=new T.Group();mesh(box(.03,.035,.42),ACIER,0,0,0,g);mesh(box(.04,.07,.11),BOIS,0,.02,.26,g);for(let i=0;i<14;i++)mesh(box(.012,.012,.012),ACIER,0,-.022,-.19+i*.028,g);return g;},
     marteau(){const g=new T.Group();mesh(cyl(.014,.014,.3),BOIS,0,0,0,g);mesh(box(.05,.05,.12),NOIR,0,.16,0,g);return g;},

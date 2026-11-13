@@ -1,6 +1,7 @@
 import {bindPlayViews} from '/play-view.js';
 import {dessinerPanneau} from '/panneaux.js';
 import {creerAtelier} from '/atelier-view.js';
+import {chargerQuartier} from '/quartier-view.js';
 import {setupDashboard,TIME_SCALE} from '/dashboard.js';
 document.getElementById('enter-simulacre')?.addEventListener('click',()=>{document.getElementById('welcome-screen').hidden=true;try{sessionStorage.setItem('simulacre-intro-seen','1');}catch{}});
 const ui = id => document.getElementById(id);
@@ -585,7 +586,7 @@ async function showWorld(){
   camera.lookAt(center);
   let desiredZoom=1;
   function zoomBy(ratio){
-    desiredZoom=Math.max(1,Math.min(28,desiredZoom*ratio));
+    desiredZoom=Math.max(.3,Math.min(28,desiredZoom*ratio));
     ui('zoom-level').textContent=desiredZoom.toLocaleString('fr-BE',{maximumFractionDigits:1})+'×';
   }
   ui('zoom-in').onclick=()=>zoomBy(1.55);
@@ -618,8 +619,8 @@ async function showWorld(){
     up.y=0;
     manualCenter.addScaledVector(right,(previous.x-current.x)*unit);
     manualCenter.addScaledVector(up,(current.y-previous.y)*unit/Math.max(.25,up.lengthSq()));
-    manualCenter.x=Math.max(-19,Math.min(19,manualCenter.x));
-    manualCenter.z=Math.max(-12,Math.min(12,manualCenter.z));
+    manualCenter.x=Math.max(-45,Math.min(90,manualCenter.x));
+    manualCenter.z=Math.max(-30,Math.min(50,manualCenter.z));
   });
   for(const name of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(name,event=>pointers.delete(event.pointerId));
   const resize=()=>{
@@ -678,7 +679,7 @@ async function showWorld(){
   const fence=mat('#d9c6a3');
   for(const y of [.28,.7]){
     for(const x of [-19,19])box(.10,.10,24,x,y,0,fence);
-    for(const z of [-12,12])box(38,.10,.10,0,y,z,fence);
+    box(38,.10,.10,0,y,-12,fence);box(14,.10,.10,-12,y,12,fence);box(16,.10,.10,11,y,12,fence);
   }
   for(let x=-19;x<=19;x+=2)for(const z of [-12,12])box(.15,.95,.15,x,.46,z,fence);
   for(let z=-10;z<=10;z+=2)for(const x of [-19,19])box(.15,.95,.15,x,.46,z,fence);
@@ -705,6 +706,7 @@ async function showWorld(){
     panneau.position.set(x,base+h/2-.2,z+.06);scene.add(panneau);
   }
   const atelier3d=creerAtelier(T,scene,mat,{murX:-.46,arbre:{x:5,z:-4.2},tas:{x:.12,z:1.4},planches:{x:.18,z:2.7},fleurs:[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]]});
+  chargerQuartier(T,GLTFLoader,scene,QUARTIER).catch(error=>console.warn('quartier indisponible',error));
   const play=bindPlayViews(T,scene,worker,mat,id=>{
     const item=snapshot?.playItems?.[id];
     if(!item)return;

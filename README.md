@@ -34,3 +34,6 @@ Puis ouvrir http://localhost:8000. La 3D charge Three.js depuis un CDN.
 ## Versions
 
 Numérotation `vMAJEUR.MINEUR` (fichier `VERSION`, historique dans `VERSIONS.md`).
+
+## Crédits
+Modèles 3D du quartier : Kenney (kenney.nl) — City Kit Roads, City Kit Suburban, Mini Shop, licence CC0.

@@ -74,14 +74,7 @@ let kitchenOwner=null;
 function stepKitchen(s){
   if(!house?.kitchen)return;
   ensureFoodStock();
-  if(s>=nextRefill){
-    for(let count=0;count<2;count++){
-      const restock=kitchen.pantry.filter(food=>food.stock<3);
-      if(restock.length)restock[Math.abs(Math.floor(s/19)+count*7)%restock.length].stock++;
-    }
-    ensureFoodStock();
-    nextRefill=s+19;
-  }
+  // Plus de réapprovisionnement magique : le garde-manger ne se remplit qu'avec ce que les adultes rapportent du commerce.
   const running=kitchenOwner&&cooks[kitchenOwner];
   const station=running?.until?recipe[running.step][0]:null;
   kitchen.fridge+=clamp(Number(station==='fridge')-kitchen.fridge,-DT*2,DT*2);

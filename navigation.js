@@ -1,7 +1,44 @@
 // A baked clearance grid keeps collision checks cheap even at accelerated simulation speed.
+// La grille cuite couvre la propriété de Néo ; on l'agrandit au quartier : seules les routes, trottoirs, le portail
+// et l'intérieur du commerce sont praticables, les autres propriétés sont fermées.
 const navigation=(()=>{
-  const {originX,originZ,width,height,cell,layers}=COLLISION_MAP;
-  const grids=layers.map(encoded=>Uint8Array.from(atob(encoded),character=>character.charCodeAt(0)));
+  const base=COLLISION_MAP;
+  let {originX,originZ,width,height}=base;const {cell,layers}=base;
+  let grids=layers.map(encoded=>Uint8Array.from(atob(encoded),character=>character.charCodeAt(0)));
+  if(typeof QUARTIER!=='undefined'){
+    const R=QUARTIER.region;
+    const ox=Math.round((originX-R.x0)/cell),oz=Math.round((originZ-R.z0)/cell);
+    const nx=originX-ox*cell,nz=originZ-oz*cell;
+    const w=Math.ceil((R.x1-nx)/cell),h=Math.ceil((R.z1-nz)/cell);
+    const bytes=Math.ceil(w*h/8);
+    const grandes=[new Uint8Array(bytes).fill(255),new Uint8Array(bytes).fill(255)];
+    grids.forEach((grid,floor)=>{
+      for(let j=0;j<height;j++)for(let i=0;i<width;i++){
+        const id=i+j*width,blocked=grid[id>>3]&(1<<(id&7));
+        if(!blocked){const k=(i+ox)+(j+oz)*w;grandes[floor][k>>3]&=~(1<<(k&7));}
+      }
+    });
+    const set=(x,z,libre)=>{
+      const i=Math.floor((x-nx)/cell),j=Math.floor((z-nz)/cell);
+      if(i<0||j<0||i>=w||j>=h)return;
+      const k=i+j*w;if(libre)grandes[0][k>>3]&=~(1<<(k&7));else grandes[0][k>>3]|=(1<<(k&7));
+    };
+    const remplir=(r,libre)=>{for(let z=r.z0;z<=r.z1;z+=cell*.9)for(let x=r.x0;x<=r.x1;x+=cell*.9)set(x,z,libre);};
+    // clôture de la propriété : bande bloquée, sauf le portail
+    const ring=3;
+    for(let j=0;j<height;j++)for(let i=0;i<width;i++){
+      if(i>=ring&&i<width-ring&&j>=ring&&j<height-ring)continue;
+      const k=(i+ox)+(j+oz)*w;grandes[0][k>>3]|=(1<<(k&7));
+    }
+    for(const r of QUARTIER.libres)remplir(r,true);
+    for(const r of QUARTIER.bloques)remplir(r,false);
+    originX=nx;originZ=nz;width=w;height=h;grids=grandes.slice(0,2);
+    // la bande de clôture reste fermée hors portail (les trottoirs ne la recouvrent pas)
+    const bande={x0:-19.2,x1:19.2,z0:11.6,z1:12.4};
+    for(let z=bande.z0;z<=bande.z1;z+=cell*.9)for(let x=bande.x0;x<=bande.x1;x+=cell*.9){
+      if(x>=QUARTIER.portail.x0&&x<=QUARTIER.portail.x1)continue;set(x,z,false);
+    }
+  }
   const size=width*height;
   const cells=(x,z)=>{
     const i=Math.floor((x-originX)/cell), j=Math.floor((z-originZ)/cell);

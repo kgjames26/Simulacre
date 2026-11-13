@@ -1,4 +1,4 @@
-importScripts('/brain.js','/cortex.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js','/famille-phrases.js','/bricolage.js');
+importScripts('/brain.js','/cortex.js','/world.js','/dialogue.js','/collision-map.js','/quartier.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js','/famille-phrases.js','/bricolage.js','/monde.js');
 const dialogue=createDialogue();
 const languageScene={points:{},visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
 const DT = 1 / 120;
@@ -396,8 +396,9 @@ function walkStep(p,x,z){
 }
 function move(p,x,z,speed) {
   if(p.vieux)speed*=.6;
-  x=clamp(x,-bounds.x+.5,bounds.x-.5);
-  z=clamp(z,-bounds.z+.5,bounds.z-.5);
+  // Jusqu'à 5 ans, Néo ne quitte pas la propriété (portail fermé) ; les autres propriétés lui sont fermées par les collisions.
+  if(p===alex&&age<5){x=clamp(x,-bounds.x+.5,bounds.x-.5);z=clamp(z,-bounds.z+.5,bounds.z-.5);}
+  else{const R=QUARTIER.region;x=clamp(x,R.x0+.5,R.x1-.5);z=clamp(z,R.z0+.5,R.z1-.5);}
   const distance=Math.hypot(x-p.x,z-p.z);
   if(distance<.072)return distance;
   const target=navigation.next(p,x,z,p.floor||0,ticks*DT);
@@ -910,6 +911,9 @@ function experience() {
   }
   for(let i=0;i<people.length;i++){
     const p=people[i];
+    if(i>=3&&amiAccompagne(p,s))continue;
+    if(i===1&&stepVisiteAmi(p,s))continue;
+    if(i<2&&stepCourses(p,i,s))continue;
     if(i<3){
       p.fatigue=clamp((p.fatigue??(.14+i*.06))+DT*.0023*(p.vieux?1.8:1),0,1);
       p.hunger=clamp((p.hunger??.42)+DT*.0021,0,1);
@@ -953,6 +957,8 @@ function experience() {
           goalX=ball.x;goalZ=ball.z;
           p.activity='S’intéresse au ballon';
         }
+        const miroir=miroirAmi(p,i,s);
+        if(miroir){goalX=miroir.x;goalZ=miroir.z;p.activity=miroir.activity;}
         learnedMovement(p,goalX,goalZ);
       }else{
         const acquired=records.findLastIndex(record=>record.mastered);
@@ -1063,10 +1069,10 @@ function snapshot() {
     brainView.cortex=Cortex.view(observerLabel,brainView.tailles);
     nextActivitySnapshot=ticks+36;
   }
-  return {atelier:{outils:atelier.outils.map(o=>({...o})),arbre:{...atelier.arbre},bois:{...atelier.bois},fleurs:atelier.fleurs.map(f=>({...f})),neo:{fabrications:atelier.neo.fabrications}},ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
+  return {commerce:{stock:commerce.stock,total:commerce.total,visites:commerce.visites,quota:QUOTA_JOUR,prelev:{...commerce.prelev}},acces:{...acces},atelier:{outils:atelier.outils.map(o=>({...o})),arbre:{...atelier.arbre},bois:{...atelier.bois},fleurs:atelier.fleurs.map(f=>({...f})),neo:{fabrications:atelier.neo.fabrications}},ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
 }
 function save() {
-  return {atelier,courrier,brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
+  return {commerce,acces,atelier,courrier,brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -1125,6 +1131,8 @@ onmessage=({data})=>{
     if(!s.kitchen?.servings)kitchen.servings=Array(kitchen.meals).fill(.62);
     Object.assign(objectLearning,s.objectLearning);
     if(s.courrier)courrier=s.courrier;
+    if(s.commerce)commerce=s.commerce;
+    if(s.acces)acces=s.acces;
     if(s.atelier?.outils&&s.atelier.fleurs)atelier=s.atelier;
     nextRefill=Number.isFinite(s.nextRefill)?s.nextRefill:0;
     Object.assign(equipmentSeen,s.equipmentSeen);

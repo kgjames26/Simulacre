@@ -33,3 +33,12 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Sentiments amoureux : tendresse, attirance, complicité ; actes (regard, main, cadeau, câlin, baiser, dispute) avec effets individuels ; une seule relation, sexe opposé, jamais la famille ; séparations possibles ; jamais un objectif.
 - Confiance en soi ajoutée aux personnages. Tous les nouveaux objets sont modélisés en 3D (atelier-view.js).
 - v2.7b : Joseph âgé n'ira plus au bois. La hache abat l'arbre (il tombe) et le débite vite ; la scie, plus lente, produit de jolies planches rangées près de la maison. L'arbre laisse tomber des pommes qui disparaissent après un moment ; Néo peut en manger (en saisissant), personne d'autre ne le sait.
+
+## v2.8 — le quartier
+- Monde cohérent avec les kits Kenney (routes, maisons de banlieue, mini-commerce, licence CC0) : maison de Néo, petits voisins juste à côté, routes et trottoirs, commerce de proximité à pied (≈ 65 m), grand quartier résidentiel plus loin.
+- Accès : les autres propriétés sont fermées à Néo par les collisions ; jusqu'à 5 ans il ne sort pas de sa propriété (portail fermé).
+- Maison de Néo : aucun invité avant l'adolescence ; ensuite un ami n'entre que s'il est accompagné d'un parent (Marie les fait entrer, les reçoit, les raccompagne).
+- Pénurie : plus de réapprovisionnement magique. Le commerce est l'unique source, sans argent : quota de prélèvement par personne et par jour fictif (8), stock du commerce limité (60/jour). Joseph et Marie font les courses quand le garde-manger se vide.
+- Camarades : ils ne progressent pas seuls ; ils reprennent en miroir ce que Néo a déjà fait sur les équipements du parc.
+- Un commerçant silencieux tient la caisse. Personne n'explique jamais rien.
+- Crédits : Kenney (kenney.nl), City Kit Roads, City Kit Suburban, Mini Shop — CC0.

@@ -109,6 +109,7 @@ function entities(){
     add('objet:arbre','objet','arbre',ARBRE_POS.x,ARBRE_POS.z,[3,1,0,0,1,0]);
     atelier.fleurs.forEach((f,i)=>add('objet:fleur-'+i,'objet','fleur',f.x,f.z,[.3,.1,.8,0,1,0],{plante:true}));
   }
+  if(typeof QUARTIER!=='undefined')QUARTIER.commerce.rayons.forEach((r,i)=>add('objet:rayon-'+i,'objet','rayon du commerce',r.x,r.z,[1.6,.8,0,0,0,0],{rayon:true}));
   for(const person of people)add('personne:'+person.id,'personne',characterNames[person.id],0,0,PERSON_TRAITS,{dynamic:person});
   for(const id of Object.keys(playItems))
     add('jeu:'+id,'jeu',playNames[id],0,0,id==='toy'?[.3,.4,0,0,0,0]:id.startsWith('bike')?[.4,.5,0,0,0,0]:[.1,.2,.5,0,0,0],{dynamic:playItems[id],playId:id});
@@ -154,6 +155,14 @@ function respond(entity,prim,s){
     if(k<0)return none;
     atelier.pommes.splice(k,1);entityCache=null;alex.hunger=Math.max(0,alex.hunger-.1);
     return {flags:['objet_bouge','rond','gout'],besoins:{faim:Math.max(0,alex.hunger-.1)},plaisir:.1};
+  }
+  if(entity.rayon){
+    if(prim!=='saisir')return none;
+    const n=prelever('alex',1);
+    if(!n)return none;
+    alex.hunger=Math.max(0,alex.hunger-.08);
+    note('Néo prend quelque chose au commerce.','object');
+    return {flags:['objet_bouge','nourriture'],plaisir:.08};
   }
   if(entity.plante){return prim==='saisir'?{flags:['vivant','doux'],plaisir:.05}:none;}
   if(entity.computerId){

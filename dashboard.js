@@ -286,6 +286,18 @@ function renderRelations(state){
     }
     return item;
   }));
+  if(state.commerce){
+    const item=node('article',null,'person');
+    const c=state.commerce,k=state.kitchen||{};
+    item.append(node('h3','Garde-manger et commerce'),node('small','Pas d’argent : un quota par jour et par personne'),
+      row('Ingrédients à la maison',fmt(k.ingredients??0)),
+      row('Stock du commerce aujourd’hui',fmt(c.stock)),
+      row('Quota par personne et par jour',fmt(c.quota)),
+      row('Prélevé aujourd’hui',Object.entries(c.prelev).map(([id,n])=>names[id]+' '+n).join(', ')||'personne'),
+      row('Courses faites',fmt(c.visites)));
+    if(state.acces)item.append(row('Amis chez Néo',state.acces.amisAccompagnes?'seulement accompagnés ('+state.acces.visites+' visites)':'jamais pour l’instant'));
+    ui('people-grid').append(item);
+  }
   const kind=ui('interaction-filter').value;
   const events=state.activityData.events.filter(event=>!kind||event.kind===kind).slice(0,50);
   ui('interaction-lines').replaceChildren(...(events.length?events.map(event=>{
