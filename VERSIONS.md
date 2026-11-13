@@ -73,6 +73,6 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Traits de caractère pour tous (curiosité, persévérance, prudence, sociabilité, empathie, créativité, indépendance, patience, optimisme, leadership), qui évoluent avec ce que chacun vit ; ceux de Néo vivent dans son cerveau et influencent son exploration et son envie d'aider.
 - Règle du langage des autres personnages : vocabulaire des parents débloqué par étape de vie (+ mots de Néo s'il est au moins aussi jeune) ; Juliette parle comme ses parents.
 - Règle : toute chose nommée entre automatiquement dans le langage de Joseph, Marie et Juliette.
-- Joseph et Marie : 6 000 mots (dont 3 000 pluriels et conjugaisons) et 3 000 phrases d'échange.
+- Joseph et Marie : 6 000 mots (dont 3 000 pluriels et conjugaisons) et 2 000 phrases d'échange (au lieu de 1 000).
 - Commerce : droit de 14 par personne et par jour (au lieu de 8) : toute la famille avait faim.
 - Correction : « Regardu » dans d'anciennes phrases.
