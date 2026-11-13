@@ -6,7 +6,7 @@ const pct=v=>Math.round((v||0)*100)+' %';
 export const TIME_SCALE=144;           // 1 jour fictif = 10 minutes de simulation
 export const AGES=['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
 const MARCHE=['Se redresser','Ramper','Tenir debout','Premiers pas','Marcher'];
-const PAGES={monde:'Le monde',cerveau:'Son cerveau',croissance:'Sa croissance',sociabilite:'Sa sociabilité',nuits:'Ses nuits'};
+const PAGES={monde:'Le monde',cerveau:'Son cerveau',croissance:'Sa croissance',decouvertes:'Ses découvertes',sociabilite:'Sa sociabilité',nuits:'Ses nuits'};
 const ANCIENNES={apprend:'cerveau',grandir:'croissance',paroles:'sociabilite',proches:'sociabilite',entourage:'sociabilite',ensemble:'monde'};
 const GENRES={social:'Relation',play:'Jeu',food:'Repas',sleep:'Sommeil',object:'Objet',care:'Soin',limite:'Limite'};
 const VERBES={pousser:'Pousser',tirer:'Tirer',saisir:'Prendre',frapper:'Frapper',tourner:'Tourner',monter:'Monter sur',grimper:'Grimper sur',sauter:'Sauter sur'};
@@ -17,7 +17,7 @@ const EFFETS={mou:'c’est mou',soi_monte:'on peut s’y installer',lumiere:'ça
 const BESOINS={faim:'la faim',soif:'la soif',fatigue:'la fatigue',hygiene:'le besoin de se laver'};
 // Le leadership est un trait parmi les autres, sans mise en avant.
 const TRAITS={curiosite:'Curiosité',perseverance:'Persévérance',prudence:'Prudence',sociabilite:'Sociabilité',empathie:'Empathie',leadership:'Leadership',creativite:'Créativité',independance:'Indépendance',patience:'Patience',optimisme:'Optimisme'};
-const CAPACITES={equilibre:'Équilibre',course:'Course',force:'Force',endurance:'Endurance'};
+const CAPACITES={equilibre:'Équilibre',course:'Course',saut:'Saut',force:'Force',endurance:'Endurance',psychomotricite:'Psychomotricité',motriciteFine:'Motricité fine',douleur:'Gestion de la douleur'};
 const cap=t=>t?t.charAt(0).toUpperCase()+t.slice(1):'';
 const effets=l=>(l||[]).map(e=>EFFETS[e]||e).join(', ')||'rien de visible';
 const stamp=sec=>{const t=Math.max(0,Math.floor(sec*TIME_SCALE));return 'Jour '+fmt(1+Math.floor(t/86400))+', '+String(Math.floor(t/3600)%24).padStart(2,'0')+' h '+String(Math.floor(t/60)%60).padStart(2,'0');};
@@ -110,12 +110,19 @@ async function renderTranscript(){
   const rows=list.slice(0,PAGE_SIZE);
   paint('conversation-lines',rows.map(l=>l.id).join(','),()=>rows.length?rows.map(l=>{
     const who=names[l.speaker]||l.nomSpeaker||l.speaker,to=names[l.listener]||l.nomListener;
-    return el('li',{},el('strong',{textContent:to?who+' → '+to:who}),document.createTextNode(' '+l.text),
+    return el('li',{},el('strong',{textContent:to?who+' → '+to:who}),document.createTextNode(' '+texteDit(l,to)),
       el('small',{textContent:stamp(l.at)+(l.speaker==='alex'?'':l.heardByNéo?' · Néo entend':' · trop loin pour Néo')}));
   }):[el('li',{textContent:'Aucune parole pour l’instant.'})]);
   ui('older-lines').hidden=list.length<=PAGE_SIZE;
   ui('older-lines').dataset.before=rows.at(-1)?.id||'';
   ui('live-lines').hidden=!stack.length;
+}
+// Quand on parle à Néo, on commence par son nom ; quand Néo parle à quelqu'un, son nom vient à la fin.
+export function texteDit(l,to){
+  let t=l.text||'';
+  if(l.listener==='alex'&&l.speaker!=='alex'&&!/^néo\b/i.test(t))t='Néo, '+t.charAt(0).toLowerCase()+t.slice(1);
+  if(l.speaker==='alex'&&to){const fin=t.match(/[.!?…]+$/)?.[0]||'';t=t.slice(0,t.length-fin.length).replace(/,\s*$/,'')+', '+to+(fin||'.');}
+  return t;
 }
 const resetTranscript=()=>{before=Infinity;stack=[];renderTranscript();};
 
@@ -156,7 +163,7 @@ function renderCerveau(s){
   paint('regions',JSON.stringify(regions),()=>regions.map(([nom,n,desc,hub])=>el('div',{className:'region'+(hub?' hub':''),dataset:{empty:String(!n||n==='0 %')}},el('strong',{textContent:typeof n==='number'?fmt(n):n}),el('span',{textContent:nom}),el('small',{textContent:desc}))));
   setMeta('meta-comprend',fmt(b.compris)+' compris · '+fmt(c.confirmees)+' idées vérifiées');
   setMeta('meta-causes',fmt(b.savoir.length));setMeta('meta-idees',fmt(c.idees.length));setMeta('meta-familles',fmt(b.concepts.length));setMeta('meta-choses',fmt(b.nbObjets));
-  setMeta('meta-corps',fmt(b.gestes.innes.length+b.gestes.appris.length)+' gestes');setMeta('meta-envies',fmt(b.envies));
+  setMeta('meta-envies',fmt(b.envies));
   paint('brain-families',JSON.stringify(b.concepts),()=>b.concepts.length?b.concepts.map(k=>item(k.membres.join(', '),k.usages.length?'il sait : '+k.usages.map(u=>VERBES[u]||u).join(', '):'il ne sait pas encore quoi en faire',badge(k.membres.length+' choses'))):[empty('Pas encore : il faut d’abord voir plusieurs fois des choses qui se ressemblent.')]);
   paint('brain-causes',JSON.stringify(b.savoir.slice(0,12)),()=>b.savoir.length?b.savoir.slice(0,12).map(k=>{
     const [t,kind]=STATUTS[k.statut]||[k.statut,''];
@@ -166,11 +173,6 @@ function renderCerveau(s){
     const [t,kind]=IDEES[i.statut]||[i.statut,''];
     return item(ideeTexte(i),'croise : '+i.regions.join(' + '),badge(t,kind));
   }):[empty('Pas encore d’idée : il lui faut d’abord vivre des choses.')]);
-  const g=b.gestes;
-  paint('brain-gestures',JSON.stringify(g),()=>[...g.innes.map(x=>el('span',{className:'chip off',textContent:cap(x)+' · inné'})),
-    ...g.appris.map(x=>el('span',{className:'chip',textContent:cap(x)+' · appris'})),...g.enCours.map(x=>el('span',{className:'chip warm',textContent:cap(x)+' · il essaie'}))]);
-  paint('brain-capacities',JSON.stringify(b.capacites),()=>Object.entries(CAPACITES).map(([k,l])=>niveauJauge(l,b.capacites[k]||0,'débutant','expert')));
-  paint('brain-challenges',JSON.stringify(b.defis),()=>b.defis.map(d=>item(d.cible,d.reussites?'réussi '+d.reussites+' fois sur '+d.essais:'pas encore réussi ('+d.essais+' essais)',badge(d.reussites?'il y arrive':'trop dur',d.reussites?'good':'warm'))));
   const wishes=[...b.questions.map(q=>item(q.type==='jamais_essaye'?'Que faire avec '+q.ref+' ?':q.type==='surprise'?'Pourquoi '+q.ref+' a surpris ?':'Ça ne marche plus avec '+q.ref,null,badge('question'))),
     ...b.objectifs.filter(o=>o.statut==='actif').map(o=>item('Aller essayer '+o.cible,null,badge('envie','warm'))),
     ...(b.habitudes?[item(b.habitudes+' habitude'+(b.habitudes>1?'s':'')+' prise'+(b.habitudes>1?'s':''),null,badge('acquis','good'))]:[])];
@@ -189,9 +191,47 @@ function renderVocabulary(d){
   paint('vocabulary-list',q+'|'+vis.map(w=>w.word+w.heard).join(),()=>vis.length?vis.map(w=>el('li',{},el('strong',{textContent:w.word}),el('small',{textContent:w.context+' · entendu '+w.heard+' fois'}))):[el('li',{textContent:words.length?'Aucun mot ne correspond.':'Aucun mot compris pour l’instant.'})]);
 }
 
+// ---------- page : ses découvertes, par genre ----------
+const GENRES_DECOUVERTE=[
+  ['objet','Les objets','Ce qu’ils font quand il les touche'],['jeu','Les jeux et les jouets','Ce qu’on peut en faire'],
+  ['equipement','L’aire de jeux et le trampoline','Glisser, se balancer, grimper…'],['porte','Les portes','Elles s’ouvrent, on passe'],
+  ['lieu','Les endroits','Ce qu’il a remarqué en explorant'],['autre','Autres choses','Outils, arbres, fleurs…']];
+function renderDecouvertes(s){
+  const b=s.brain,d=b?.decouvertes;if(!d)return;
+  const c=b.cortex||{idees:[]},mots=s.dialogue?.vocabulary||[];
+  const cle=JSON.stringify([d,mots.length,b.concepts.length,c.confirmees]);
+  const box=ui('decouvertes');if(box.dataset.key===cle)return;box.dataset.key=cle;
+  const cause=k=>item((VERBES[k.action]||cap(k.action))+' '+k.cible,'→ '+effets(k.effet)+(k.besoins?.length?' · aide contre '+k.besoins.map(x=>BESOINS[x]||x).join(', '):'')+' · '+k.reussites+' sur '+k.essais,badge('compris','good'));
+  const groupes=[];
+  groupes.push(['d-corps','Son corps','Ce que son corps a appris à faire',d.corps.map(x=>item(x,null,badge('sait faire','good')))]);
+  const vus=new Set(GENRES_DECOUVERTE.map(g=>g[0]));
+  for(const [genre,titre,sous] of GENRES_DECOUVERTE){
+    const l=d.causes.filter(k=>genre==='autre'?!vus.has(k.genre)||k.genre==='autre':k.genre===genre);
+    groupes.push(['d-'+genre,titre,sous,l.map(cause)]);
+  }
+  const besoins=d.causes.filter(k=>k.besoins?.length);
+  groupes.push(['d-besoins','Ce qui soulage ses besoins','La faim, la soif, la fatigue…',besoins.map(cause)]);
+  groupes.push(['d-personnes','Les personnes','Ceux qu’il reconnaît',d.personnes.map(p=>item(p.nom,'vu '+fmt(p.vu)+' fois',badge('lien '+p.lien)))]);
+  groupes.push(['d-mots','Les mots','Ce qu’il a deviné en écoutant',mots.slice().sort((x,y)=>x.word.localeCompare(y.word,'fr')).map(w=>item(w.word,w.context))]);
+  groupes.push(['d-idees','Ses idées vérifiées','Déduites en croisant ce qu’il sait, confirmées en essayant',c.idees.filter(i=>i.statut==='confirmee').map(i=>item(ideeTexte(i),null,badge('vérifiée','good')))]);
+  groupes.push(['d-familles','Les familles de choses','Ce qui se ressemble à ses yeux',b.concepts.map(k=>item(k.membres.join(', '),k.usages.length?'il sait : '+k.usages.map(u=>VERBES[u]||u).join(', '):null))]);
+  groupes.push(['d-habitudes','Ses habitudes','Ce qu’il refait parce que ça marche',d.habitudes.map(h=>item((VERBES[h.action]||cap(h.action))+' '+h.cible))]);
+  groupes.push(['d-lieux','Les lieux','L’espace qu’il connaît',[item(fmt(d.lieux)+' endroits connus',d.limites?fmt(d.limites)+' limite'+(d.limites>1?'s':'')+' rencontrée'+(d.limites>1?'s':''):null)]]);
+  box.replaceChildren(...groupes.map(([id,titre,sous,liste])=>panneau(id,{titre,sous,meta:fmt(id==='d-lieux'?d.lieux:liste.length),metaKind:liste.length?'good':''},
+    el('div',{className:'stack'},...(liste.length?liste:[empty('Rien encore : il le découvrira seul.')])))));
+}
+
 // ---------- page : sa croissance ----------
 function renderCroissance(s){
-  paint('age-timeline',String(s.age),()=>AGES.map((n,i)=>el('li',{dataset:{state:i<s.age?'done':i===s.age?'active':'later'}},n,el('small',{textContent:i<s.age?'franchi':i===s.age?'maintenant':'à venir'}))));
+  const b=s.brain;
+  if(b){
+    setMeta('meta-corps',fmt(b.gestes.innes.length+b.gestes.appris.length)+' gestes');
+  const g=b.gestes;
+  paint('brain-gestures',JSON.stringify(g),()=>[...g.innes.map(x=>el('span',{className:'chip off',textContent:cap(x)+' · inné'})),
+    ...g.appris.map(x=>el('span',{className:'chip',textContent:cap(x)+' · appris'})),...g.enCours.map(x=>el('span',{className:'chip warm',textContent:cap(x)+' · il essaie'}))]);
+  paint('brain-capacities',JSON.stringify(b.capacites),()=>Object.entries(CAPACITES).map(([k,l])=>niveauJauge(l,b.capacites[k]||0,'débutant','expert')));
+  paint('brain-challenges',JSON.stringify(b.defis),()=>b.defis.map(d=>item(d.cible,d.reussites?'réussi '+d.reussites+' fois sur '+d.essais:'pas encore réussi ('+d.essais+' essais)',badge(d.reussites?'il y arrive':'trop dur',d.reussites?'good':'warm'))));
+  }
   const etapes=s.brain?.etapes||[];
   setMeta('meta-age',AGES[s.age],'warm');
   paint('stage-goals',JSON.stringify(etapes),()=>etapes.length?etapes.map(e=>{
@@ -314,11 +354,12 @@ function update(state,force=false){
   if(!force&&now-lastPaint<400)return;
   lastPaint=now;
   const t=Math.floor(state.ticks/120*TIME_SCALE);
-  ui('clock').textContent='Année '+(1+Math.floor(t/86400/365))+' · Jour '+(1+Math.floor(t/86400)%365)+' · '+String(Math.floor(t/3600)%24).padStart(2,'0')+' h';
+  ui('clock').replaceChildren('An '+(1+Math.floor(t/86400/365))+' · Jour '+(1+Math.floor(t/86400)%365),el('span',{className:'heure',textContent:' · '+String(Math.floor(t/3600)%24).padStart(2,'0')+' h'}));
   if(page==='monde')renderMonde(state);
   if(page==='cerveau')renderCerveau(state);
   if(page==='croissance')renderCroissance(state);
   if(page==='nuits')renderNuits(state);
+  if(page==='decouvertes')renderDecouvertes(state);
   if(page==='sociabilite'){
     renderEntourage(state);
     const last=state.dialogue.lines.at(-1)?.id||0;

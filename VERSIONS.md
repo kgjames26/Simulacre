@@ -105,3 +105,12 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Monde : « Ses conversations » montre en direct tout échange où Néo est impliqué (il parle ou on lui parle).
 - Lyra s'appelle maintenant Lidia.
 - Recommencer : on choisit l'étape de vie de départ. Le corps de Néo et ses permissions prennent l'âge choisi, et les proches aussi (sa sœur, ses amis, les voisins) ; son cerveau reste vierge.
+
+## v3.8
+- Vue du monde : un encadré « Néo dit, entend, pense » montre ce que Néo dit, ce qu'il entend et ce qu'il pense (« Je pense que… »), avec un haut-parleur pour l'écouter en synthèse vocale.
+- Quand on s'adresse à Néo, la phrase commence par « Néo, … » ; quand Néo parle à quelqu'un, le nom de cette personne vient à la fin.
+- « Ce qui se dit » : un haut-parleur « Écouter » à côté de « Tout le monde » ; l'ancien bouton du bas disparaît.
+- À côté de la vitesse : l'année et le jour simulés (aussi sur téléphone).
+- Croissance : « Où il en est » fusionne dans « Les étapes de sa vie ». « Son corps » (gestes, capacités, défis) passe du cerveau à la croissance.
+- Nouvelles capacités : saut, psychomotricité, motricité fine, gestion de la douleur (elles grandissent avec ce qu'il fait : sauter, essayer, manipuler, se faire mal).
+- Nouvelle page « Ses découvertes » : tout ce qu'il a trouvé, rangé par genre (corps, objets, jeux, aire de jeux, portes, endroits, besoins, personnes, mots, idées, familles, habitudes, lieux).

@@ -232,7 +232,8 @@ dialog p{color:var(--ink2)}
 }
 @media (max-width:720px){
   .top-in{gap:8px;padding:0 10px;height:56px}
-  .brand,.clock,.tabs .long{display:none}
+  .brand,.tabs .long,.clock .heure{display:none}
+  .clock{font-size:11.5px}
   .tabs{padding:3px}
   .tabs a{padding:6px 8px;font-size:12.5px}
   .top .btn{height:34px;padding:0 10px;font-size:12.5px}
@@ -274,3 +275,18 @@ dialog p{color:var(--ink2)}
 /* choix de l'étape de départ */
 #reset-dialog label.field{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px;font-weight:600;font-size:14px}
 #reset-dialog label.field .field-input{width:100%}
+/* Sur la vue du monde : ce que Néo dit, entend, pense */
+.bulles{position:absolute;left:12px;bottom:84px;width:min(380px,calc(100% - 24px));padding:8px 10px 6px;border-radius:12px;background:rgba(255,255,255,.94);border:1px solid var(--line);box-shadow:0 2px 8px rgba(18,26,23,.15);font-size:13px}
+.bulles[hidden]{display:none}
+.bulles-tete{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
+.btn-voix-mini{border:1px solid var(--line2);background:var(--card);border-radius:8px;width:30px;height:26px;font-size:14px;line-height:1;cursor:pointer}
+.btn-voix-mini[aria-pressed=true]{background:#e4f2ea;border-color:#5b9b83}
+#bulles-liste{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+#bulles-liste li{padding:3px 0 3px 8px;border-left:3px solid #9aa5a0;line-height:1.3}
+#bulles-liste li small{display:block;font-size:11px;color:var(--muted);font-weight:600}
+#bulles-liste li.dit{border-color:#2f8f5b}
+#bulles-liste li.entend{border-color:#4f7fb8}
+#bulles-liste li.pense{border-color:#8a5fa8;font-style:italic}
+#bulles-liste li.vieux{opacity:.5}
+.btn-voix{white-space:nowrap}
+.filters select{flex:1}

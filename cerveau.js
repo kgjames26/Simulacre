@@ -19,7 +19,7 @@ const Brain=(()=>{
   const VERSION=3;
   const PRIMITIVES=['pousser','tirer','saisir','frapper'];
   const APPRENABLES=['monter','tourner','grimper','sauter'];
-  const CAPACITES=['equilibre','course','force','endurance'];
+  const CAPACITES=['equilibre','course','force','endurance','saut','psychomotricite','motriciteFine','douleur'];
   const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
   let sources={};
   let S;
@@ -27,7 +27,7 @@ const Brain=(()=>{
   function fresh(seed){
     return {version:VERSION,seed:seed>>>0,rng:seed>>>0,consolidations:0,next:{e:1,c:1,q:1,g:1,s:1,m:1,i:1},journal:[],
       sens:{flux:[]},
-      corps:{gestes:{},capacites:{equilibre:0,course:0,force:0,endurance:0},defis:{},motricite:null},
+      corps:{gestes:{},capacites:{equilibre:0,course:0,force:0,endurance:0,saut:0,psychomotricite:0,motriciteFine:0,douleur:0},defis:{},motricite:null},
       espace:{cases:{},interdits:{}},
       objets:{registre:{},concepts:[],glyphes:{}},
       memoire:{essais:[],episodes:[],total:0},

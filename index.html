@@ -57,11 +57,12 @@
       <a href="#monde" aria-current="page"><span class="long">Le </span>monde</a>
       <a href="#cerveau"><span class="long">Son </span>cerveau</a>
       <a href="#croissance"><span class="long">Sa </span>croissance</a>
+      <a href="#decouvertes"><span class="long">Ses </span>découvertes</a>
       <a href="#sociabilite"><span class="long">Sa </span>sociabilité</a>
       <a href="#nuits"><span class="long">Ses </span>nuits</a>
     </nav>
     <div class="top-right">
-      <span class="clock" id="clock">Jour 1</span>
+      <span class="clock" id="clock" title="Temps simulé">An 1 · Jour 1</span>
       <div class="vitesse" role="group" aria-label="Vitesse">
         <button id="vitesse-normale" type="button" aria-pressed="true">×1</button>
         <button id="vitesse-rapide" type="button" aria-pressed="false">Rapide</button>
@@ -92,6 +93,10 @@
           <button id="play-open" type="button" class="tool" title="Faire bouger les jouets">Jouets</button>
           <button id="fullscreen" type="button" class="tool icon" aria-label="Plein écran" aria-pressed="false" title="Plein écran">⛶</button>
         </div>
+      </div>
+      <div class="bulles" id="neo-bulles" aria-live="polite" hidden>
+        <div class="bulles-tete"><span>Néo dit, entend, pense</span><button id="voix-neo" type="button" class="btn-voix-mini" aria-pressed="false" title="Écouter en synthèse vocale" aria-label="Écouter en synthèse vocale">🔇</button></div>
+        <ol id="bulles-liste"></ol>
       </div>
       <div class="now" aria-live="polite">
         <small id="activity-person">Néo</small>
@@ -136,14 +141,6 @@
           <details class="acc sub" data-id="c-choses"><summary><span class="acc-t"><strong>Les choses remarquées</strong><small>Vues, touchées, nommées</small></span><span class="meta" id="meta-choses"></span></summary><div class="acc-body"><div class="things" id="brain-things"></div></div></details>
         </div>
       </details>
-      <details class="acc" data-id="c-corps">
-        <summary><svg class="ico"><use href="#i-body"/></svg><span class="acc-t"><strong>Son corps</strong><small>Gestes, capacités, défis</small></span><span class="meta" id="meta-corps"></span></summary>
-        <div class="acc-body accs">
-          <details class="acc sub" data-id="c-gestes" open><summary><span class="acc-t"><strong>Ses gestes</strong><small>Innés, appris, en cours</small></span></summary><div class="acc-body"><div class="chips" id="brain-gestures"></div></div></details>
-          <details class="acc sub" data-id="c-capacites"><summary><span class="acc-t"><strong>Ses capacités</strong><small>Elles grandissent avec l’entraînement</small></span></summary><div class="acc-body"><div id="brain-capacities" class="bars"></div></div></details>
-          <details class="acc sub" data-id="c-defis"><summary><span class="acc-t"><strong>Ses défis</strong><small>Ce que son corps peut ou ne peut pas encore</small></span></summary><div class="acc-body"><div id="brain-challenges" class="stack"></div></div></details>
-        </div>
-      </details>
       <details class="acc" data-id="c-perso">
         <summary><svg class="ico"><use href="#i-heart"/></svg><span class="acc-t"><strong>Son caractère et son humeur</strong><small>Ce qui se forge en vivant</small></span></summary>
         <div class="acc-body accs">
@@ -166,13 +163,17 @@
   <section id="page-croissance" class="page" hidden>
     <header class="intro"><h2>Sa croissance</h2><p>Néo passe à l’étape suivante quand il a acquis ce qu’un enfant de cet âge sait faire, avec son corps et dans sa tête. À chaque étape, ses parents lui laissent un peu plus d’espace.</p></header>
     <div class="accs">
-      <details class="acc" data-id="g-ou" open>
-        <summary><svg class="ico"><use href="#i-sprout"/></svg><span class="acc-t"><strong>Où il en est</strong><small>Les neuf étapes de la vie</small></span><span class="meta" id="meta-age"></span></summary>
-        <div class="acc-body"><ol class="timeline" id="age-timeline"></ol></div>
-      </details>
-      <details class="acc" data-id="g-etapes">
-        <summary><svg class="ico"><use href="#i-flag"/></svg><span class="acc-t"><strong>Les étapes de sa vie</strong><small>Prévu, en cours, accompli</small></span></summary>
+      <details class="acc" data-id="g-etapes" open>
+        <summary><svg class="ico"><use href="#i-flag"/></svg><span class="acc-t"><strong>Les étapes de sa vie</strong><small>Où il en est : prévu, en cours, accompli</small></span><span class="meta" id="meta-age"></span></summary>
         <div class="acc-body accs" id="stage-goals"></div>
+      </details>
+      <details class="acc" data-id="g-corps">
+        <summary><svg class="ico"><use href="#i-body"/></svg><span class="acc-t"><strong>Son corps</strong><small>Gestes, capacités, défis</small></span><span class="meta" id="meta-corps"></span></summary>
+        <div class="acc-body accs">
+          <details class="acc sub" data-id="g-gestes" open><summary><span class="acc-t"><strong>Ses gestes</strong><small>Innés, appris, en cours</small></span></summary><div class="acc-body"><div class="chips" id="brain-gestures"></div></div></details>
+          <details class="acc sub" data-id="g-capacites"><summary><span class="acc-t"><strong>Ses capacités</strong><small>Elles grandissent avec l’entraînement</small></span></summary><div class="acc-body"><div id="brain-capacities" class="bars"></div></div></details>
+          <details class="acc sub" data-id="g-defis"><summary><span class="acc-t"><strong>Ses défis</strong><small>Ce que son corps peut ou ne peut pas encore</small></span></summary><div class="acc-body"><div id="brain-challenges" class="stack"></div></div></details>
+        </div>
       </details>
       <details class="acc" data-id="g-zones">
         <summary><svg class="ico"><use href="#i-map"/></svg><span class="acc-t"><strong>Où il a le droit d’aller</strong><small>Les interdits des parents, levés peu à peu</small></span><span class="meta" id="meta-zones"></span></summary>
@@ -190,6 +191,12 @@
         </div>
       </details>
     </div>
+  </section>
+
+  <!-- SES DÉCOUVERTES -->
+  <section id="page-decouvertes" class="page" hidden>
+    <header class="intro"><h2>Ses découvertes</h2><p>Tout ce que Néo a trouvé seul, rangé par genre. Les noms sont les nôtres : lui ne connaît que ce qu’il a vécu.</p></header>
+    <div class="accs" id="decouvertes"></div>
   </section>
 
   <!-- SES NUITS -->
@@ -228,9 +235,9 @@
       <details class="acc" data-id="e-dit">
         <summary><svg class="ico"><use href="#i-chat"/></svg><span class="acc-t"><strong>Ce qui se dit</strong><small id="listening-summary"></small></span></summary>
         <div class="acc-body">
-          <div class="filters"><select id="speaker-filter" class="field-input" aria-label="Qui parle"><option value="">Tout le monde</option></select></div>
+          <div class="filters"><select id="speaker-filter" class="field-input" aria-label="Qui parle"><option value="">Tout le monde</option></select><button id="voice-toggle" class="btn btn-voix" type="button" aria-pressed="false" title="Écouter ce qui se dit (synthèse vocale)" hidden><span aria-hidden="true">🔊</span> Écouter</button></div>
           <ol id="conversation-lines" class="feed"></ol>
-          <div class="feed-actions"><button class="btn" id="older-lines" type="button" hidden>Plus ancien</button><button class="btn" id="live-lines" type="button" hidden>Revenir au direct</button><button id="voice-toggle" class="btn" type="button" aria-pressed="false" hidden>Écouter les voix</button></div>
+          <div class="feed-actions"><button class="btn" id="older-lines" type="button" hidden>Plus ancien</button><button class="btn" id="live-lines" type="button" hidden>Revenir au direct</button></div>
         </div>
       </details>
       <details class="acc" data-id="e-evenements">

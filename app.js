@@ -2,7 +2,7 @@ import {bindPlayViews} from '/play-view.js';
 import {dessinerPanneau} from '/panneaux.js';
 import {creerAtelier} from '/atelier-view.js';
 import {chargerQuartier} from '/quartier-view.js';
-import {setupDashboard} from '/dashboard.js';
+import {setupDashboard,texteDit} from '/dashboard.js';
 const ui = id => document.getElementById(id);
 const saveKey = 'neo-simulacre-v5';   // v5 : cerveau réorganisé en régions, on repart d'une partie neuve
 const worker = new Worker('/sim.js');
@@ -16,9 +16,56 @@ if('speechSynthesis' in window){
   voiceButton.onclick=()=>{
     voiceEnabled=!voiceEnabled;
     voiceButton.setAttribute('aria-pressed',String(voiceEnabled));
-    voiceButton.textContent=voiceEnabled?'Couper les voix':'Écouter les voix';
+    voiceButton.innerHTML=voiceEnabled?'<span aria-hidden="true">🔊</span> Couper':'<span aria-hidden="true">🔊</span> Écouter';
     if(!voiceEnabled)speechSynthesis.cancel();
   };
+}
+// Synthèse vocale : une voix par personne, sans empiler les phrases.
+function dire(texte,qui){
+  if(!('speechSynthesis' in window)||speechSynthesis.speaking||speechSynthesis.pending)return;
+  const speech=new SpeechSynthesisUtterance(texte);
+  speech.lang='fr-FR';
+  const voices=speechSynthesis.getVoices().filter(voice=>voice.lang.toLowerCase().startsWith('fr'));
+  speech.voice=voices[qui==='joseph'?1:0]||voices[0]||null;
+  speech.pitch=qui==='alex'?1.35:qui==='marie'||qui==='juliette'?1.13:.83;
+  speech.rate=qui==='alex'?.8:.92;
+  speechSynthesis.speak(speech);
+}
+// Sur la vue du monde : ce que Néo dit, ce qu'il entend, ce qu'il pense.
+let voixNeo=false,cleBulles='',bullesPrimees=false;
+const dejaDits=new Set();
+const boutonVoixNeo=ui('voix-neo');
+if(!('speechSynthesis' in window))boutonVoixNeo.hidden=true;
+boutonVoixNeo.onclick=()=>{
+  voixNeo=!voixNeo;
+  boutonVoixNeo.setAttribute('aria-pressed',String(voixNeo));
+  boutonVoixNeo.textContent=voixNeo?'🔊':'🔇';
+  if(!voixNeo)speechSynthesis.cancel();
+};
+function majBulles(st){
+  const nom=(id,n)=>personNames[id]||n||'quelqu’un';
+  const items=(st.dialogue?.lines||[]).filter(l=>l.speaker==='alex'||l.heardByNéo&&l.speaker!=='alex').slice(-4).map(l=>{
+    const to=l.listener?nom(l.listener,l.nomListener):null;
+    return l.speaker==='alex'?{k:'d'+l.id,type:'dit',titre:'Néo dit',texte:texteDit(l,to),at:l.at,qui:'alex'}
+      :{k:'d'+l.id,type:'entend',titre:'Il entend '+nom(l.speaker,l.nomSpeaker),texte:texteDit(l,to),at:l.at,qui:l.speaker};
+  });
+  if(st.pensee)items.push({k:'p'+st.pensee.id,type:'pense',titre:'Il pense',texte:st.pensee.texte,at:st.pensee.at,qui:'alex'});
+  items.sort((a,b)=>a.at-b.at);
+  const vis=items.slice(-3),now=(st.ticks||0)/120;
+  const cle=vis.map(i=>i.k+(now-i.at>30?'v':'')).join();
+  if(cle===cleBulles)return;
+  cleBulles=cle;
+  ui('neo-bulles').hidden=!vis.length;
+  ui('bulles-liste').replaceChildren(...vis.map(i=>{
+    const li=document.createElement('li');li.className=i.type+(now-i.at>30?' vieux':'');
+    const t=document.createElement('small');t.textContent=i.titre;
+    const p=document.createElement('span');p.textContent=i.type==='pense'?i.texte:'« '+i.texte+' »';
+    li.append(t,p);return li;
+  }));
+  const nouveau=bullesPrimees?vis.filter(i=>!dejaDits.has(i.k)).at(-1):null;
+  for(const i of vis)dejaDits.add(i.k);
+  bullesPrimees=true;
+  if(voixNeo&&nouveau)dire(nouveau.texte,nouveau.qui);
 }
 function updateDialogue(state){
   if(!state)return;
@@ -31,15 +78,7 @@ function updateDialogue(state){
   lastDialogueId=latest.id;
   conversationRows=state.lines;
   directNeo(state.lines);
-  if(voiceEnabled&&human&&previousId&&!speechSynthesis.speaking&&!speechSynthesis.pending){
-    const speech=new SpeechSynthesisUtterance(latest.text);
-    speech.lang='fr-FR';
-    const voices=speechSynthesis.getVoices().filter(voice=>voice.lang.toLowerCase().startsWith('fr'));
-    speech.voice=voices[latest.speaker==='joseph'?1:0]||voices[0]||null;
-    speech.pitch=latest.speaker==='alex'?1.35:latest.speaker==='marie'?1.13:.83;
-    speech.rate=latest.speaker==='alex'?.77:.91;
-    speechSynthesis.speak(speech);
-  }
+  if(voiceEnabled&&previousId)dire(texteDit(latest,latest.listener?personNames[latest.listener]||latest.nomListener:null),latest.speaker);
 }
 // Les habitants du quartier : silhouettes légères (deux maillages instanciés), seulement ceux qui sont dehors.
 let habitants=null;
@@ -80,7 +119,7 @@ function directNeo(lines){
   box.replaceChildren(...(liste.length?liste.map(l=>{
     const li=document.createElement('li');
     const b=document.createElement('strong');b.textContent=nom(l.speaker,l.nomSpeaker)+' → '+nom(l.listener,l.nomListener);
-    li.append(b,document.createTextNode(' « '+l.text+' »'));
+    li.append(b,document.createTextNode(' « '+texteDit(l,nom(l.listener,l.nomListener))+' »'));
     if(now-l.at<25)li.className='recent';
     return li;
   }):[Object.assign(document.createElement('li'),{className:'vide',textContent:'Personne ne parle avec Néo pour l’instant.'})]));
@@ -148,6 +187,7 @@ worker.onmessage = ({data}) => {
   dashboard.update(snapshot);
   const v=snapshot.vitesse||1;ui('vitesse-reelle').textContent='×'+(v>=10?Math.round(v):v.toLocaleString('fr-BE',{maximumFractionDigits:1}));
   updateDialogue(snapshot.dialogue);
+  majBulles(snapshot);
   const observed=following&&followedPerson!=='alex'?snapshot.people.find(person=>person.id===followedPerson):snapshot.alex;
   ui('activity').textContent=observed?.activity||'Se déplace';
   ui('activity-person').textContent=following?personNames[followedPerson]:'Néo';

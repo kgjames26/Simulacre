@@ -188,6 +188,7 @@ function learnedMovement(person,x,z){
       if(avant<SAIT_COURIR&&Brain.capacite('course')>=SAIT_COURIR)note('Néo sait maintenant courir.');
       if(rng()<(1-mastery)*.0015){
         alex.stumbleUntil=t+1.2;alex.runUntil=0;
+        Brain.entrainer('douleur',.01);
         if(!alex.stumbled){alex.stumbled=true;note('Néo trébuche en essayant de courir.');}
       }
     }
@@ -297,6 +298,29 @@ function utiliserOrdinateur(s){
   courrier.sortant.push(message);
   courrier.prochain=s+40;
 }
+// Ce que Néo pense, rendu pour l'observateur en « Je pense que… ». Lui n'a pas ces mots : ce sont les nôtres.
+let pensee=null;
+const EFFET_TXT={mou:'c’est mou',soi_monte:'on peut s’y installer',lumiere:'ça s’allume',bruit:'ça fait du bruit',objet_bouge:'ça bouge',papier:'ça se feuillette',
+  eau:'de l’eau coule',chaud:'c’est chaud',froid:'c’est froid',nourriture:'ça se mange',gout:'ça a du goût',perles:'les perles glissent',roues:'les roues tournent',
+  mal:'ça fait mal',passage:'on peut passer',rebond:'ça rebondit',hauteur:'on monte haut',glisse:'ça glisse',balance:'ça se balance',tient:'on peut s’accrocher',
+  effort:'il faut forcer',outil:'ça se prend en main',vivant:'c’est vivant',doux:'c’est doux',rond:'c’est rond',ecrit:'il y a des signes'};
+const VERBE_INF={pousser:'pousser',tirer:'tirer',saisir:'prendre',frapper:'frapper',tourner:'tourner',monter:'monter sur',grimper:'grimper sur',sauter:'sauter sur'};
+const nomPense=id=>{const n=observerLabel(id);return n?avecArticle(n):'ça';};
+function penser(texte,s,fort){
+  if(!fort&&pensee&&s-pensee.at<6)return;
+  if(pensee?.texte===texte&&s-pensee.at<30)return;
+  pensee={id:(pensee?.id||0)+1,texte:'Je pense que '+texte,at:+s.toFixed(1)};
+}
+function penserEssai(entity,prim,prevu,out,succes,s){
+  const nom=nomPense(entity.id),v=VERBE_INF[prim]||prim;
+  if(out.douleur){penser('ça fait mal.',s,true);return;}
+  if(prevu.effets.length&&prevu.p>.45){
+    if(!succes){penser('ça ne marche pas comme je croyais avec '+nom+'.',s,true);return;}
+    const comme=prevu.analogue&&prevu.sources.length?', comme avec '+nomPense(prevu.sources[0]):'';
+    penser(v+' '+nom+', '+prevu.effets.map(e=>EFFET_TXT[e]||e).slice(0,2).join(' et ')+comme+'.',s);
+  }else if(succes)penser(v+' '+nom+', '+(out.flags.map(e=>EFFET_TXT[e]||e)[0]||'il se passe quelque chose')+' !',s);
+  else penser('je vais essayer de '+v+' '+nom+'.',s);
+}
 function tryEntity(entity,s){
   if(entity.equipId&&(contact||s<(entity.equipId==='trampoline'?trampolineCooldown:parkCooldown[entity.equipId]||0)))return false;
   const record=objectLearning[entity.id] ||= {attempts:0,success:0,next:0};
@@ -307,6 +331,12 @@ function tryEntity(entity,s){
   const prevu=Cortex.prevoir(prim,entity.id);
   const out=respond(entity,prim,s);
   const succes=out.flags.length>0;
+  // Chaque essai exerce le corps : sauter, coordonner, manipuler finement ; la douleur s'apprivoise.
+  Brain.entrainer('psychomotricite',.012);
+  if(prim==='sauter')Brain.entrainer('saut',.05);
+  if(prim==='saisir'||prim==='tourner')Brain.entrainer('motriciteFine',.03);
+  if(out.douleur)Brain.entrainer('douleur',out.douleur*.6);
+  penserEssai(entity,prim,prevu,out,succes,s);
   const result=Brain.essai({t:s,cible:entity.id,prim,succes,effet:out.flags,besoins:out.besoins||{},
     plaisir:out.plaisir||0,douleur:out.douleur||0});
   if(out.contact){objectContact=out.contact;household[out.contact.id]=1;}
@@ -391,7 +421,7 @@ function walkStep(p,x,z){
   if(p!==alex&&!autorisePour(p,x,z,p.floor||0)&&autorisePour(p,p.x,p.z,p.floor||0))return false;
   // Interdits des parents : Néo est retenu au bord de la zone permise. Personne ne lui explique pourquoi.
   if(p===alex&&!autorise(x,z,p.floor||0)){
-    if(Brain.retenu(x,z,p.floor||0,ticks*DT))note('Néo veut aller plus loin, mais on le retient.','limite');
+    if(Brain.retenu(x,z,p.floor||0,ticks*DT)){note('Néo veut aller plus loin, mais on le retient.','limite');penser('je ne peux pas aller plus loin.',ticks*DT,true);}
     if(explorationTarget&&!autorise(explorationTarget.x,explorationTarget.z,p.floor||0))finishGoal(ticks*DT,false);
     return false;
   }
@@ -570,7 +600,7 @@ function stepTrampoline(s){
   const reaction=compression>0?Math.max(0,3200*compression-62*t.velocity):0;
   const previouslyInContact=t.touching;
   t.touching=compression>0;
-  if(t.touching&&!previouslyInContact)t.landings++;
+  if(t.touching&&!previouslyInContact){t.landings++;Brain.entrainer('saut',.015);Brain.entrainer('psychomotricite',.006);}
   if(previouslyInContact&&!t.touching&&t.landings<5&&t.velocity>0)t.velocity+=1.15;
   t.velocity+=(reaction/mass-9.81)*DT;
   alex.y+=t.velocity*DT;
@@ -700,7 +730,7 @@ function beginEquipment(item,s){
   if(item.id==='swing'){contact={kind:'swing',time:0,x:item.x,z:item.z,seat:.48};alex.x=item.x;alex.z=item.z;alex.y=.48;}
   else if(item.id==='bars'||item.id==='wall'){
     const success=Brain.capacite('force')+Brain.capacite('endurance')>=.88;
-    Brain.entrainer('force',.12);Brain.entrainer('endurance',.1);
+    Brain.entrainer('force',.12);Brain.entrainer('endurance',.1);Brain.entrainer('psychomotricite',.05);
     contact={kind:item.id==='bars'?'climb-bars':'climb-wall',time:0,x:item.x,z:item.z,success};
   }else if(item.id==='trampoline'){
     contact={kind:'trampoline',mount:true,time:0,velocity:0,landings:0,touching:false};
@@ -787,6 +817,8 @@ function chooseGoal(s){
   let pick=rng()*candidates.reduce((sum,goal)=>sum+interest(goal),0);
   const selected=candidates.find(goal=>(pick-=interest(goal))<=0)||candidates[0];
   curiosityRecord(selected.name).choices++;
+  {const nom=selected.person?characterNames[selected.person.id]||'quelqu’un':nomPense(selected.id),connu=Brain.connu(selected.name);
+   penser(Brain.attraitReve(selected.id)?'j’ai rêvé de '+nom+', je vais voir.':selected.person?'je vais voir '+nom+'.':connu?.essais?'je veux retourner voir '+nom+'.':nom+' a l’air intéressant.',s);}
   nextChoice=s+46;
   progressAt=s;
   closestGoal=Infinity;
@@ -820,12 +852,18 @@ function experience() {
     person.pleasure=Math.max(0,(person.pleasure||0)-DT*.001);
   }
   perceiveStep(s);
+  if(ticks%600===0&&!sleeps.has(alex)){
+    if(alex.hunger>.75)penser('j’ai faim.',s);
+    else if((alex.thirst||0)>.75)penser('j’ai soif.',s);
+    else if(alex.fatigue>.8)penser('je suis fatigué.',s);
+  }
   // Le sommeil trie sa mémoire et le fait rêver (une fois par endormissement).
   const dort=['sleep','ground'].includes(sleeps.get(alex)?.phase);
   if(dort&&!alex.dort){
     const nuit=Brain.sommeil(s);
     const r=nuit.reves[0];
     if(r)note('Néo dort et rêve de '+r.elements.map(id=>observerLabel(id)||'quelque chose').join(', ')+'.','sleep');
+    if(r)penser('je rêve de '+r.elements.map(nomPense).join(' et ')+'.',s,true);
   }
   alex.dort=dort;
   const usingEquipment=stepHouseObject(s)||stepPark(s)||sleeping(alex,s,skill===4&&records[4].mastered)||stepNeoUpstairs(s);
@@ -1078,6 +1116,10 @@ function commencerA(n){
   C.course=Math.max(C.course||0,par([0,0,0,.62,.7,.78,.84,.9,.92]));
   C.endurance=Math.max(C.endurance||0,par([0,0,.1,.25,.4,.5,.62,.72,.8]));
   C.force=Math.max(C.force||0,par([0,0,.1,.2,.3,.42,.55,.72,.85]));
+  C.saut=Math.max(C.saut||0,par([0,0,.05,.3,.45,.58,.7,.8,.85]));
+  C.psychomotricite=Math.max(C.psychomotricite||0,par([0,.1,.25,.45,.58,.68,.78,.86,.9]));
+  C.motriciteFine=Math.max(C.motriciteFine||0,par([0,.05,.15,.35,.5,.62,.74,.84,.9]));
+  C.douleur=Math.max(C.douleur||0,par([0,.05,.12,.25,.35,.45,.55,.65,.72]));
   if(n>=3)for(const g of Brain.APPRENABLES)Brain.state.corps.gestes[g]={essais:3,appris:true};
   age=n;
   historiqueEtapes=Array.from({length:n},(_,i)=>({age:i,at:0}));
@@ -1109,6 +1151,18 @@ function competencesDe(p,recoit){
   const courir=recoit&&Brain.capacite('course')>=SAIT_COURIR?['Courir']:[];
   return [...marche,...gestes,...courir,...(recoit?['Reprendre '+Brain.confirmees().length+' découvertes de Néo']:[])];
 }
+// Toutes ses découvertes, rangées par genre (les noms sont ceux de l'observateur).
+function vueDecouvertes(){
+  const genre=id=>(observerNames[id]||'').split(':')[0]||'autre';
+  const S=Brain.state;
+  return {
+    causes:Brain.confirmees().map(c=>({genre:genre(c.cible),action:c.action,cible:observerLabel(c.cible)||'quelque chose',effet:c.effet,reussites:c.reussites,essais:c.essais,besoins:Object.keys(c.besoins||{}).filter(k=>c.besoins[k]>.08)})),
+    personnes:Object.entries(S.social.personnes).filter(([,p])=>p.vu>=3).map(([id,p])=>({nom:observerLabel(id)||'quelqu’un',vu:p.vu,lien:Math.round(p.lien||0)})),
+    habitudes:Brain.habitudes().map(h=>({action:h.action,cible:observerLabel(h.cible)||'quelque chose'})),
+    corps:competencesNeo(),
+    lieux:Object.keys(S.espace.cases).length,limites:Object.keys(S.espace.interdits).length
+  };
+}
 function competencesNeo(){
   return [...records.flatMap((r,i)=>r.mastered?[MARCHE_NOMS[i]]:[]),...Brain.APPRENABLES.filter(Brain.appris).map(g=>'Savoir '+g),
     ...(Brain.capacite('course')>=SAIT_COURIR?['Courir']:[]),...(Object.values(Brain.state.corps.defis).some(d=>d.reussites)?['Grimper jusqu’en haut']:[])];
@@ -1136,6 +1190,7 @@ function snapshot() {
       motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered}))};
     brainView=Brain.view(observerLabel);
     brainView.etape=stageGoals;
+    brainView.decouvertes=vueDecouvertes();
     brainView.etapes=vueEtapes();
     brainView.mots=vocabulary.length;
     brainView.cortex=Cortex.view(observerLabel);
@@ -1144,7 +1199,7 @@ function snapshot() {
   alex.leadership=Brain.state.caractere.leadership;alex.competences=competencesNeo();alex.caractere={...Brain.state.caractere};
   return {commerce:{stock:commerce.stock,visites:commerce.visites,quota:QUOTA_JOUR,prelev:{...commerce.prelev}},acces:{...acces},
     atelier:{outils:atelier.outils.map(o=>({...o})),arbres:atelier.arbres.map(a=>({x:a.x,z:a.z,t:a.t,chute:a.chute,morceaux:a.morceaux,pommier:a.pommier,grand:a.grand})),bois:{...atelier.bois},fleurs:atelier.fleurs.map(f=>({...f})),pommes:atelier.pommes.map(p=>({...p}))},
-    voisins:vueVoisins(),vitesse:+vitesse.toFixed(1),computer:house?.computer||null,ticks,skill,age,score,alex,people,playItems,relationships,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,
+    pensee,voisins:vueVoisins(),vitesse:+vitesse.toFixed(1),computer:house?.computer||null,ticks,skill,age,score,alex,people,playItems,relationships,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,
     dialogue:dialogue.view(),brain:brainView,activityData,courrier:activityData.courrier,
     playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
 }
