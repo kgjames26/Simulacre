@@ -17,7 +17,9 @@ Une expérience d'intelligence autonome centrée sur **Néo**. Il naît sans rie
 3. **Langage des autres personnages** : il est tiré du langage de Joseph et Marie et débloqué par étape de vie (nourrisson : rien ; bébé : quelques mots simples ; puis de plus en plus — `MOTS_PAR_ETAPE` dans `french-words.js`). Juliette parle comme ses parents. On y ajoute les mots de Néo si Néo est au moins aussi jeune que l'enfant. Un personnage plus jeune que Néo suivra la règle de base.
 4. **Tout a un nom.** Chaque chose ajoutée au monde reçoit un nom (avec son article, voir `avecArticle` dans `world.js`) ; ce nom entre automatiquement dans le langage de Joseph, Marie et Juliette, qui peuvent alors en parler.
 5. **Caractère vivant.** Chaque personnage a des traits (curiosité, persévérance, prudence, sociabilité, empathie, créativité, indépendance, patience, optimisme, leadership) qui évoluent avec ce qu'il vit.
-6. **Interdits évolutifs.** Les zones permises à Néo s'élargissent avec l'âge ; jamais chez les autres.
+6. **Interdits évolutifs, pour tout le monde.** Chacun (Néo, les PNJ, les habitants) a un périmètre qui part de sa maison et s'élargit avec son étape de vie : maison → jardin → étage → son aire de jeux → chemin du commerce → tout le quartier. Un enfant n'entre jamais dans le jardin d'une autre famille. Les adultes vont partout.
+7. **Grands frères et sœurs.** Ils s'occupent de leur petit frère ou petite sœur et jouent avec lui, et aussi avec les autres de leur âge ou plus grands (Juliette avec Néo).
+8. **Le quartier est habité.** Chaque maison a sa famille, de tous âges ; elles suivent les mêmes règles et ont les mêmes capacités (besoins, nuit à la maison, courses avec le même quota, langage selon l'âge, caractère), mais n'apparaissent pas dans la fenêtre de contrôle. Chaque petit pâté de maisons a une aire de jeux identique à celle du début.
 
 ## Le cerveau (`cerveau.js`)
 

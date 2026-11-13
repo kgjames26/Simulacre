@@ -4,7 +4,7 @@
 const QUARTIER=(()=>{
   const T=7;                       // taille d'une tuile de route
   const ROUTE_Z=21,COTE_X=49;      // rue principale (est-ouest) et rue transversale (nord-sud)
-  const region={x0:-45,x1:90,z0:-30.2,z1:52.1};   // zone où la simulation calcule les déplacements
+  const region={x0:-70,x1:140,z0:-17,z1:66.5};   // zone où la simulation calcule les déplacements
   const monde={x0:-77,x1:147,z0:-49,z1:84};       // zone dessinée
   // --- réseau routier : cases (i,j) autour de (COTE_X, ROUTE_Z) ---
   const cases=new Set();
@@ -59,6 +59,39 @@ const QUARTIER=(()=>{
   // Entre les deux rues du sud : deux rangées dos à dos
   [-63,-49,-35,-21,35,63,77,91,105,119,133].forEach((x,k)=>maison(sud[(k+3)%16],x,40,FACE,'quartier'));
   [-63,-49,-35,-21,-7,7,21,35,63,77,91,105,119,133].forEach((x,k)=>maison(sud[(k+5)%16],x,58,FACE+Math.PI,'quartier'));
+  // --- aires de jeux : la même que celle du début, recopiée près de chaque petit pâté de maisons ---
+  // fenetre = emprise des équipements de l'aire d'origine ; chaque copie la place en (ox,oz). lot = terrain praticable.
+  const fenetre={x0:4.2,x1:16.2,z0:-3.4,z1:9.6};
+  const copie=(nom,lot,ox,oz,chemin)=>({nom,lot,ox,oz,dx:ox-fenetre.x0,dz:oz-fenetre.z0,chemin:chemin||null,
+    centre:{x:ox+6,z:oz+6.5}});
+  const parcs=[
+    {nom:'aire de jeux',lot:{x0:4.3,x1:19,z0:-12,z1:12},dx:0,dz:0,centre:{x:10,z:3},origine:true},
+    copie('aire de jeux du nord-ouest',{x0:-60.5,x1:-47,z0:-16,z1:-2.4},-59.8,-15.6,{x0:-54.8,x1:-53.2,z0:-2.6,z1:10.4}),
+    copie('aire de jeux du commerce',{x0:52.6,x1:66,z0:-14,z1:2.8},53.2,-13.6),
+    copie('aire de jeux du sud-ouest',{x0:-29.7,x1:-17.5,z0:24.6,z1:44},-29.6,29.5),
+    copie('aire de jeux du bout sud-ouest',{x0:-29.7,x1:-17.5,z0:52.6,z1:66},-29.6,52.8),
+    copie('aire de jeux d’en face',{x0:-10.5,x1:1.7,z0:24.6,z1:44},-10.3,29.5),
+    copie('aire de jeux du bout sud',{x0:-10.5,x1:1.7,z0:52.6,z1:66},-10.3,52.8),
+    copie('aire de jeux du sud-est',{x0:68.3,x1:80.5,z0:24.6,z1:44},68.4,29.5),
+    copie('aire de jeux du bout sud-est',{x0:68.3,x1:80.5,z0:52.6,z1:66},68.4,52.8),
+    copie('aire de jeux de l’est',{x0:87.5,x1:99.7,z0:24.6,z1:44},87.6,29.5),
+    copie('aire de jeux du bout est',{x0:87.5,x1:99.7,z0:52.6,z1:66},87.6,52.8)
+  ];
+  const dansParc=(x,z,m=0)=>parcs.some(p=>x>p.lot.x0-m&&x<p.lot.x1+m&&z>p.lot.z0-m&&z<p.lot.z1+m);
+  // --- foyers : chaque maison a son jardin (privé) et son aire de jeux la plus proche ---
+  const foyers=maisons.map((m,k)=>{
+    const r=m.rect,sud=Math.abs(Math.sin(m.rot/2))<.5;    // regarde vers +z (sud) ?
+    let jardin;
+    if(m.x===29&&m.z===2)jardin={x0:19.6,x1:44,z0:-12,z1:14.4};
+    else if(m.x===-29&&m.z===2)jardin={x0:-44,x1:-19.6,z0:-12,z1:14.4};
+    else if(sud)jardin={x0:m.x-5.4,x1:m.x+5.4,z0:r.z1-.2,z1:m.z<20?14.4:ROUTE_Z+28-T/2};
+    else jardin={x0:m.x-5.4,x1:m.x+5.4,z0:m.z<40?ROUTE_Z+T/2:ROUTE_Z+28+T/2,z1:r.z0+.2};
+    const porte=sud?{x:m.x,z:r.z1+.5}:{x:m.x,z:r.z0-.5};
+    const proche=[[29,2],[-29,2],[7,31.5],[21,31.5]].some(([x,z])=>m.x===x&&m.z===z);
+    const bloc=(x,z)=>z<ROUTE_Z?(x>=COTE_X?'ne':x<-40?'no':'o'):(z<ROUTE_Z+28?'a':'b')+(x<-14?0:x<COTE_X?1:x<84?2:3);
+    const parc=proche?parcs[0]:parcs.find(p=>bloc(p.centre.x,p.centre.z)===bloc(m.x,m.z))||parcs[0];
+    return {id:'f'+k,maison:m,jardin,porte,parc};
+  });
   // --- arbres décoratifs et lampadaires ---
   const arbres=[];
   const rngq=(()=>{let s=1234567;return()=>(s=(s*16807)%2147483647)/2147483647;})();
@@ -67,6 +100,7 @@ const QUARTIER=(()=>{
     if(x>-24&&x<24&&z>-18)continue;                 // pas dans la propriété de Néo
     if(Math.abs(x-COTE_X)<5)continue;
     if(maisons.some(m=>x>m.rect.x0-2&&x<m.rect.x1+2&&z>m.rect.z0-2&&z<m.rect.z1+2))continue;
+    if(dansParc(x,z,2))continue;
     arbres.push({modele:rngq()<.35?'tree-small':'tree-large',x,z,echelle:5+rngq()*2});
   }
   const lampadaires=[];
@@ -100,6 +134,6 @@ const QUARTIER=(()=>{
     return false;
   };
   const c=commerce;
-  const libres=[...rects,c.interieur,{x0:c.porte.x-1.4,x1:c.porte.x+1.4,z0:c.interieur.z1,z1:ROUTE_Z-T/2}];
-  return {T,ROUTE_Z,COTE_X,region,monde,tuiles,maisons,arbres,lampadaires,panneaux,commerce,privees,praticable,portail,trottoir,libres,bloques:c.obstacles,propriete,parc,entreeParc,barriere};
+  const libres=[...rects,...foyers.map(f=>f.jardin),...parcs.slice(1).flatMap(p=>p.chemin?[p.lot,p.chemin]:[p.lot]),c.interieur,{x0:c.porte.x-1.4,x1:c.porte.x+1.4,z0:c.interieur.z1,z1:ROUTE_Z-T/2}];
+  return {T,ROUTE_Z,COTE_X,region,monde,tuiles,maisons,arbres,lampadaires,panneaux,commerce,privees,praticable,portail,trottoir,libres,bloques:[...c.obstacles,...maisons.map(m=>m.rect)],parcs,fenetre,foyers,propriete,parc,entreeParc,barriere};
 })();

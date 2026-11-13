@@ -94,3 +94,14 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Vitesse : deux boutons clairs (×1 / Rapide). En rapide, la simulation va aussi vite que l'appareil le permet ; la vitesse réelle s'affiche en direct (ex. ×200). Menu Paramètres (⚙) : puissance allouée à la simulation (25 à 100 %).
 - Tous les arbres (jardin, parc, quartier) se coupent à la hache et repoussent. Joseph abat ceux du jardin ; Néo peut prendre la hache (et d'autres outils) et abattre un arbre s'il le découvre.
 - Les parents ne nourrissent plus Néo « par magie » : un repas prêt, sinon un en-cas pris dans le garde-manger. S'occuper de Néo crée de l'affinité.
+
+## v3.7
+- Mêmes règles de périmètre pour tous les PNJ que pour Néo, depuis leur propre maison et selon leur âge. Les quatre enfants du début vivent chez eux : Timéo et Nathan dans la maison à côté de l'aire de jeux, Lidia et Rose dans celle d'en face. Petits, ils restent à l'intérieur ; ils sortent dans leur jardin, puis vont à l'aire de jeux en grandissant. La nuit, ils rentrent.
+- Juliette suit la règle des grands frères et sœurs : s'occuper de Néo et jouer avec lui, et aussi avec les autres de son âge ou plus grands.
+- Des familles de tous âges dans toutes les maisons du quartier (≈100 habitants, invisibles dans la fenêtre de contrôle) : faim, nuit à la maison, courses au commerce avec le même quota, jeux au jardin et à l'aire de jeux, langage selon l'âge, caractère. Le commerce est approvisionné pour tout le quartier.
+- La carte : dix copies de l'aire de jeux du début, une près de chaque petit pâté de maisons ; le quartier calculé est agrandi à toutes les maisons.
+- Le leadership n'est plus mis en avant : c'est un trait de caractère parmi les autres.
+- « Les liens entre deux personnes » passe au-dessus de la liste des personnes.
+- Monde : « Ses conversations » montre en direct tout échange où Néo est impliqué (il parle ou on lui parle).
+- Lyra s'appelle maintenant Lidia.
+- Recommencer : on choisit l'étape de vie de départ. Le corps de Néo et ses permissions prennent l'âge choisi, et les proches aussi (sa sœur, ses amis, les voisins) ; son cerveau reste vierge.

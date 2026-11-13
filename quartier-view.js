@@ -24,6 +24,12 @@ export async function chargerQuartier(T,GLTFLoader,scene,Q){
   boite(Q.trottoir.x1-Q.trottoir.x0+60,.14,Q.trottoir.z1-Q.trottoir.z0,(Q.trottoir.x0+Q.trottoir.x1)/2,-.03,(Q.trottoir.z0+Q.trottoir.z1)/2,'#bdb8ae');
   boite(Q.portail.x1-Q.portail.x0,.06,Q.portail.z1-Q.portail.z0,(Q.portail.x0+Q.portail.x1)/2,-.04,(Q.portail.z0+Q.portail.z1)/2,'#cdbb9a');
   const travaux=[];
+  // Les aires de jeux recopiées : un terrain plus clair, et le petit chemin entre les maisons quand il y en a un
+  for(const p of Q.parcs||[]){
+    if(p.origine)continue;
+    const L=p.lot;boite(L.x1-L.x0,.05,L.z1-L.z0,(L.x0+L.x1)/2,-.07,(L.z0+L.z1)/2,'#93b27a');
+    if(p.chemin){const c=p.chemin;boite(c.x1-c.x0,.06,c.z1-c.z0,(c.x0+c.x1)/2,-.05,(c.z0+c.z1)/2,'#cdbb9a');}
+  }
   for(const t of Q.tuiles)travaux.push(poser('roads',t.modele,{x:t.x,z:t.z,rot:t.rot,echelle:Q.T}));
   for(const h of Q.maisons)travaux.push(poser('suburban',h.modele,{x:h.x,z:h.z,rot:h.rot,echelle:7}));
   for(const l of Q.lampadaires)travaux.push(poser('roads','light-square',{x:l.x,z:l.z,rot:l.rot,echelle:5}));

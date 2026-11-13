@@ -1,4 +1,4 @@
-const playgroundFriends=['timeo','nathan','francoise','rose'];
+const playgroundFriends=['timeo','nathan','lidia','rose'];
 // Traits de caractère : ils évoluent avec ce que chacun vit (jamais figés). Ceux de Néo vivent dans son cerveau.
 const TRAITS={curiosite:'Curiosité',perseverance:'Persévérance',prudence:'Prudence',sociabilite:'Sociabilité',empathie:'Empathie',
   creativite:'Créativité',independance:'Indépendance',patience:'Patience',optimisme:'Optimisme',leadership:'Leadership'};
@@ -7,7 +7,7 @@ const T0=(curiosite,perseverance,prudence,sociabilite,empathie,creativite,indepe
 let caractere={
   joseph:T0(.45,.75,.62,.49,.8,.55,.82,.7,.6,.72),marie:T0(.55,.65,.58,.77,.92,.6,.75,.78,.72,.64),
   juliette:T0(.7,.5,.4,.58,.68,.66,.45,.45,.75,.5),timeo:T0(.75,.4,.3,.88,.62,.5,.45,.3,.8,.46),
-  nathan:T0(.5,.55,.6,.61,.72,.45,.35,.6,.55,.28),francoise:T0(.6,.6,.5,.54,.82,.7,.5,.65,.62,.38),
+  nathan:T0(.5,.55,.6,.61,.72,.45,.35,.6,.55,.28),lidia:T0(.6,.6,.5,.54,.82,.7,.5,.65,.62,.38),
   rose:T0(.65,.45,.45,.72,.76,.62,.4,.5,.7,.33)
 };
 const caractereDe=id=>id==='alex'?Brain.state.caractere:caractere[id];
@@ -19,7 +19,7 @@ function evoluer(id,trait,delta){
 // Compatibilité : les comportements lisent ici l'élan vers les autres, l'attention aux autres, le leadership.
 const socialStyle=new Proxy({},{get:(_,id)=>{const c=caractereDe(id)||T0(.5,.5,.5,.5,.5,.5,.5,.5,.5,0);return {outreach:c.sociabilite,care:c.empathie,leadership:c.leadership};}});
 const adultCircle=new Set(['alex',...playgroundFriends]);
-const female=new Set(['francoise','rose','marie','juliette']);
+const female=new Set(['lidia','rose','marie','juliette']);
 const FAMILLE=new Set(['alex','joseph','marie','juliette']);
 let relationships={};
 const relationshipCooldown={};

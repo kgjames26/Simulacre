@@ -32,6 +32,17 @@ const navigation=(()=>{
     }
     for(const r of QUARTIER.libres)remplir(r,true);
     for(const r of QUARTIER.bloques)remplir(r,false);
+    // les copies de l'aire de jeux reprennent les obstacles (équipements) de l'aire d'origine
+    const F=QUARTIER.fenetre;
+    for(const p of QUARTIER.parcs||[]){
+      if(p.origine)continue;
+      for(let j=0;j<height;j++)for(let i=0;i<width;i++){
+        const x=base.originX+(i+.5)*cell,z=base.originZ+(j+.5)*cell;
+        if(x<F.x0||x>F.x1||z<F.z0||z>F.z1)continue;
+        const id=i+j*width;
+        if(grids[0][id>>3]&(1<<(id&7)))set(x+p.dx,z+p.dz,false);
+      }
+    }
     originX=nx;originZ=nz;width=w;height=h;grids=grandes.slice(0,2);
     // la bande de clôture reste fermée hors portail (les trottoirs ne la recouvrent pas)
     const ouvert=x=>x>=QUARTIER.portail.x0&&x<=QUARTIER.portail.x1||x>=QUARTIER.entreeParc.x0&&x<=QUARTIER.entreeParc.x1;
@@ -58,7 +69,7 @@ const navigation=(()=>{
     }
   }
   const components=grids.map((_,floor)=>{
-    const marks=new Uint16Array(size), queue=new Int32Array(size);
+    const marks=new Int32Array(size), queue=new Int32Array(size);
     let component=0;
     for(let id=0;id<size;id++){
       if(marks[id]||!free(id,floor))continue;

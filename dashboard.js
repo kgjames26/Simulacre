@@ -15,7 +15,8 @@ const EFFETS={mou:'c’est mou',soi_monte:'on peut s’y installer',lumiere:'ça
   mal:'ça fait mal',passage:'on peut passer',rebond:'ça rebondit',hauteur:'on monte haut',glisse:'ça glisse',balance:'ça se balance',tient:'on peut s’accrocher',
   effort:'il faut forcer',outil:'ça se prend en main',vivant:'c’est vivant',doux:'c’est doux',rond:'c’est rond',ecrit:'il y a des signes'};
 const BESOINS={faim:'la faim',soif:'la soif',fatigue:'la fatigue',hygiene:'le besoin de se laver'};
-const TRAITS={curiosite:'Curiosité',perseverance:'Persévérance',prudence:'Prudence',sociabilite:'Sociabilité',empathie:'Empathie',creativite:'Créativité',independance:'Indépendance',patience:'Patience',optimisme:'Optimisme',leadership:'Leadership'};
+// Le leadership est un trait parmi les autres, sans mise en avant.
+const TRAITS={curiosite:'Curiosité',perseverance:'Persévérance',prudence:'Prudence',sociabilite:'Sociabilité',empathie:'Empathie',leadership:'Leadership',creativite:'Créativité',independance:'Indépendance',patience:'Patience',optimisme:'Optimisme'};
 const CAPACITES={equilibre:'Équilibre',course:'Course',force:'Force',endurance:'Endurance'};
 const cap=t=>t?t.charAt(0).toUpperCase()+t.slice(1):'';
 const effets=l=>(l||[]).map(e=>EFFETS[e]||e).join(', ')||'rien de visible';
@@ -108,7 +109,7 @@ async function renderTranscript(){
   if(n!==request||page!=='sociabilite')return;
   const rows=list.slice(0,PAGE_SIZE);
   paint('conversation-lines',rows.map(l=>l.id).join(','),()=>rows.length?rows.map(l=>{
-    const who=names[l.speaker]||l.speaker,to=names[l.listener];
+    const who=names[l.speaker]||l.nomSpeaker||l.speaker,to=names[l.listener]||l.nomListener;
     return el('li',{},el('strong',{textContent:to?who+' → '+to:who}),document.createTextNode(' '+l.text),
       el('small',{textContent:stamp(l.at)+(l.speaker==='alex'?'':l.heardByNéo?' · Néo entend':' · trop loin pour Néo')}));
   }):[el('li',{textContent:'Aucune parole pour l’instant.'})]);
@@ -150,7 +151,7 @@ function renderCerveau(s){
     ['Sens',b.sens,'choses perçues en ce moment'],['Corps',b.gestes.innes.length+b.gestes.appris.length,'gestes qu’il sait faire'],
     ['Espace',b.lieux,'endroits connus · '+b.limites+' limite'+(b.limites>1?'s':'')],['Objets',b.nbObjets,'choses repérées · '+b.familles+' famille'+(b.familles>1?'s':'')],
     ['Mémoire',b.souvenirs,'souvenirs complets'],['Causes',b.compris,'choses comprises'],['Langage',b.mots,'mots compris'],
-    ['Social',b.personnes,'personnes connues · leadership '+pct(b.leadership)],['Émotions',Math.round(b.emotions.confiance*100)+' %','confiance en lui'],['Envies',b.envies,'questions et projets'],
+    ['Social',b.personnes,'personnes connues'],['Émotions',Math.round(b.emotions.confiance*100)+' %','confiance en lui'],['Envies',b.envies,'questions et projets'],
     ['Associations',c.liens,c.deductions+' idées · '+c.confirmees+' vérifiées',true]];
   paint('regions',JSON.stringify(regions),()=>regions.map(([nom,n,desc,hub])=>el('div',{className:'region'+(hub?' hub':''),dataset:{empty:String(!n||n==='0 %')}},el('strong',{textContent:typeof n==='number'?fmt(n):n}),el('span',{textContent:nom}),el('small',{textContent:desc}))));
   setMeta('meta-comprend',fmt(b.compris)+' compris · '+fmt(c.confirmees)+' idées vérifiées');
@@ -243,16 +244,16 @@ function renderEntourage(s){
     const hu=humeur(p);
     f.meta.textContent=p.id==='alex'?hu:hu+' · affinité '+Math.round((p.affinite||0)*100);
     f.meta.className='meta '+(hu==='a faim'||hu==='fatigué'?'warm':hu==='content'?'good':'');
-    const cle=[p.partage,Math.round((p.leadership||0)*50),p.baseWords,s.age,Math.round((p.affinite||0)*50),p.rencontres,(p.competences||[]).join()].join();
+    const cle=[p.partage,p.baseWords,s.age,Math.round((p.affinite||0)*50),p.rencontres,(p.competences||[]).join()].join();
     if(f.cle!==cle){
       f.cle=cle;
-      const top=p.caractere?Object.entries(p.caractere).filter(([k])=>k!=='leadership').sort((x,y)=>y[1]-x[1]).slice(0,3).map(([k])=>el('span',{className:'chip off',textContent:TRAITS[k]})):[];
+      const top=p.caractere?Object.entries(p.caractere).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([k])=>el('span',{className:'chip off',textContent:TRAITS[k]})):[];
       f.infos.replaceChildren(el('div',{className:'chips'},...top),
         p.id==='alex'?row('Étape de vie',AGES[s.age]):row('Ce que Néo découvre',p.partage?'il le reçoit':'pas encore'),
         ...(p.baseWords?[row('Mots connus',fmt(p.baseWords))]:[]));
       f.aff.replaceChildren(humeurJauge('Affinité',p.affinite||0),row('Rencontres avec Néo',fmt(p.rencontres||0)));
       const comp=p.competences||[];
-      f.comp.replaceChildren(niveauJauge('Leadership',p.leadership||0),...(comp.length?comp.map(c=>item(c,null,badge('sait faire','good'))):[empty(p.id==='alex'?'Rien encore : il découvre son corps.':'Rien encore : ce que Néo valide viendra ici.')]));
+      f.comp.replaceChildren(...(comp.length?comp.map(c=>item(c,null,badge('sait faire','good'))):[empty(p.id==='alex'?'Rien encore : il découvre son corps.':'Rien encore : ce que Néo valide viendra ici.')]));
     }
     const ct=JSON.stringify(Object.values(p.caractere||{}).map(v=>Math.round(v*50)));
     if(f.ct!==ct){f.ct=ct;f.traits.replaceChildren(...Object.entries(TRAITS).map(([k,l])=>niveauJauge(l,p.caractere?.[k]||0)));}

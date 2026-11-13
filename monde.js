@@ -1,6 +1,6 @@
 // Pénurie, commerce de proximité, accès aux maisons, miroir des camarades. Aucun personnage n'explique rien à Néo.
 // Argent = 0 : pas de prix ni de caisse. Chaque agent a un quota de prélèvement par jour fictif.
-const QUOTA_JOUR=14,STOCK_JOUR_COMMERCE=100;   // assez pour nourrir la famille si les adultes font les courses, pas plus
+const QUOTA_JOUR=14;let STOCK_JOUR_COMMERCE=100;   // assez pour nourrir la famille si les adultes font les courses, pas plus
 let commerce={jour:0,stock:STOCK_JOUR_COMMERCE,prelev:{},total:0,visites:0};
 let acces={amisAccompagnes:false,visites:0,niveau:0};
 // Interdits des parents : zones où Néo peut aller, élargies petit à petit avec l'âge. Jamais chez les autres.
@@ -15,11 +15,56 @@ const ZONES=[
 ];
 const AGE_ZONE=[0,0,1,2,3,4,5,5,5];
 const niveauAcces=()=>AGE_ZONE[age]??5;
+const dans=(r,x,z)=>x>=r.x0&&x<=r.x1&&z>=r.z0&&z<=r.z1;
+const FAMILLE_NEO=new Set(['joseph','marie','juliette']);
+// Les mêmes règles pour tout le monde : chacun part de sa maison, son périmètre grandit avec son étape de vie.
+function etapeDe(p){
+  if(p===alex)return age;
+  if(Number.isFinite(p.etape))return p.etape;
+  if(p.id==='juliette')return Math.min(8,age+2);
+  if(p.id==='joseph'||p.id==='marie')return 7;
+  return age;                                   // les quatre enfants du début ont l'âge de Néo
+}
+const niveauDe=p=>p===alex?niveauAcces():AGE_ZONE[Math.max(0,etapeDe(p))]??5;
+function zonesFoyer(f){
+  if(f.zones)return f.zones;
+  const J=f.jardin,P=f.parc.lot,m=3.6;
+  const autour={x0:Math.min(J.x0,P.x0)-m,x1:Math.max(J.x1,P.x1)+m,z0:Math.min(J.z0,P.z0)-m,z1:Math.max(J.z1,P.z1)+m};
+  const entree=f.parc.origine?[QUARTIER.entreeParc]:f.parc.chemin?[f.parc.chemin]:[];
+  const rues=[...QUARTIER.tuiles.map(t=>({x0:t.x-QUARTIER.T/2,x1:t.x+QUARTIER.T/2,z0:t.z-QUARTIER.T/2,z1:t.z+QUARTIER.T/2})),QUARTIER.trottoir];
+  return f.zones=[
+    {nom:'sa maison',dedans:true,rects:[]},
+    {nom:'son jardin',rects:[J]},
+    {nom:'son jardin',rects:[J]},
+    {nom:'son aire de jeux',rects:[J,P,autour,...entree]},
+    {nom:'le chemin du commerce',rects:[J,P,autour,...entree,...rues,...ZONES[4].rects]},
+    {nom:'tout le quartier',rects:[QUARTIER.region]}
+  ];
+}
+const zonesDe=p=>p===alex||FAMILLE_NEO.has(p.id)?ZONES:p.foyer?zonesFoyer(p.foyer):ZONES;
+// Chez les autres : un enfant n'entre jamais dans le jardin d'une autre famille (ni chez Néo s'il n'est pas de la famille).
+function chezAutres(p,x,z){
+  if(etapeDe(p)>=7)return false;
+  const famille=p===alex||FAMILLE_NEO.has(p.id);
+  if(!famille&&dans(QUARTIER.propriete,x,z))return true;
+  for(const f of QUARTIER.foyers)if(f!==p.foyer&&dans(f.jardin,x,z))return true;
+  return false;
+}
 function autorise(x,z,floor){
   if(sleeps.has(alex))return true;
   const n=niveauAcces();
   if(floor===1)return n>=2;
-  for(let i=0;i<=n;i++)for(const r of ZONES[i].rects)if(x>=r.x0&&x<=r.x1&&z>=r.z0&&z<=r.z1)return true;
+  if(chezAutres(alex,x,z))return false;
+  for(let i=0;i<=n;i++)for(const r of ZONES[i].rects)if(dans(r,x,z))return true;
+  return false;
+}
+function autorisePour(p,x,z,floor){
+  if(p===alex)return autorise(x,z,floor);
+  if(p.accompagne||sleeps.has(p)||etapeDe(p)>=7)return true;
+  const n=niveauDe(p),Z=zonesDe(p);
+  if(floor===1)return FAMILLE_NEO.has(p.id)&&n>=2;
+  if(chezAutres(p,x,z))return false;
+  for(let i=0;i<=n;i++)for(const r of Z[i].rects)if(dans(r,x,z))return true;
   return false;
 }
 function leverInterdits(){
@@ -91,7 +136,7 @@ function stepVisiteAmi(marie,s){
       if(s>=v.until)v.phase='sortie';
     }else{
       marie.activity='Raccompagne '+characterNames[ami.id];
-      if(move(marie,ami.homeX,ami.homeZ,.9)<1.2){visiteAmi=null;marie.nextVisite=s+500;}
+      if(move(marie,ami.homeX,ami.homeZ,.9)<1.2){ami.accompagne=false;visiteAmi=null;marie.nextVisite=s+500;}
     }
     return true;
   }
@@ -105,6 +150,7 @@ function stepVisiteAmi(marie,s){
 function amiAccompagne(f,s){
   if(!visiteAmi||visiteAmi.ami!==f||visiteAmi.phase==='cherche')return false;
   const m=people[1];
+  f.accompagne=true;f.dedans=false;
   f.activity='Suit Marie';
   move(f,m.x-.9,m.z+.4,.95);
   return true;

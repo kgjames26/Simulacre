@@ -112,9 +112,9 @@
         <summary><svg class="ico"><use href="#i-list"/></svg><span class="acc-t"><strong>Ce qui se passe</strong><small>Les derniers événements</small></span><span class="meta" id="meta-journal"></span></summary>
         <div class="acc-body"><ul class="list feed-compact" id="journal"></ul></div>
       </details>
-      <details class="acc" data-id="m-parole">
-        <summary><svg class="ico"><use href="#i-chat"/></svg><span class="acc-t"><strong>Dernière parole</strong><small>Ce qui vient d’être dit</small></span></summary>
-        <div class="acc-body"><p class="quote" id="latest-line">Personne n’a encore parlé.</p></div>
+      <details class="acc" data-id="m-direct" open>
+        <summary><svg class="ico"><use href="#i-chat"/></svg><span class="acc-t"><strong>Ses conversations</strong><small>En direct, quand Néo parle ou qu’on lui parle</small></span><span class="meta" id="meta-direct"></span></summary>
+        <div class="acc-body"><ol class="feed feed-compact" id="neo-direct"><li class="vide">Personne ne parle avec Néo pour l’instant.</li></ol></div>
       </details>
     </aside>
   </section>
@@ -214,7 +214,6 @@
       <details class="acc" data-id="e-personnes" open>
         <summary><svg class="ico"><use href="#i-users"/></svg><span class="acc-t"><strong>Les personnes</strong><small>Classées par affinité avec Néo · touchez un nom pour tout voir</small></span><span class="meta" id="meta-personnes"></span></summary>
         <div class="acc-body accs">
-          <div class="accs" id="people"></div>
           <details class="acc sub" data-id="e-liens">
             <summary><span class="acc-t"><strong>Les liens entre deux personnes</strong><small>Choisissez un premier puis un second personnage</small></span></summary>
             <div class="acc-body">
@@ -223,6 +222,7 @@
               <details class="acc sub" data-id="e-histoire"><summary><span class="acc-t"><strong>Histoire de ce lien</strong></span></summary><div class="acc-body"><ol class="feed" id="relationship-history"></ol></div></details>
             </div>
           </details>
+          <div class="accs" id="people"></div>
         </div>
       </details>
       <details class="acc" data-id="e-dit">
@@ -250,7 +250,7 @@
 
 <footer class="foot"><span>Modèles : Kenney (CC0), Cyprus · astroarch, RPSebb, assetfactory</span><span><span id="version">v__NÉO_VERSION__</span> · <button class="btn btn-small" id="reset" type="button">Recommencer</button></span></footer>
 
-<dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><h2 id="reset-title">Recommencer depuis le début ?</h2><p>Néo repartira avec un cerveau vierge. Toute la progression et les conversations seront effacées.</p><div class="dialog-actions"><button value="cancel" class="btn" autofocus>Annuler</button><button value="reset" class="btn btn-danger">Recommencer</button></div></form></dialog>
+<dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><h2 id="reset-title">Recommencer une partie ?</h2><p>Néo repartira avec un cerveau vierge, à l’étape de vie choisie. Toute la progression et les conversations seront effacées.</p><label class="field" for="reset-etape"><span>Commencer à l’étape</span><select id="reset-etape" class="field-input"><option value="0">Nourrisson</option><option value="1">Bébé</option><option value="2">Petit enfant</option><option value="3">Enfant</option><option value="4">Grand enfant</option><option value="5">Jeune ado</option><option value="6">Ado</option><option value="7">Jeune homme</option><option value="8">Homme</option></select></label><p class="hint">Son corps et ses permissions auront l’âge choisi, et les personnes proches aussi (sa sœur, ses amis, les voisins).</p><div class="dialog-actions"><button value="cancel" class="btn" autofocus>Annuler</button><button value="reset" class="btn btn-danger">Recommencer</button></div></form></dialog>
 <dialog id="parametres-dialog" aria-labelledby="parametres-title"><form method="dialog">
   <h2 id="parametres-title">Paramètres</h2>
   <label class="field">Puissance allouée à la simulation <output id="puissance-valeur">100 %</output>

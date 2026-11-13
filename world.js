@@ -143,7 +143,7 @@ function percevoir(observer,range){
   for(const entity of entities()){
     const source=entity.dynamic||entity;
     if((source.floor||0)!==(observer.floor||0))continue;
-    if(entity.kind==='personne'&&source.lie>.8)continue;
+    if(entity.kind==='personne'&&(source.lie>.8||source.dedans))continue;   // chez lui, dans sa maison : invisible
     const distance=Math.hypot(source.x-observer.x,source.z-observer.z);
     if(distance>range)continue;
     if(distance>.3&&!languageVisibility(observer,source))continue;

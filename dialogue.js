@@ -125,14 +125,14 @@ function createDialogue(){
   let composed=0,lastComposition=-1e9,lastInvitation=-1e9;
   const phrases=[];
   const language=createLanguageMemory();
-  function emit(s,speaker,text,heardByNéo,listener){
-    const line={id:++id,at:s,speaker,text,heardByNéo,listener};
+  function emit(s,speaker,text,heardByNéo,listener,noms){
+    const line={id:++id,at:s,speaker,text,heardByNéo,listener,...(noms||{})};
     if(speaker==='alex')hasNeoSpoken=true;
     lines.push(line);outgoing.push(line);
     if(speaker!=='alex'&&heardByNéo)audibleCount++;
     if(lines.length>40)lines.shift();
   }
-  const near=(a,b,range)=>(a.floor||0)===(b.floor||0)&&!a.lie&&!b.lie&&Math.hypot(a.x-b.x,a.z-b.z)<range;
+  const near=(a,b,range)=>(a.floor||0)===(b.floor||0)&&!a.lie&&!b.lie&&!a.dedans&&!b.dedans&&Math.hypot(a.x-b.x,a.z-b.z)<range;
   function landmarksInView(alex,scene){
     if(alex.lie)return [];
     const out=alex.floor?[]:ALEX_TOPICS.flatMap(topic=>{
@@ -350,7 +350,7 @@ function createDialogue(){
       }
       const [joseph,marie]=people;
       turn++;
-      const listening=people.find(person=>near(person,alex,3.1));
+      const listening=people.find(person=>!person.dedans&&near(person,alex,3.1));
       if(s-lastInvitation>105&&turn%5===0&&scene.invitations){
         const parent=[joseph,marie].find(person=>near(person,alex,3.4));
         const invitation=scene.invitations.find(item=>Math.hypot(item.x-alex.x,item.z-alex.z)<4.6&&
@@ -421,6 +421,17 @@ function createDialogue(){
       const other=speaker===joseph?marie:joseph;
       speak(s,speaker,alex,lastTopic,false,other,scene);
       pending={speaker:other,listener:speaker,topic:lastTopic};
+    },
+    // Un habitant du quartier parle (même langage selon l'âge que les autres PNJ). Seulement quand Néo est là pour entendre.
+    parleVoisin(s,a,b,alex,scene){
+      let texte;
+      if(a.etape<=5)texte=paroleEnfant({x:a.x,z:a.z,floor:0,age:a.etape},scene,alex);
+      else{const bank=[...familyLines,...(typeof familyPhrases!=='undefined'?familyPhrases:[])];texte=bank[Math.floor(rng()*bank.length)][0];}
+      if(!texte)return;
+      const entend=near(a,alex,5.2);
+      emit(s,a.id,texte,entend,b.id,{nomSpeaker:a.nom,nomListener:b.nom});
+      if(entend&&a.etape>=3)language.hear(texte,observe(alex,a,scene),s,a.id);
+      next=Math.max(next,s+2.5);
     },
     takeNew(){return outgoing.splice(0);},
     lireEcran(text,cue,s){language.hear(text,{[cue]:.9},s,'ecran');},

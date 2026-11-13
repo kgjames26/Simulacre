@@ -7,7 +7,7 @@ const ui = id => document.getElementById(id);
 const saveKey = 'neo-simulacre-v5';   // v5 : cerveau réorganisé en régions, on repart d'une partie neuve
 const worker = new Worker('/sim.js');
 let snapshot, human = false, upperFloorView=null, resetting=false, initialized=false;
-const personNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Lyra',rose:'Rose'};
+const personNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',lidia:'Lidia',rose:'Rose'};
 let lastDialogueId=0, lastDialoguePaint=0, voiceEnabled=false, conversationRows=[];
 const dashboard=setupDashboard(personNames);
 const voiceButton=ui('voice-toggle');
@@ -30,7 +30,7 @@ function updateDialogue(state){
   const previousId=lastDialogueId;
   lastDialogueId=latest.id;
   conversationRows=state.lines;
-  ui('latest-line').textContent=personNames[latest.speaker]+' : « '+latest.text+' »';
+  directNeo(state.lines);
   if(voiceEnabled&&human&&previousId&&!speechSynthesis.speaking&&!speechSynthesis.pending){
     const speech=new SpeechSynthesisUtterance(latest.text);
     speech.lang='fr-FR';
@@ -40,6 +40,50 @@ function updateDialogue(state){
     speech.rate=latest.speaker==='alex'?.77:.91;
     speechSynthesis.speak(speech);
   }
+}
+// Les habitants du quartier : silhouettes légères (deux maillages instanciés), seulement ceux qui sont dehors.
+let habitants=null;
+const TEINTES=['#c45b4a','#4f7fb8','#6a9a58','#d1a24a','#8a5fa8','#3f9a96','#b8735a','#5d6470'];
+function majHabitants(profils){
+  const T=window.__THREE;if(!T||!snapshot)return;
+  const liste=snapshot.voisins||[];
+  if(!habitants){
+    const N=180;
+    const corps=new T.InstancedMesh(new T.CapsuleGeometry(.17,.5,4,10),new T.MeshStandardMaterial({roughness:.82}),N);
+    const tete=new T.InstancedMesh(new T.SphereGeometry(.13,14,10),new T.MeshStandardMaterial({color:'#e7c19f',roughness:.7}),N);
+    for(const m of [corps,tete]){m.frustumCulled=false;m.castShadow=true;m.count=0;window.__SCENE.add(m);}
+    habitants={corps,tete,m:new T.Matrix4(),q:new T.Quaternion(),y:new T.Vector3(0,1,0),p:new T.Vector3(),sc:new T.Vector3(),c:new T.Color()};
+  }
+  const {corps,tete,m,q,y,p,sc,c}=habitants;
+  const visibles=upperFloorView===true?[]:liste.slice(0,180);
+  visibles.forEach(([x,z,h,etape,teinte,phase],k)=>{
+    const H=(profils?.[Math.max(0,Math.min(8,etape))]?.scale||.95)*1.85;
+    const bob=phase>=0?Math.abs(Math.sin(phase))*.035*H:0;
+    q.setFromAxisAngle(y,h);
+    p.set(x,.42*H+bob,z);sc.set(.62*H,H,.62*H);m.compose(p,q,sc);corps.setMatrixAt(k,m);
+    c.set(TEINTES[teinte%8]);if(teinte>=8)c.offsetHSL(0,0,.08);corps.setColorAt(k,c);
+    p.set(x,.93*H+bob,z);sc.set(.8*H,.8*H,.8*H);m.compose(p,q,sc);tete.setMatrixAt(k,m);
+  });
+  corps.count=tete.count=visibles.length;
+  corps.instanceMatrix.needsUpdate=tete.instanceMatrix.needsUpdate=true;
+  if(corps.instanceColor)corps.instanceColor.needsUpdate=true;
+}
+// Monde : toutes les conversations où Néo est impliqué (il parle, ou on lui parle), en direct.
+function directNeo(lines){
+  const nom=(id,n)=>personNames[id]||n||'quelqu’un';
+  const liste=lines.filter(l=>l.speaker==='alex'||l.listener==='alex').slice(-8);
+  const box=ui('neo-direct');if(!box)return;
+  const now=(snapshot?.ticks||0)/120;
+  const vif=liste.length&&now-liste.at(-1).at<25;
+  ui('meta-direct').textContent=vif?'● en direct':liste.length?'calme':'';
+  ui('meta-direct').className='meta'+(vif?' live':'');
+  box.replaceChildren(...(liste.length?liste.map(l=>{
+    const li=document.createElement('li');
+    const b=document.createElement('strong');b.textContent=nom(l.speaker,l.nomSpeaker)+' → '+nom(l.listener,l.nomListener);
+    li.append(b,document.createTextNode(' « '+l.text+' »'));
+    if(now-l.at<25)li.className='recent';
+    return li;
+  }):[Object.assign(document.createElement('li'),{className:'vide',textContent:'Personne ne parle avec Néo pour l’instant.'})]));
 }
 let followedPerson='alex', following=false;
 function showFollowState(){
@@ -73,7 +117,7 @@ ui('reset-dialog').querySelector('form').addEventListener('submit',async event=>
   try {
     await dashboard.clearHistory();
     worker.terminate();
-    try { localStorage.removeItem(saveKey); } catch {}
+    try { localStorage.removeItem(saveKey); localStorage.setItem('simulacre-depart',ui('reset-etape').value); } catch {}
     location.reload();
   } catch {
     resetting=false;
@@ -86,7 +130,9 @@ dashboard.archiveReady.then(async archivedId=>{
   // Nouvelle partie : on efface aussi les conversations d'une ancienne partie.
   if(!state){await dashboard.clearHistory().catch(()=>{});archivedId=0;}
   if(state?.dialogue?.lines)dashboard.capture(state.dialogue.lines);
-  worker.postMessage({type:'restore',state,archivedId});
+  let depart=0;
+  if(!state){try{depart=+localStorage.getItem('simulacre-depart')||0;localStorage.removeItem('simulacre-depart');}catch{}}
+  worker.postMessage({type:'restore',state,archivedId,depart});
   initialized=true;
 });
 worker.onmessage = ({data}) => {
@@ -215,7 +261,7 @@ const faceProfiles={
   juliette:{shape:[.91,1.01,1],hair:'#795033',style:'bob',eyes:'#544733',mouth:1.08},
   timeo:{shape:[.96,1.05,.98],hair:'#5b422f',style:'sweep',eyes:'#40555c',glasses:true,mouth:.86},
   nathan:{shape:[1.1,.94,1],hair:'#956434',style:'tuft',eyes:'#654b35',freckles:true,mouth:1.14},
-  francoise:{shape:[1.01,1.06,.98],hair:'#2d2524',style:'curls',eyes:'#554133',mouth:1.22},
+  lidia:{shape:[1.01,1.06,.98],hair:'#2d2524',style:'curls',eyes:'#554133',mouth:1.22},
   rose:{shape:[1.04,.98,1],hair:'#a14927',style:'bob',eyes:'#527b61',freckles:true,mouth:1}
 };
 function buildFace(T,rig,id,skin){
@@ -442,6 +488,7 @@ async function showWorld(){
     import('three'),import('three/addons/loaders/GLTFLoader.js'),import('/assets/3d/load-character.js')
   ]);
   const scene=new T.Scene();
+  window.__THREE=T;window.__SCENE=scene;
   scene.background=new T.Color('#5d7a70');
   const canvas=document.createElement('canvas');
   const graphics=canvas.getContext('webgl2')||canvas.getContext('webgl');
@@ -821,6 +868,9 @@ async function showWorld(){
       park.scale.setScalar(s);park.position.set(10-center.x*s,.05-bounds.min.y*s,3-center.z*s);
       park.traverse(object=>{if(!object.isMesh)return;for(const material of [object.material].flat()){if(!material?.color)continue;const name=(object.name+' '+material.name).toLowerCase();if(!material.map&&material.color.getHex()===0xffffff)material.color.set(/slide|toboggan/.test(name)?'#d77a4e':/swing|balancoire/.test(name)?'#d4a653':/grass|herbe|tree|arbre/.test(name)?'#789b65':'#c5b79e');}});
       scene.add(park);
+      // La même aire de jeux, recopiée près de chaque petit pâté de maisons.
+      const copiesParc=(QUARTIER.parcs||[]).filter(p=>!p.origine);
+      for(const p of copiesParc){const c=park.clone();c.position.x+=p.dx;c.position.z+=p.dz;scene.add(c);}
       park.updateMatrixWorld(true);
       const worldPoint=(x,z,height)=>park.localToWorld(new T.Vector3(x,height,-z));
       // Surface sampled down the center of Cyprus mesh 27.
@@ -849,6 +899,7 @@ async function showWorld(){
       physicalRope.userData={dynamic:true,rope:true,anchor,end};
       scene.add(physicalRope);
       const equipment={swing:{x:13.5,z:6.2},bars:{x:11.2,z:7.0},wall:{x:15.3,z:6.5}};
+      const avantEquipements=scene.children.length;
       const postMaterial=mat('#8a6748'),barMaterial=mat('#d5a75e'),holdColors=['#d85c4a','#e4b94f','#5b9b83','#6888bd'];
       const post=(x,y,z,height,radius=.075,material=postMaterial)=>{const mesh=new T.Mesh(new T.CylinderGeometry(radius,radius,height,10),material);mesh.position.set(x,y+height/2,z);scene.add(mesh);};
       const beam=(a,b,radius,material)=>{const v=new T.Vector3(...a),w=new T.Vector3(...b),d=w.clone().sub(v);const mesh=new T.Mesh(new T.CylinderGeometry(radius,radius,d.length(),10),material);mesh.position.copy(v).add(w).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),d.normalize());scene.add(mesh);};
@@ -859,6 +910,9 @@ async function showWorld(){
       const bx=equipment.bars.x,bz=equipment.bars.z;for(const x of [-.65,.65])post(bx+x,0,bz,2.05);beam([bx-.65,2.03,bz],[bx+.65,2.03,bz],.055,barMaterial);for(let i=0;i<7;i++){const x=bx-.54+i*.18;beam([x,2.03,bz-.34],[x,2.03,bz+.34],.045,barMaterial);}
       const wx=equipment.wall.x,wz=equipment.wall.z;const wallPanel=new T.Mesh(new T.BoxGeometry(1.45,2.1,.16),mat('#b77d58'));wallPanel.position.set(wx,1.05,wz);wallPanel.rotation.x=-.20;scene.add(wallPanel);
       for(let i=0;i<15;i++){const hold=new T.Mesh(new T.DodecahedronGeometry(.09,0),mat(holdColors[i%holdColors.length]));hold.position.set(wx+((i%3)-1)*.39,.28+Math.floor(i/3)*.35,wz-.13);scene.add(hold);}
+      for(const objet of scene.children.slice(avantEquipements))for(const p of copiesParc){
+        const c=objet.clone();c.position.x+=p.dx;c.position.z+=p.dz;c.userData={};scene.add(c);
+      }
       worker.postMessage({type:'park',geometry:{slide:slide.map(([x,y,z])=>({x,y,z})),rope:{x:anchor.x,y:anchor.y,z:anchor.z,length},equipment}});
     }finally{for(const url of urls.values())URL.revokeObjectURL(url);}
   })());
@@ -877,7 +931,7 @@ async function showWorld(){
       geometry.scale(1/height,1/height,1/height);
       geometries.push({geometry,name:mesh.material.name});
     });
-    for(const id of ['alex','joseph','marie','juliette','timeo','nathan','francoise','rose']){
+    for(const id of ['alex','joseph','marie','juliette','timeo','nathan','lidia','rose']){
       const profile=id==='alex'?profiles.variants[0]:profiles.variants.find(item=>item.id===id);
       const root=new T.Group();
       root.userData={dynamic:true,suit:profile.suit,skin:profile.skin};
@@ -1036,10 +1090,11 @@ async function showWorld(){
         physicalRope.quaternion.setFromUnitVectors(ropeUp,direction.normalize());
       }
       atelier3d.update(snapshot.atelier);
+      majHabitants(actors[0]?.ageProfiles);
       for(const actor of actors){
         const p=actor.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===actor.id);
         const main=actor.id==='alex';
-        const grows=main||['juliette','timeo','nathan','francoise','rose'].includes(actor.id);
+        const grows=main||['juliette','timeo','nathan','lidia','rose'].includes(actor.id);
         const ageIndex=Math.min(8,snapshot.age+(actor.id==='juliette'?2:0));
         const size=(grows?actors[0].ageProfiles[ageIndex].scale:actor.profile.scale)*1.85;
         actor.root.scale.setScalar(size);
@@ -1049,7 +1104,8 @@ async function showWorld(){
         const gesture=p.languageGesture;
         const lying=p.lie||0;
         actor.root.rotation.y=gesture&&!lying?gesture.heading:p.heading;
-        actor.root.visible=upperFloorView===true?Boolean(p.floor):upperFloorView===false?!p.floor:(!p.floor||upstairs);
+        actor.root.visible=upperFloorView===true?Boolean(p.floor):upperFloorView===false?!p.floor:(!p.floor||upstairs)
+        if(p.dedans)actor.root.visible=false;   // chez lui, à l'intérieur de sa maison
         actor.root.rotation.order='YXZ';
         actor.root.rotation.x=lying*Math.PI/2+Math.max(-1.38,Math.min(1.38,p.tilt||0))*(1-lying);
         const gait=lying?0:main?p.effort:p.moving?Math.sin(p.phase)*.6:0;

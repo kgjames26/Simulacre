@@ -266,3 +266,11 @@ dialog p{color:var(--ink2)}
 .track.neutre i{background:#3c5d8f}
 @media (max-width:720px){.meter.face{grid-template-columns:82px 20px 1fr 20px}.meter.niveau{grid-template-columns:82px 44px 1fr 44px}.meter .bout{font-size:10.5px}}
 .filters.deux{align-items:center;flex-wrap:wrap}.filters.deux select{flex:1;min-width:120px}.et{font-weight:700;color:var(--muted)}
+/* conversations de Néo en direct */
+.meta.live{color:#c0392b;font-weight:600}
+#neo-direct li{opacity:.72}
+#neo-direct li.recent{opacity:1}
+#neo-direct li.vide{opacity:.6;font-style:italic}
+/* choix de l'étape de départ */
+#reset-dialog label.field{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px;font-weight:600;font-size:14px}
+#reset-dialog label.field .field-input{width:100%}
