@@ -100,6 +100,7 @@ worker.onmessage = ({data}) => {
   window.majBoite?.(snapshot.courrier);
   dashboard.capture(data.lines);
   dashboard.update(snapshot);
+  const v=snapshot.vitesse||1;ui('vitesse-reelle').textContent='×'+(v>=10?Math.round(v):v.toLocaleString('fr-BE',{maximumFractionDigits:1}));
   updateDialogue(snapshot.dialogue);
   const observed=following&&followedPerson!=='alex'?snapshot.people.find(person=>person.id===followedPerson):snapshot.alex;
   ui('activity').textContent=observed?.activity||'Se déplace';
@@ -132,16 +133,23 @@ if(boite){
   };
 }
 worker.onerror=error=>{console.error(error);ui('scene-status').textContent='La simulation s’est arrêtée. Rechargez la page.';};
-// Un seul bouton : accéléré par défaut (un jour fictif toutes les 10 minutes), vitesse réelle à la demande.
+// Vitesse : ×1 (temps normal) ou rapide (aussi vite que l'appareil le permet). On démarre à ×1.
 function setSpeed(fast){
   human=!fast;
   if(fast&&voiceEnabled)speechSynthesis.cancel();
   worker.postMessage({type:'mode',mode:fast?'turbo':'human'});
-  ui('speed-global').textContent=fast?'Ralentir':'Accélérer';
-  ui('speed-global').setAttribute('aria-pressed',String(!fast));
+  ui('vitesse-normale').setAttribute('aria-pressed',String(!fast));
+  ui('vitesse-rapide').setAttribute('aria-pressed',String(fast));
 }
-ui('speed-global').onclick=()=>setSpeed(human);
-setSpeed(false);   // on démarre à vitesse réelle
+ui('vitesse-normale').onclick=()=>setSpeed(false);
+ui('vitesse-rapide').onclick=()=>setSpeed(true);
+setSpeed(false);
+let puissance=100;
+try{puissance=+localStorage.getItem('simulacre-puissance')||100;}catch{}
+const appliquerPuissance=()=>{ui('puissance').value=puissance;ui('puissance-valeur').textContent=puissance+' %';worker.postMessage({type:'puissance',valeur:puissance/100});};
+ui('puissance').oninput=()=>{puissance=+ui('puissance').value;try{localStorage.setItem('simulacre-puissance',puissance);}catch{}appliquerPuissance();};
+ui('parametres').onclick=()=>ui('parametres-dialog').showModal();
+appliquerPuissance();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);
 
 const welcome=ui('welcome-screen');
@@ -588,11 +596,7 @@ async function showWorld(){
   };
   for(const [x0,z0,x1,z1] of [[-19,-12,-19,12],[-19,-12,4.3,-12],[-19,12,-5,12],[-3,12,4.3,12],[4.3,-12,4.3,3],[4.3,5,4.3,12],
     [4.3,-12,19,-12],[19,-12,19,12],[4.3,12,8,12],[12,12,19,12]])cloture(x0,z0,x1,z1);
-  for(const [i,[x,z]] of [[-17,-10.5],[-15,10],[-6,-10],[7,-10],[16,-9],[17,9],[-10,10]].entries()){
-    box(.24,1.3,.24,x,.65,z,mat('#886746'));
-    const crown=new T.Mesh(new T.IcosahedronGeometry(1.15+i%2*.2,1),mat(i%2?'#739854':'#547d52'));
-    crown.position.set(x,1.75,z);scene.add(crown);
-  }
+  // Les arbres du jardin, du parc et du quartier sont dessinés par atelier-view (ils peuvent être abattus).
   // Trois pancartes dans le jardin : les chiffres, les lettres, 500 mots dessinés.
   for(const [type,x,z,w,h,pw,ph] of [['chiffres',1.4,8.6,1.7,.85,640,320],['lettres',3.9,8.6,2.1,1.5,840,600],['mots',-15.5,-7,5,3.75,3000,2250]]){
     const texture=new T.CanvasTexture(dessinerPanneau(type,pw,ph));texture.colorSpace=T.SRGBColorSpace;
@@ -602,7 +606,7 @@ async function showWorld(){
     const panneau=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:texture}));
     panneau.position.set(x,base+h/2-.2,z+.06);scene.add(panneau);
   }
-  const atelier3d=creerAtelier(T,scene,mat,{murX:-.46,arbre:{x:1.8,z:-8},tas:{x:.12,z:1.4},planches:{x:.18,z:2.7},fleurs:[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]]});
+  const atelier3d=creerAtelier(T,scene,mat,{murX:-.46,tas:{x:.12,z:1.4},planches:{x:.18,z:2.7},fleurs:[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]]});
   chargerQuartier(T,GLTFLoader,scene,QUARTIER).then(g=>occultants.push(g)).catch(error=>console.warn('quartier indisponible',error));
   const play=bindPlayViews(T,scene,worker,mat,id=>{
     const item=snapshot?.playItems?.[id];

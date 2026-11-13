@@ -57,12 +57,17 @@
       <a href="#monde" aria-current="page"><span class="long">Le </span>monde</a>
       <a href="#cerveau"><span class="long">Son </span>cerveau</a>
       <a href="#croissance"><span class="long">Sa </span>croissance</a>
-      <a href="#entourage"><span class="long">Son </span>entourage</a>
+      <a href="#sociabilite"><span class="long">Sa </span>sociabilité</a>
       <a href="#nuits"><span class="long">Ses </span>nuits</a>
     </nav>
     <div class="top-right">
       <span class="clock" id="clock">Jour 1</span>
-      <button id="speed-global" type="button" class="btn btn-dark" aria-pressed="false">Accélérer</button>
+      <div class="vitesse" role="group" aria-label="Vitesse">
+        <button id="vitesse-normale" type="button" aria-pressed="true">×1</button>
+        <button id="vitesse-rapide" type="button" aria-pressed="false">Rapide</button>
+      </div>
+      <output id="vitesse-reelle" class="vitesse-reelle" title="Vitesse réelle par rapport au temps normal">×1</output>
+      <button id="parametres" type="button" class="btn-icone" aria-label="Paramètres" title="Paramètres">⚙</button>
     </div>
   </div>
 </header>
@@ -202,13 +207,23 @@
     </div>
   </section>
 
-  <!-- SON ENTOURAGE -->
-  <section id="page-entourage" class="page" hidden>
-    <header class="intro"><h2>Son entourage</h2><p>Les autres n’apprennent rien par eux-mêmes. Ce que Néo découvre passe d’abord à ses amis du parc, puis à sa famille quand il en sait plus qu’elle.</p></header>
+  <!-- SA SOCIABILITÉ -->
+  <section id="page-sociabilite" class="page" hidden>
+    <header class="intro"><h2>Sa sociabilité</h2><p>Les autres n’apprennent rien par eux-mêmes. Ce que Néo découvre passe d’abord à ses amis du parc, puis à sa famille quand il en sait plus qu’elle.</p></header>
     <div class="accs">
       <details class="acc" data-id="e-personnes" open>
-        <summary><svg class="ico"><use href="#i-users"/></svg><span class="acc-t"><strong>Les personnes</strong><small>Ce qu’elles font, leur caractère, ce qu’elles reçoivent</small></span><span class="meta" id="meta-personnes"></span></summary>
-        <div class="acc-body accs" id="people"></div>
+        <summary><svg class="ico"><use href="#i-users"/></svg><span class="acc-t"><strong>Les personnes</strong><small>Classées par affinité avec Néo · touchez un nom pour tout voir</small></span><span class="meta" id="meta-personnes"></span></summary>
+        <div class="acc-body accs">
+          <div class="accs" id="people"></div>
+          <details class="acc sub" data-id="e-liens">
+            <summary><span class="acc-t"><strong>Les liens entre deux personnes</strong><small>Choisissez un premier puis un second personnage</small></span></summary>
+            <div class="acc-body">
+              <div class="filters deux"><select id="lien-a" class="field-input" aria-label="Premier personnage"></select><span class="et">et</span><select id="lien-b" class="field-input" aria-label="Second personnage"></select></div>
+              <div id="relationship-summary" class="bars"></div>
+              <details class="acc sub" data-id="e-histoire"><summary><span class="acc-t"><strong>Histoire de ce lien</strong></span></summary><div class="acc-body"><ol class="feed" id="relationship-history"></ol></div></details>
+            </div>
+          </details>
+        </div>
       </details>
       <details class="acc" data-id="e-dit">
         <summary><svg class="ico"><use href="#i-chat"/></svg><span class="acc-t"><strong>Ce qui se dit</strong><small id="listening-summary"></small></span></summary>
@@ -216,14 +231,6 @@
           <div class="filters"><select id="speaker-filter" class="field-input" aria-label="Qui parle"><option value="">Tout le monde</option></select></div>
           <ol id="conversation-lines" class="feed"></ol>
           <div class="feed-actions"><button class="btn" id="older-lines" type="button" hidden>Plus ancien</button><button class="btn" id="live-lines" type="button" hidden>Revenir au direct</button><button id="voice-toggle" class="btn" type="button" aria-pressed="false" hidden>Écouter les voix</button></div>
-        </div>
-      </details>
-      <details class="acc" data-id="e-liens">
-        <summary><svg class="ico"><use href="#i-link"/></svg><span class="acc-t"><strong>Les liens</strong><small>Amitiés, couples, histoire de chaque relation</small></span></summary>
-        <div class="acc-body">
-          <div class="filters"><select id="relationship-filter" class="field-input" aria-label="Relation à afficher"></select></div>
-          <div id="relationship-summary" class="bars"></div>
-          <details class="acc sub" data-id="e-histoire"><summary><span class="acc-t"><strong>Histoire de ce lien</strong></span></summary><div class="acc-body"><ol class="feed" id="relationship-history"></ol></div></details>
         </div>
       </details>
       <details class="acc" data-id="e-evenements">
@@ -244,6 +251,13 @@
 <footer class="foot"><span>Modèles : Kenney (CC0), Cyprus · astroarch, RPSebb, assetfactory</span><span><span id="version">v__NÉO_VERSION__</span> · <button class="btn btn-small" id="reset" type="button">Recommencer</button></span></footer>
 
 <dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><h2 id="reset-title">Recommencer depuis le début ?</h2><p>Néo repartira avec un cerveau vierge. Toute la progression et les conversations seront effacées.</p><div class="dialog-actions"><button value="cancel" class="btn" autofocus>Annuler</button><button value="reset" class="btn btn-danger">Recommencer</button></div></form></dialog>
+<dialog id="parametres-dialog" aria-labelledby="parametres-title"><form method="dialog">
+  <h2 id="parametres-title">Paramètres</h2>
+  <label class="field">Puissance allouée à la simulation <output id="puissance-valeur">100 %</output>
+    <input type="range" id="puissance" min="25" max="100" step="25" value="100"></label>
+  <p class="hint">En mode rapide, Néo vit aussi vite que l’appareil le permet dans cette limite. Moins de puissance : l’appareil chauffe moins et reste fluide, mais le temps passe moins vite. La vitesse réelle s’affiche en haut (par exemple ×40 = quarante fois le temps normal) ; elle varie selon ce que fait l’appareil.</p>
+  <div class="dialog-actions"><button value="cancel">Fermer</button></div>
+</form></dialog>
 <dialog id="person-dialog" aria-labelledby="person-title"><form method="dialog"><h2 id="person-title">Qui suivre ?</h2><div id="person-list" class="person-list"></div><div class="dialog-actions"><button value="cancel" class="btn">Fermer</button></div></form></dialog>
 <dialog id="play-dialog" aria-labelledby="play-title"><form method="dialog">
   <h2 id="play-title">Faire bouger un jouet</h2>

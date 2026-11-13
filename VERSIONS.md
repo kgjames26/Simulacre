@@ -87,3 +87,10 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Deux sortes de jauges, cohérentes partout, plus aucun pourcentage seul :
   - ce qui est bon ou mauvais (besoins, humeur, liens) : tête triste à gauche, tête épanouie à droite ; l'humeur se lit désormais « Se sent bien, Rassuré, Serein, Intéressé » ;
   - ce qui n'est ni bon ni mauvais (caractère, capacités, leadership, sentiments) : un mot à chaque bout (peu ↔ très, débutant ↔ expert), barre bleue.
+
+## v3.6
+- « Son entourage » devient « Sa sociabilité ». Les personnes sont classées par affinité avec Néo ; toucher un nom ouvre sa fiche : affinité avec Néo, compétences, caractère.
+- Les liens deviennent un sous-panneau des personnes : on choisit un premier puis un second personnage pour voir leur relation.
+- Vitesse : deux boutons clairs (×1 / Rapide). En rapide, la simulation va aussi vite que l'appareil le permet ; la vitesse réelle s'affiche en direct (ex. ×200). Menu Paramètres (⚙) : puissance allouée à la simulation (25 à 100 %).
+- Tous les arbres (jardin, parc, quartier) se coupent à la hache et repoussent. Joseph abat ceux du jardin ; Néo peut prendre la hache (et d'autres outils) et abattre un arbre s'il le découvre.
+- Les parents ne nourrissent plus Néo « par magie » : un repas prêt, sinon un en-cas pris dans le garde-manger. S'occuper de Néo crée de l'affinité.

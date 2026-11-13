@@ -26,7 +26,6 @@ export async function chargerQuartier(T,GLTFLoader,scene,Q){
   const travaux=[];
   for(const t of Q.tuiles)travaux.push(poser('roads',t.modele,{x:t.x,z:t.z,rot:t.rot,echelle:Q.T}));
   for(const h of Q.maisons)travaux.push(poser('suburban',h.modele,{x:h.x,z:h.z,rot:h.rot,echelle:7}));
-  for(const a of Q.arbres)travaux.push(poser('suburban',a.modele,{x:a.x,z:a.z,echelle:a.echelle}));
   for(const l of Q.lampadaires)travaux.push(poser('roads','light-square',{x:l.x,z:l.z,rot:l.rot,echelle:5}));
   for(const p of Q.panneaux)travaux.push(poser('roads',p.modele,{x:p.x,z:p.z,rot:p.rot,echelle:5}));
   // Haie basse et clôtures autour des jardins des voisins

@@ -29,14 +29,25 @@ export function creerAtelier(T,scene,mat,pos){
   const outils={};
   for(const [id,build] of Object.entries(modeles)){outils[id]={mur:build(),porte:build()};scene.add(outils[id].mur);}
   const orientationMur={hache:[0,0,0],scie:[0,0,Math.PI/2],marteau:[0,0,0],clous:[0,0,0],colle:[0,0,0],vis:[0,0,0],tournevis:[0,0,Math.PI/2],arrosoir:[0,0,0],tuyau:[Math.PI/2,0,0]};
-  // --- Arbre ---
-  const arbre=new T.Group();arbre.position.set(pos.arbre.x,0,pos.arbre.z);scene.add(arbre);
-  const tronc=mesh(cyl(.17,.26,2.4,9),'#7a5636',0,1.2,0,arbre);
-  const feuillage=new T.Group();feuillage.position.y=2.4;arbre.add(feuillage);
-  for(const [x,y,z,r,c] of [[0,.7,0,1.25,'#4c8a4a'],[.7,.2,.3,.9,'#5a9a52'],[-.6,.3,-.4,.95,'#437d44'],[.1,1.3,.1,.8,'#5fa056']]){
-    const b=mesh(new T.IcosahedronGeometry(r,1),c,x,y,z,feuillage);}
-  const souche=mesh(cyl(.22,.28,.28,9),'#8c6a45',pos.arbre.x,.14,pos.arbre.z);
-  const morceaux=[];for(let i=0;i<6;i++){const l=mesh(cyl(.07,.07,.4,8),BOIS_CLAIR,pos.arbre.x+.5+(i%3)*.22,.07,pos.arbre.z+.35+Math.floor(i/3)*.2);l.rotation.z=Math.PI/2;l.rotation.y=i*.4;morceaux.push(l);}
+  // --- Arbres : tous peuvent être abattus et repoussent. Construits à la première image où on les connaît. ---
+  const arbres3d=[];
+  function creerArbre(a){
+    const g=new T.Group();g.position.set(a.x,0,a.z);scene.add(g);
+    const h=a.grand?3:2.4,k=a.pommier?1:a.grand?1.25:.95;
+    mesh(cyl(.17*k,.26*k,h,9),'#7a5636',0,h/2,0,g);
+    const feuillage=new T.Group();feuillage.position.y=h;g.add(feuillage);
+    for(const [x,y,z,r,c] of [[0,.7,0,1.25,'#4c8a4a'],[.7,.2,.3,.9,'#5a9a52'],[-.6,.3,-.4,.95,'#437d44'],[.1,1.3,.1,.8,'#5fa056']])
+      mesh(new T.IcosahedronGeometry(r*k,1),c,x*k,y*k,z*k,feuillage);
+    if(a.pommier)for(let n=0;n<9;n++){const an=n*.7,rr=.9+(n%3)*.25;mesh(new T.SphereGeometry(.07,8,6),'#c9372c',Math.cos(an)*rr,.4+(n%4)*.35,Math.sin(an)*rr,feuillage);}
+    const souche=mesh(cyl(.22*k,.28*k,.28,9),'#8c6a45',a.x,.14,a.z);
+    return {g,souche,morceaux:null,a};
+  }
+  function morceauxDe(o){
+    if(o.morceaux)return o.morceaux;
+    o.morceaux=[];
+    for(let i=0;i<6;i++){const l=mesh(cyl(.07,.07,.4,8),BOIS_CLAIR,o.a.x+.5+(i%3)*.22,.07,o.a.z+.35+Math.floor(i/3)*.2);l.rotation.z=Math.PI/2;l.rotation.y=i*.4;o.morceaux.push(l);}
+    return o.morceaux;
+  }
   // --- Tas de bois contre le mur ---
   const tas=[];for(let i=0;i<24;i++){const l=mesh(cyl(.075,.075,.5,8),BOIS_CLAIR,pos.tas.x+.1,.1+Math.floor(i/8)*.15,pos.tas.z-.55+(i%8)*.155);l.rotation.x=Math.PI/2;l.rotation.z=0;l.rotation.y=0;l.visible=false;tas.push(l);}
   // --- Planches (sciées par Joseph) empilées contre le mur ---
@@ -63,10 +74,12 @@ export function creerAtelier(T,scene,mat,pos){
   return {
     update(a){
       if(!a)return;
-      const t=a.arbre.t;
-      arbre.visible=t>.14;arbre.scale.setScalar(.25+.75*t);arbre.rotation.z=-(a.arbre.chute||0)*1.45;
-      souche.visible=t<.6;
-      morceaux.forEach((m,i)=>{m.visible=i<a.arbre.morceaux;});
+      a.arbres?.forEach((arbre,i)=>{
+        const o=arbres3d[i]||=creerArbre(arbre);
+        o.g.visible=arbre.t>.14;o.g.scale.setScalar(.25+.75*arbre.t);o.g.rotation.z=-(arbre.chute||0)*1.45;
+        o.souche.visible=arbre.t<.6;
+        if(arbre.morceaux||o.morceaux)morceauxDe(o).forEach((m,k)=>{m.visible=k<arbre.morceaux;});
+      });
       tas.forEach((m,i)=>{m.visible=i<a.bois.tas;});
       planches.forEach((m,i)=>{m.visible=i<a.bois.planches;});
       pommes.forEach((g,i)=>{const m=a.pommes[i];g.visible=!!m;if(m)g.position.set(m.x,0,m.z);});

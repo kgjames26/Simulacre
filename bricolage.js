@@ -7,6 +7,16 @@ const OUTILS_DEF=[
 ];
 const MUR_X=-0.46,STAND_X=0.28;
 const ARBRE_POS={x:1.8,z:-8,stand:{x:.8,z:-8}};
+// Tous les arbres se coupent à la hache et repoussent : le pommier du jardin, les arbres du jardin, du parc et du quartier.
+function positionsArbres(){
+  const l=[{x:ARBRE_POS.x,z:ARBRE_POS.z,pommier:true}];
+  for(const [x,z] of [[-17,-10.5],[-15,10],[-6,-10],[-10,10],[7,-10],[16,-9],[17,9]])l.push({x,z});
+  if(typeof QUARTIER!=='undefined')for(const a of QUARTIER.arbres)l.push({x:+a.x.toFixed(2),z:+a.z.toFixed(2),grand:a.modele==='tree-large'});
+  return l;
+}
+const nouveauxArbres=()=>positionsArbres().map(p=>({...p,t:1,chute:0,morceaux:0,coupes:0}));
+const standArbre=a=>({x:a.x-.9,z:a.z});
+const dansPropriete=a=>a.x<4.2&&a.x>-19&&Math.abs(a.z)<12;
 const TAS_POS={x:0.12,z:1.4,stand:{x:0.75,z:1.4}};
 const PLANCHES_POS={x:0.18,z:2.7,stand:{x:0.75,z:2.7}};
 const FLEURS_POS=[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]];
@@ -14,7 +24,7 @@ const ROBINET={x:MUR_X,z:-0.3,stand:{x:STAND_X,z:-0.3}};
 function atelierInitial(){
   return {
     outils:OUTILS_DEF.map(([id,nom,z])=>({id,nom,x:MUR_X,z,floor:0,etat:'mur',plein:false})),
-    arbre:{t:1,coupes:0,morceaux:0,chute:0},
+    arbres:nouveauxArbres(),
     bois:{tas:3,poele:.7,planches:0},
     pommes:[],
     prochainePomme:30,
@@ -26,8 +36,10 @@ function atelierInitial(){
 }
 let atelier=atelierInitial();
 const outil=id=>atelier.outils.find(o=>o.id===id);
+const pommier=()=>atelier.arbres[0];
 function placeOutil(o){o.x=MUR_X;o.z=OUTILS_DEF.find(d=>d[0]===o.id)[2];o.etat='mur';o.plein=false;}
-const standOutil=id=>({x:STAND_X,z:OUTILS_DEF.find(d=>d[0]===id)[2]});
+// Où trouver un outil : à son crochet, ou là où quelqu'un l'a laissé.
+const standOutil=id=>()=>{const o=outil(id);return o.etat==='sol'?{x:o.x+.4,z:o.z}:{x:STAND_X,z:OUTILS_DEF.find(d=>d[0]===id)[2]};};
 function jourFictif(){const sec=ticks/120*TIME_SCALE;return {jour:1+Math.floor(sec/86400),heure:sec%86400/3600};}
 function temperature(){const {jour,heure}=jourFictif();return 11+9*Math.cos(2*Math.PI*(jour-200)/365)-(heure<7||heure>21?4:0);}
 const froid=()=>temperature()<9;
@@ -46,9 +58,10 @@ function stepRoutine(p,s){
   if(!e){ROUT.delete(p);return false;}
   p.activity=e.activity||r.nom;
   // Délai de marche proportionnel à la distance : on ne « téléporte » plus personne au bout de 50 s.
-  if(r.debut==null){r.debut=s;r.limite=s+(e.go?Math.hypot(e.go.x-p.x,e.go.z-p.z)/(.8*(p.vieux?.6:1))*1.6+15:0);}
-  if(e.go){
-    const reste=move(p,e.go.x,e.go.z,.8);
+  const go=typeof e.go==='function'?e.go():e.go;
+  if(r.debut==null){r.debut=s;r.limite=s+(go?Math.hypot(go.x-p.x,go.z-p.z)/(.8*(p.vieux?.6:1))*1.6+15:0);}
+  if(go){
+    const reste=move(p,go.x,go.z,.8);
     if(reste>.4&&s<r.limite)return true;
   }
   if(e.duree&&e.until==null)e.until=s+e.duree*(vieux(p)?1.6:1);
@@ -56,23 +69,27 @@ function stepRoutine(p,s){
   e.act?.(p,s);r.i++;r.debut=null;
   return true;
 }
-function prendre(p,id){const o=outil(id);o.etat='porte:'+p.id;p.carry=id;}
+function prendre(p,id){const o=outil(id);if(alex.carry===id)alex.carry=null;o.etat='porte:'+p.id;p.carry=id;}
 function poser(p,id){const o=outil(id);if(p.carry===id)p.carry=null;return o;}
 // La hache abat l'arbre et le débite vite : le but n'est pas de passer du temps, mais d'avoir du bois près de la maison.
-function routineAbattre(p){
-  const stand=standOutil('hache');
+function abattre(arbre,qui){
+  arbre.chute=.001;arbre.coupes++;
+  if(arbre.pommier)atelier.pommes.length=0;
+}
+function routineAbattre(p,arbre){
+  const stand=standOutil('hache'),pied=standArbre(arbre);
   const E=[
     {go:stand,activity:'Va chercher la hache',act:q=>prendre(q,'hache')},
-    {go:ARBRE_POS.stand,activity:'Frappe l’arbre à la hache',duree:5,act:()=>{atelier.arbre.chute=.001;atelier.pommes.length=0;atelier.arbre.coupes++;note('Joseph abat l’arbre du jardin à la hache. Il repoussera.','object');}},
-    {activity:'Regarde l’arbre tomber',duree:3,go:{x:ARBRE_POS.stand.x-.5,z:ARBRE_POS.stand.z}},
-    {go:{x:ARBRE_POS.stand.x,z:ARBRE_POS.stand.z+.8},activity:'Coupe le tronc en morceaux à la hache',duree:4,act:()=>{note('Joseph coupe le tronc en petits morceaux.','object');}},
-    {go:stand,activity:'Range la hache',act:q=>{const o=poser(q,'hache');placeOutil(o);}}
+    {go:pied,activity:'Frappe l’arbre à la hache',duree:5,act:()=>{abattre(arbre,'joseph');note('Joseph abat un arbre du jardin à la hache. Il repoussera.','object');}},
+    {activity:'Regarde l’arbre tomber',duree:3,go:{x:pied.x-.5,z:pied.z}},
+    {go:{x:pied.x,z:pied.z+.8},activity:'Coupe le tronc en morceaux à la hache',duree:4,act:()=>{note('Joseph coupe le tronc en petits morceaux.','object');}},
+    {go:()=>({x:STAND_X,z:OUTILS_DEF.find(d=>d[0]==='hache')[2]}),activity:'Range la hache',act:q=>{const o=poser(q,'hache');placeOutil(o);}}
   ];
   for(let k=0;k<3;k++){
-    E.push({go:ARBRE_POS.stand,activity:'Ramasse du bois',act:q=>{if(atelier.arbre.morceaux>0){atelier.arbre.morceaux--;q.carry='bûche';}}});
+    E.push({go:pied,activity:'Ramasse du bois',act:q=>{if(arbre.morceaux>0){arbre.morceaux--;q.carry='bûche';}}});
     E.push({go:TAS_POS.stand,activity:'Empile le bois contre le mur',duree:2,act:q=>{if(q.carry==='bûche'){q.carry=null;atelier.bois.tas++;}}});
   }
-  E.push({go:TAS_POS.stand,act:()=>{atelier.bois.tas+=3;atelier.arbre.morceaux=0;gagner('joseph',.1,.03);evoluer('joseph','perseverance',.01);}});
+  E.push({go:TAS_POS.stand,act:()=>{atelier.bois.tas+=3;arbre.morceaux=0;gagner('joseph',.1,.03);evoluer('joseph','perseverance',.01);}});
   lancerRoutine(p,'Bricole dehors',E);
 }
 // La scie, plus lente, sert à faire de jolies planches, rangées près de la maison.
@@ -83,7 +100,7 @@ function routinePlanches(p){
     {go:TAS_POS.stand,activity:'Prend une bûche',act:q=>{if(atelier.bois.tas>0)atelier.bois.tas--;}},
     {go:{x:PLANCHES_POS.stand.x,z:PLANCHES_POS.stand.z-.5},activity:'Scie des planches',duree:16,act:()=>{atelier.bois.planches+=2;}},
     {go:PLANCHES_POS.stand,activity:'Empile les planches contre le mur',duree:2,act:()=>{gagner('joseph',.08,.03);evoluer('joseph','patience',.012);evoluer('joseph','creativite',.006);note('Joseph range de nouvelles planches près de la maison.','object');}},
-    {go:stand,activity:'Range la scie',act:q=>{const o=poser(q,'scie');placeOutil(o);}}
+    {go:()=>({x:STAND_X,z:OUTILS_DEF.find(d=>d[0]==='scie')[2]}),activity:'Range la scie',act:q=>{const o=poser(q,'scie');placeOutil(o);}}
   ]);
 }
 function routineChauffage(p){
@@ -115,7 +132,10 @@ function stepBricolage(p,i,s){
   if(ROUT.has(p))return stepRoutine(p,s);
   if(p.id==='joseph'&&!vieux(p)){
     if(froid()&&atelier.bois.poele<.35&&atelier.bois.tas>0&&s>=atelier.suivant.joseph-30){if(routineChauffage(p)){atelier.suivant.joseph=s+60;return stepRoutine(p,s);}}
-    if(atelier.bois.tas<3&&atelier.arbre.t>=.95&&atelier.arbre.chute===0&&s>=atelier.suivant.joseph){atelier.suivant.joseph=s+240;routineAbattre(p);return stepRoutine(p,s);}
+    if(atelier.bois.tas<3&&s>=atelier.suivant.joseph){
+      const pret=atelier.arbres.filter(a=>dansPropriete(a)&&a.t>=.95&&!a.chute).sort((x,y)=>Math.hypot(x.x-TAS_POS.x,x.z-TAS_POS.z)-Math.hypot(y.x-TAS_POS.x,y.z-TAS_POS.z))[0];
+      if(pret){atelier.suivant.joseph=s+240;routineAbattre(p,pret);return stepRoutine(p,s);}
+    }
     if(atelier.bois.planches<8&&atelier.bois.tas>=3&&s>=atelier.suivant.joseph){atelier.suivant.joseph=s+200;routinePlanches(p);return stepRoutine(p,s);}
   }
   if(p.id==='marie'&&!vieux(p)&&s>=atelier.suivant.marie&&atelier.fleurs.some(f=>f.soif>.5)){atelier.suivant.marie=s+200;routineArroser(p);return stepRoutine(p,s);}
@@ -124,10 +144,19 @@ function stepBricolage(p,i,s){
 // À chaque pas : repousse de l'arbre, soif des fleurs, feu, vieillesse.
 function stepAtelier(s){
   const a=atelier;
-  if(a.arbre.chute>0){a.arbre.chute+=DT/2.5;if(a.arbre.chute>=1){a.arbre.chute=0;a.arbre.t=.12;a.arbre.morceaux=6;entityCache=null;}}
-  else if(a.arbre.t<1)a.arbre.t=Math.min(1,a.arbre.t+DT/420);
+  for(const arbre of a.arbres){
+    if(arbre.chute>0){arbre.chute+=DT/2.5;if(arbre.chute>=1){arbre.chute=0;arbre.t=.12;arbre.morceaux=6;entityCache=null;}}
+    else if(arbre.t<1)arbre.t=Math.min(1,arbre.t+DT/420);
+  }
+  // Un outil que Néo a pris : il le garde un moment, puis le laisse là où il est.
+  if(alex.carry&&outil(alex.carry)){
+    const o=outil(alex.carry);
+    if(o.etat!=='porte:alex'||s>(alex.carryUntil||0)){if(o.etat==='porte:alex'){o.etat='sol';o.x=alex.x;o.z=alex.z;}alex.carry=null;entityCache=null;}
+    else{o.x=alex.x;o.z=alex.z;}
+  }
   // Pommes : elles tombent, restent un moment, puis disparaissent. Personne ne sait qu'on peut les manger.
-  if(a.arbre.t>=.95&&a.arbre.chute===0&&s>=a.prochainePomme&&a.pommes.length<5){
+  const pm=a.arbres[0];
+  if(pm.t>=.95&&!pm.chute&&s>=a.prochainePomme&&a.pommes.length<5){
     const ang=rng()*Math.PI*2,r=.5+rng()*1.1;
     a.pommes.push({id:'p'+Math.floor(s),x:ARBRE_POS.x+Math.cos(ang)*r,z:ARBRE_POS.z+Math.sin(ang)*r,floor:0,nee:s});
     a.prochainePomme=s+45;entityCache=null;

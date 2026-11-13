@@ -877,7 +877,7 @@ function experience() {
         if(!house)note('Néo prend un repas.');
       }
       if(category==='social'){
-        friend.bond++;Brain.lien(friend.id,2);Brain.entraine(.003);
+        friend.bond++;Brain.lien(opaque('personne:'+friend.id),2);Brain.entraine(.003);
         relationshipEvent('alex',friend.id,'Rencontre',s,age);
         if(envieDeBienEtre('alex',friend)>.15){
           note('Néo vient voir '+characterNames[friend.id]+', qu’il aime bien et qui ne va pas très bien.','social');
@@ -966,12 +966,17 @@ function experience() {
       }
     }else move(p,goalX,goalZ,.75);
     if(i<2&&age<7&&Math.hypot(p.x-child.x,p.z-child.z)<1.35&&s>=nextParentCare&&(child.hunger>.24||child.fatigue>.48||(child.thirst||0)>.45)){
-      if(child.hunger>.24){if(kitchen.meals>0)takeServing(child);else child.hunger=Math.max(.08,child.hunger-.38);}
+      // Pas de nourriture magique : un repas prêt, sinon un petit en-cas pris dans le garde-manger s'il en reste.
+      if(child.hunger>.24){
+        if(kitchen.meals>0)takeServing(child);
+        else{const f=kitchen.pantry?.find(x=>x.stock>0);if(f){f.stock--;ensureFoodStock();child.hunger=Math.max(.08,child.hunger-.3);}}
+      }
       if(child.fatigue>.48)child.fatigue=Math.max(.12,child.fatigue-.28);
       if((child.thirst||0)>.45)child.thirst=Math.max(.1,child.thirst-.35);
       child.pleasure=clamp((child.pleasure||0)+.18,0,1);
       p.activity='Prend soin de '+(child===alex?'Néo':'Juliette');nextParentCare=s+18;
       note(characterNames[p.id]+' prend soin de '+(child===alex?'Néo':'Juliette')+'.','care');
+      if(child===alex){relationshipEvent('alex',p.id,'Prend soin de Néo',s,age);Brain.lien(opaque('personne:'+p.id),1);evoluer(p.id,'empathie',.002);}
     }
     for(const id of ['football','softBall','bikePark','bikeHome','toy']){
       const item=playItems[id];
@@ -1048,6 +1053,22 @@ function vueEtapes(){
   });
 }
 let activityData, nextActivitySnapshot=0, brainView=null;
+// Ce que chacun sait faire. Les adultes : écrit d'avance. Les enfants : seulement ce que Néo a validé.
+const MARCHE_NOMS=['Se redresser','Ramper','Tenir debout','Faire ses premiers pas','Marcher'];
+function competencesDe(p,recoit){
+  const vieuxJ=p.vieux;
+  if(p.id==='joseph')return [...(vieuxJ?[]:['Abattre un arbre à la hache','Faire des planches à la scie','Recharger le chauffage à bois']),'Cuisiner','Faire les courses au commerce','Prendre soin de Néo'];
+  if(p.id==='marie')return [...(p.vieux?[]:['Arroser les fleurs']),'Cuisiner','Faire les courses au commerce','Prendre soin des enfants','Recevoir des invités'];
+  if(p.id==='juliette')return ['Parler comme ses parents','Jouer avec les enfants du parc'];
+  const marche=records.flatMap((r,i)=>r.mastered?[MARCHE_NOMS[i]]:[]);
+  const gestes=recoit?Brain.APPRENABLES.filter(Brain.appris).map(g=>'Savoir '+g):[];
+  const courir=recoit&&Brain.capacite('course')>=SAIT_COURIR?['Courir']:[];
+  return [...marche,...gestes,...courir,...(recoit?['Reprendre '+Brain.confirmees().length+' découvertes de Néo']:[])];
+}
+function competencesNeo(){
+  return [...records.flatMap((r,i)=>r.mastered?[MARCHE_NOMS[i]]:[]),...Brain.APPRENABLES.filter(Brain.appris).map(g=>'Savoir '+g),
+    ...(Brain.capacite('course')>=SAIT_COURIR?['Courir']:[]),...(Object.values(Brain.state.corps.defis).some(d=>d.reussites)?['Grimper jusqu’en haut']:[])];
+}
 function snapshot() {
   if(!activityData||ticks>=nextActivitySnapshot){
     const vocabulary=dialogue.view().vocabulary.map(entry=>entry.word);
@@ -1056,7 +1077,11 @@ function snapshot() {
     for(const p of people){
       if(p.id==='juliette')p.age=Math.min(8,age+2);else if(playgroundFriends.includes(p.id))p.age=age;
       const recoit=FRIEND_IDS.includes(p.id)?partage.amis:(partage.amis&&K>BASE_LEVEL[p.id]);
-      p.niveau=BASE_LEVEL[p.id];p.partage=recoit;p.leadership=caractereDe(p.id)?.leadership||0;p.caractere={...caractereDe(p.id)};
+      p.niveau=BASE_LEVEL[p.id];p.partage=recoit;
+      const rel=relationships[['alex',p.id].sort().join(':')];
+      p.affinite=Math.max(rel?.bond||0,Brain.state.social.personnes[opaque('personne:'+p.id)]?.lien||0)/100;
+      p.rencontres=rel?.met||0;
+      p.competences=competencesDe(p,recoit);p.leadership=caractereDe(p.id)?.leadership||0;p.caractere={...caractereDe(p.id)};
       p.inherited=recoit?Brain.confirmees().length+vocabulary.length:0;
       if(playgroundFriends.includes(p.id))familyLexicons[p.id]=lexiqueEnfant(p,age,vocabulary);
       p.baseWords=familyLexicons[p.id]?.size||0;
@@ -1072,10 +1097,10 @@ function snapshot() {
     brainView.cortex=Cortex.view(observerLabel);
     nextActivitySnapshot=ticks+36;
   }
-  alex.leadership=Brain.state.caractere.leadership;alex.caractere={...Brain.state.caractere};
+  alex.leadership=Brain.state.caractere.leadership;alex.competences=competencesNeo();alex.caractere={...Brain.state.caractere};
   return {commerce:{stock:commerce.stock,visites:commerce.visites,quota:QUOTA_JOUR,prelev:{...commerce.prelev}},acces:{...acces},
-    atelier:{outils:atelier.outils.map(o=>({...o})),arbre:{...atelier.arbre},bois:{...atelier.bois},fleurs:atelier.fleurs.map(f=>({...f})),pommes:atelier.pommes.map(p=>({...p}))},
-    computer:house?.computer||null,ticks,skill,age,score,alex,people,playItems,relationships,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,
+    atelier:{outils:atelier.outils.map(o=>({...o})),arbres:atelier.arbres.map(a=>({x:a.x,z:a.z,t:a.t,chute:a.chute,morceaux:a.morceaux,pommier:a.pommier,grand:a.grand})),bois:{...atelier.bois},fleurs:atelier.fleurs.map(f=>({...f})),pommes:atelier.pommes.map(p=>({...p}))},
+    vitesse:+vitesse.toFixed(1),computer:house?.computer||null,ticks,skill,age,score,alex,people,playItems,relationships,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,
     dialogue:dialogue.view(),brain:brainView,activityData,courrier:activityData.courrier,
     playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
 }
@@ -1113,6 +1138,7 @@ onmessage=({data})=>{
     }
   }
   if(data.type==='mode'){mode=data.mode;accumulator=0;lastWall=performance.now();}
+  if(data.type==='puissance')puissance=Math.min(1,Math.max(.1,+data.valeur||1));
   if(data.type==='restore'){
     readyToRun=true;
     dialogue.resumeAt(data.archivedId);
@@ -1142,7 +1168,7 @@ onmessage=({data})=>{
     if(Array.isArray(s.historiqueEtapes))historiqueEtapes=s.historiqueEtapes;
     if(s.caractere)for(const [id,c] of Object.entries(s.caractere))if(caractere[id])Object.assign(caractere[id],c);
     if(s.acces)acces=s.acces;
-    if(s.atelier?.outils&&s.atelier.fleurs)atelier=s.atelier;
+    if(s.atelier?.outils&&s.atelier.fleurs){atelier=s.atelier;if(!Array.isArray(atelier.arbres))atelier.arbres=nouveauxArbres();delete atelier.arbre;if(!atelier.outils.some(o=>o.id==='hache'))atelier.outils.unshift({id:'hache',nom:'hache',x:MUR_X,z:-3.1,floor:0,etat:'mur',plein:false});}
     nextRefill=Number.isFinite(s.nextRefill)?s.nextRefill:0;
     if(s.motorVersion===MOTOR_VERSION)Object.assign(ball,s.ball);
     for(const [id,item] of Object.entries(s.playItems||{}))if(playItems[id])Object.assign(playItems[id],item);
@@ -1157,7 +1183,15 @@ Brain.init(20260101);
 Brain.bind({lexique:()=>dialogue.view().vocabulary});
 episode=newEpisode();
 note('Néo commence à explorer ses mouvements.');
-let lastPost=0,lastSave=0;
+let lastPost=0,lastSave=0,puissance=1,vitesse=1;
+const mesures=[];
+// Vitesse réelle : temps simulé / temps écoulé, mesurée sur ~1,5 s (elle varie selon ce que l'appareil peut donner).
+function mesurerVitesse(now){
+  mesures.push([now,ticks]);
+  while(mesures.length>2&&now-mesures[0][0]>1500)mesures.shift();
+  const [t0,k0]=mesures[0];
+  if(now-t0>300)vitesse=(ticks-k0)*DT/((now-t0)/1000);
+}
 function run(){
   const now=performance.now();
   if(!readyToRun){lastWall=now;setTimeout(run,16);return;}
@@ -1167,7 +1201,8 @@ function run(){
     while(accumulator>=DT){ticks++;if(!sleeps.has(alex))motorStep();experience();accumulator-=DT;}
   }else{
     accumulator=0;
-    const deadline=performance.now()+11;
+    // Accéléré : on calcule aussi vite que l'appareil le permet, dans la part de puissance choisie.
+    const deadline=performance.now()+Math.max(2,15*puissance);
     do {
       for(let n=0;n<96;n++){
         ticks++;if(!sleeps.has(alex))motorStep();experience();
@@ -1175,10 +1210,11 @@ function run(){
     }while(performance.now()<deadline);
   }
   if(now-lastPost>32){
+    mesurerVitesse(now);
     const lines=dialogue.takeNew();
     postMessage({type:'state',state:snapshot(),lines});lastPost=now;
   }
   if(now-lastSave>4500){postMessage({type:'save',state:save()});lastSave=now;}
-  setTimeout(run,mode==='turbo'?0:8);
+  setTimeout(run,mode==='turbo'?Math.round(16*(1-puissance)):8);
 }
 run();

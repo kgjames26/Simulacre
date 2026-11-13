@@ -118,7 +118,7 @@ function entities(){
   if(typeof atelier!=='undefined'){
     for(const o of atelier.outils)add('objet:outil-'+o.id,'objet',o.nom,o.x,o.z,[.3,.4,0,0,0,0],{outilId:o.id,dynamic:o});
     for(const m of atelier.pommes)add('objet:pomme-'+m.id,'objet','pomme',m.x,m.z,[.05,.1,0,0,0,0],{pommeId:m.id,dynamic:m});
-    add('objet:arbre','objet','arbre',ARBRE_POS.x,ARBRE_POS.z,[3,1,0,0,1,0]);
+    atelier.arbres.forEach((a,i)=>add(i?'objet:arbre-'+i:'objet:arbre','objet',a.pommier?'pommier':'arbre',a.x,a.z,[3,1,0,0,1,0],{arbreIdx:i,dynamic:a}));
     atelier.fleurs.forEach((f,i)=>add('objet:fleur-'+i,'objet','fleur',f.x,f.z,[.3,.1,.8,0,1,0],{plante:true}));
   }
   if(typeof QUARTIER!=='undefined')QUARTIER.commerce.rayons.forEach((r,i)=>add('objet:rayon-'+i,'objet','rayon du commerce',r.x,r.z,[1.6,.8,0,0,0,0],{rayon:true}));
@@ -161,11 +161,22 @@ function respond(entity,prim,s){
     return {flags:effect.flags,contact:{id:entity.houseId,until:s+effect.duration},
       besoins:effect.besoin?.(alex)??{},plaisir:effect.plaisir||0};
   }
+  if(entity.arbreIdx!=null){
+    const a=atelier.arbres[entity.arbreIdx];
+    if(prim==='frapper'&&alex.carry==='hache'&&a.t>=.95&&!a.chute){
+      abattre(a,'alex');note('Néo abat un arbre avec la hache !','object');
+      return {flags:['tombe','bois','effort'],plaisir:.2,succes:true};
+    }
+    if(a.chute||a.t<.95)return none;
+    return hit(entity,prim);
+  }
   if(entity.outilId){
     if(prim!=='saisir')return hit(entity,prim);
     const o=outil(entity.outilId);
     if(o.etat.startsWith('porte'))return none;
     neoToucheOutil(o,s);
+    // Il peut garder en main ce qu'il saisit (sauf les boîtes et le tuyau), un moment.
+    if(['hache','scie','marteau','tournevis','arrosoir','colle'].includes(o.id)&&!alex.carry){alex.carry=o.id;alex.carryUntil=s+45;o.etat='porte:alex';}
     return {flags:['objet_bouge','outil'],plaisir:.04};
   }
   if(entity.pommeId){

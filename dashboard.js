@@ -6,8 +6,8 @@ const pct=v=>Math.round((v||0)*100)+' %';
 export const TIME_SCALE=144;           // 1 jour fictif = 10 minutes de simulation
 export const AGES=['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
 const MARCHE=['Se redresser','Ramper','Tenir debout','Premiers pas','Marcher'];
-const PAGES={monde:'Le monde',cerveau:'Son cerveau',croissance:'Sa croissance',entourage:'Son entourage',nuits:'Ses nuits'};
-const ANCIENNES={apprend:'cerveau',grandir:'croissance',paroles:'entourage',proches:'entourage',ensemble:'monde'};
+const PAGES={monde:'Le monde',cerveau:'Son cerveau',croissance:'Sa croissance',sociabilite:'Sa sociabilité',nuits:'Ses nuits'};
+const ANCIENNES={apprend:'cerveau',grandir:'croissance',paroles:'sociabilite',proches:'sociabilite',entourage:'sociabilite',ensemble:'monde'};
 const GENRES={social:'Relation',play:'Jeu',food:'Repas',sleep:'Sommeil',object:'Objet',care:'Soin',limite:'Limite'};
 const VERBES={pousser:'Pousser',tirer:'Tirer',saisir:'Prendre',frapper:'Frapper',tourner:'Tourner',monter:'Monter sur',grimper:'Grimper sur',sauter:'Sauter sur'};
 const EFFETS={mou:'c’est mou',soi_monte:'on peut s’y installer',lumiere:'ça s’allume',bruit:'ça fait du bruit',objet_bouge:'ça bouge',papier:'ça se feuillette',
@@ -105,7 +105,7 @@ async function history(){
 }
 async function renderTranscript(){
   const n=++request,list=await history();
-  if(n!==request||page!=='entourage')return;
+  if(n!==request||page!=='sociabilite')return;
   const rows=list.slice(0,PAGE_SIZE);
   paint('conversation-lines',rows.map(l=>l.id).join(','),()=>rows.length?rows.map(l=>{
     const who=names[l.speaker]||l.speaker,to=names[l.listener];
@@ -218,35 +218,47 @@ function renderCroissance(s){
   paint('composed-phrases',ph.map(p=>p.at).join(),()=>ph.length?ph.map(p=>el('li',{},el('strong',{textContent:'« '+p.text+' »'}),el('small',{textContent:stamp(p.at)}))):[el('li',{className:'muted',textContent:'Aucune phrase encore.'})]);
 }
 
-// ---------- page : son entourage ----------
+// ---------- page : sa sociabilité ----------
 function humeur(p){if(p.lie>.8)return 'dort';if(p.fatigue>.7)return 'fatigué';if(p.hunger>.65)return 'a faim';if((p.pleasure||0)>.2)return 'content';return 'calme';}
 function renderEntourage(s){
   const people=[{...s.alex,id:'alex'},...s.people];
   setMeta('meta-personnes',fmt(people.length));
   const box=ui('people');
-  for(const p of people){
+  // Néo d'abord, puis les autres du plus proche au plus lointain.
+  const tries=[people[0],...people.slice(1).sort((x,y)=>(y.affinite||0)-(x.affinite||0))];
+  for(const p of tries){
     let f=fiches.get(p.id);
     if(!f){
-      f={act:el('small'),meta:el('span',{className:'meta'}),corps:el('div',{className:'stack'}),traits:el('div',{className:'bars'})};
+      f={act:el('small'),meta:el('span',{className:'meta'}),infos:el('div',{className:'stack'}),aff:el('div',{className:'stack'}),comp:el('div',{className:'stack'}),traits:el('div',{className:'bars'})};
       f.det=el('details',{className:'acc',dataset:{id:'p-'+p.id}});
-      f.det.open=ouverts['p-'+p.id]??p.id==='alex';
+      f.det.open=ouverts['p-'+p.id]??false;
+      const sous=p.id==='alex'?[]:[panneau('pa-'+p.id,{titre:'Affinité avec Néo',sous:'Ce qui les rapproche',ouvert:true},f.aff)];
       f.det.append(el('summary',{},el('span',{className:'acc-t'},el('strong',{textContent:names[p.id]}),f.act),f.meta),
-        el('div',{className:'acc-body accs'},el('div',{className:'acc-body'},f.corps),panneau('pc-'+p.id,{titre:'Caractère',sous:'Évolue avec ce qu’il vit'},f.traits)));
-      box.append(f.det);fiches.set(p.id,f);
+        el('div',{className:'acc-body accs'},el('div',{className:'acc-body'},f.infos),...sous,
+          panneau('pk-'+p.id,{titre:'Compétences',sous:p.id==='alex'?'Ce qu’il a appris':'Ce qu’il ou elle sait faire'},f.comp),
+          panneau('pc-'+p.id,{titre:'Caractère',sous:'Évolue avec ce qu’il vit'},f.traits)));
+      fiches.set(p.id,f);
     }
     f.act.textContent=(p.vieux?'Âgé · ':'')+(p.activity||'—');
-    f.meta.textContent=humeur(p);f.meta.className='meta '+(humeur(p)==='a faim'||humeur(p)==='fatigué'?'warm':humeur(p)==='content'?'good':'');
-    const cle=[p.partage,Math.round((p.leadership||0)*50),p.baseWords,s.age].join();
+    const hu=humeur(p);
+    f.meta.textContent=p.id==='alex'?hu:hu+' · affinité '+Math.round((p.affinite||0)*100);
+    f.meta.className='meta '+(hu==='a faim'||hu==='fatigué'?'warm':hu==='content'?'good':'');
+    const cle=[p.partage,Math.round((p.leadership||0)*50),p.baseWords,s.age,Math.round((p.affinite||0)*50),p.rencontres,(p.competences||[]).join()].join();
     if(f.cle!==cle){
       f.cle=cle;
       const top=p.caractere?Object.entries(p.caractere).filter(([k])=>k!=='leadership').sort((x,y)=>y[1]-x[1]).slice(0,3).map(([k])=>el('span',{className:'chip off',textContent:TRAITS[k]})):[];
-      f.corps.replaceChildren(niveauJauge('Leadership',p.leadership||0),el('div',{className:'chips'},...top),
+      f.infos.replaceChildren(el('div',{className:'chips'},...top),
         p.id==='alex'?row('Étape de vie',AGES[s.age]):row('Ce que Néo découvre',p.partage?'il le reçoit':'pas encore'),
         ...(p.baseWords?[row('Mots connus',fmt(p.baseWords))]:[]));
+      f.aff.replaceChildren(humeurJauge('Affinité',p.affinite||0),row('Rencontres avec Néo',fmt(p.rencontres||0)));
+      const comp=p.competences||[];
+      f.comp.replaceChildren(niveauJauge('Leadership',p.leadership||0),...(comp.length?comp.map(c=>item(c,null,badge('sait faire','good'))):[empty(p.id==='alex'?'Rien encore : il découvre son corps.':'Rien encore : ce que Néo valide viendra ici.')]));
     }
     const ct=JSON.stringify(Object.values(p.caractere||{}).map(v=>Math.round(v*50)));
     if(f.ct!==ct){f.ct=ct;f.traits.replaceChildren(...Object.entries(TRAITS).map(([k,l])=>niveauJauge(l,p.caractere?.[k]||0)));}
   }
+  const ordre=tries.map(p=>p.id).join();
+  if(box.dataset.ordre!==ordre){box.dataset.ordre=ordre;for(const p of tries)box.append(fiches.get(p.id).det);}
   renderRelation(s);
   const kind=ui('interaction-filter').value,events=(s.activityData?.events||[]).filter(e=>!kind||e.kind===kind).slice(0,40);
   paint('interaction-lines',kind+events.map(e=>e.ticks).join(),()=>events.length?events.map(e=>el('li',{},document.createTextNode(e.message),el('small',{textContent:(GENRES[e.kind]||'')+' · '+stamp(e.ticks/120)}))):[el('li',{textContent:'Rien pour ce filtre.'})]);
@@ -258,19 +270,26 @@ function renderEntourage(s){
   ui('listening-summary').textContent=fmt(d.audible)+' phrases entendues par Néo · '+fmt(d.known)+(d.known>1?' mots compris':' mot compris')+(archiveStatus==='indisponible'?' · historique local indisponible':'');
 }
 const fiches=new Map();
-let relationKeys='';
+// Liens : on choisit deux personnes, les statistiques de leur relation apparaissent.
+let listesLiens=false;
 function renderRelation(s){
-  const pairs=Object.entries(s.relationships||{}).sort(([,a],[,b])=>Number(b.couple)-Number(a.couple)||b.bond-a.bond);
-  const select=ui('relationship-filter'),keys=pairs.map(([id])=>id).join();
-  if(keys!==relationKeys){const v=select.value;select.replaceChildren(...pairs.map(([id,r])=>new Option(names[r.a]+' et '+names[r.b],id)));if(pairs.some(([id])=>id===v))select.value=v;relationKeys=keys;}
-  const r=s.relationships?.[select.value]||pairs[0]?.[1];
-  if(!r){paint('relationship-summary','0',()=>[empty('Aucun lien pour l’instant.')]);ui('relationship-history').replaceChildren();return;}
+  const A=ui('lien-a'),B=ui('lien-b');
+  if(!listesLiens){
+    const ids=['alex',...s.people.map(p=>p.id)];
+    for(const sel of [A,B])sel.replaceChildren(new Option(sel===A?'Premier personnage…':'Second personnage…',''),...ids.map(id=>new Option(names[id],id)));
+    A.value='alex';listesLiens=true;
+  }
+  const a=A.value,b=B.value;
+  const r=a&&b&&a!==b?s.relationships?.[[a,b].sort().join(':')]:null;
+  if(!a||!b||a===b){paint('relationship-summary','choix',()=>[empty('Choisissez deux personnes différentes.')]);ui('relationship-history').replaceChildren();return;}
+  if(!r){paint('relationship-summary','aucun'+a+b,()=>[empty(names[a]+' et '+names[b]+' ne se sont pas encore vraiment rencontrés.')]);ui('relationship-history').replaceChildren();return;}
   const label=r.couple?'En couple':r.romance>20?'Attirance':r.bond>=45?'Proches':'Se connaissent';
-  paint('relationship-summary',JSON.stringify([r.a,r.b,r.bond,r.tendresse,r.attirance,r.complicite,r.couple]),()=>[humeurJauge(label,r.bond/100),
+  paint('relationship-summary',JSON.stringify([r.a,r.b,r.bond,r.tendresse,r.attirance,r.complicite,r.couple,r.met]),()=>[humeurJauge('Lien',r.bond/100),
+    row('Ce qu’ils sont',label),row('Rencontres',fmt(r.met||0)),
     ...(r.tendresse||r.attirance||r.complicite?[niveauJauge('Tendresse',(r.tendresse||0)/100),niveauJauge('Attirance',(r.attirance||0)/100),niveauJauge('Complicité',(r.complicite||0)/100)]:[]),
     ...(r.separations?[row('Séparations',fmt(r.separations))]:[])]);
   const ev=r.history.slice(-30).reverse();
-  paint('relationship-history',r.a+r.b+ev.length+(ev[0]?.at||''),()=>ev.map(e=>el('li',{},document.createTextNode(e.event),el('small',{textContent:stamp(e.at)}))));
+  paint('relationship-history',r.a+r.b+ev.length+(ev[0]?.at||''),()=>ev.length?ev.map(e=>el('li',{},document.createTextNode(e.event),el('small',{textContent:stamp(e.at)}))):[el('li',{textContent:'Rien pour l’instant.'})]);
 }
 
 // ---------- page : ses nuits ----------
@@ -299,7 +318,7 @@ function update(state,force=false){
   if(page==='cerveau')renderCerveau(state);
   if(page==='croissance')renderCroissance(state);
   if(page==='nuits')renderNuits(state);
-  if(page==='entourage'){
+  if(page==='sociabilite'){
     renderEntourage(state);
     const last=state.dialogue.lines.at(-1)?.id||0;
     if(force||before===Infinity&&last!==lastLine)renderTranscript();
@@ -324,7 +343,7 @@ export function setupDashboard(personNames){
   ui('vocabulary-search').oninput=()=>current&&renderVocabulary(current.dialogue);
   ui('speaker-filter').onchange=resetTranscript;
   ui('interaction-filter').onchange=()=>update(current,true);
-  ui('relationship-filter').onchange=()=>current&&renderRelation(current);
+  ui('lien-a').onchange=ui('lien-b').onchange=()=>current&&renderRelation(current);
   ui('older-lines').onclick=()=>{const b=Number(ui('older-lines').dataset.before);if(b){stack.push(before);before=b;renderTranscript();}};
   ui('live-lines').onclick=resetTranscript;
   restaurer();
