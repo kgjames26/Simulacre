@@ -844,6 +844,7 @@ async function showWorld(){
       const bounds=new T.Box3().setFromObject(park), span=bounds.getSize(new T.Vector3()), center=bounds.getCenter(new T.Vector3());
       const s=12/Math.max(span.x,span.z);
       park.scale.setScalar(s);park.position.set(10-center.x*s,.05-bounds.min.y*s,3-center.z*s);
+      park.traverse(object=>{if(!object.isMesh)return;for(const material of [object.material].flat()){if(!material?.color)continue;const name=(object.name+' '+material.name).toLowerCase();if(!material.map&&material.color.getHex()===0xffffff)material.color.set(/slide|toboggan/.test(name)?'#d77a4e':/swing|balancoire/.test(name)?'#d4a653':/grass|herbe|tree|arbre/.test(name)?'#789b65':'#c5b79e');}});
       scene.add(park);
       park.updateMatrixWorld(true);
       const worldPoint=(x,z,height)=>park.localToWorld(new T.Vector3(x,height,-z));
