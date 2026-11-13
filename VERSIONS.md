@@ -68,3 +68,11 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Calculs des parents vraiment rares.
 - Leadership pour chaque personnage ; celui de Néo se construit quand les autres le suivent ou reprennent ses découvertes. Les enfants qui en ont moins que lui le suivent.
 - Carte : déplacement au doigt ou à la souris réparé (bloqué après avoir choisi un étage), bouton plein écran, bouton Étage/Rez corrigé, murs et toits transparents devant le personnage suivi.
+
+## v3.3
+- Traits de caractère pour tous (curiosité, persévérance, prudence, sociabilité, empathie, créativité, indépendance, patience, optimisme, leadership), qui évoluent avec ce que chacun vit ; ceux de Néo vivent dans son cerveau et influencent son exploration et son envie d'aider.
+- Règle du langage des autres personnages : vocabulaire des parents débloqué par étape de vie (+ mots de Néo s'il est au moins aussi jeune) ; Juliette parle comme ses parents.
+- Règle : toute chose nommée entre automatiquement dans le langage de Joseph, Marie et Juliette.
+- Joseph et Marie : 6 000 mots (dont 3 000 pluriels et conjugaisons) et 3 000 phrases d'échange.
+- Commerce : droit de 14 par personne et par jour (au lieu de 8) : toute la famille avait faim.
+- Correction : « Regardu » dans d'anciennes phrases.

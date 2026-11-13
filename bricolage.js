@@ -72,7 +72,7 @@ function routineAbattre(p){
     E.push({go:ARBRE_POS.stand,activity:'Ramasse du bois',act:q=>{if(atelier.arbre.morceaux>0){atelier.arbre.morceaux--;q.carry='bûche';}}});
     E.push({go:TAS_POS.stand,activity:'Empile le bois contre le mur',duree:2,act:q=>{if(q.carry==='bûche'){q.carry=null;atelier.bois.tas++;}}});
   }
-  E.push({go:TAS_POS.stand,act:()=>{atelier.bois.tas+=3;atelier.arbre.morceaux=0;gagner('joseph',.1,.03);}});
+  E.push({go:TAS_POS.stand,act:()=>{atelier.bois.tas+=3;atelier.arbre.morceaux=0;gagner('joseph',.1,.03);evoluer('joseph','perseverance',.01);}});
   lancerRoutine(p,'Bricole dehors',E);
 }
 // La scie, plus lente, sert à faire de jolies planches, rangées près de la maison.
@@ -82,7 +82,7 @@ function routinePlanches(p){
     {go:stand,activity:'Va chercher la scie',act:q=>prendre(q,'scie')},
     {go:TAS_POS.stand,activity:'Prend une bûche',act:q=>{if(atelier.bois.tas>0)atelier.bois.tas--;}},
     {go:{x:PLANCHES_POS.stand.x,z:PLANCHES_POS.stand.z-.5},activity:'Scie des planches',duree:16,act:()=>{atelier.bois.planches+=2;}},
-    {go:PLANCHES_POS.stand,activity:'Empile les planches contre le mur',duree:2,act:()=>{gagner('joseph',.08,.03);note('Joseph range de nouvelles planches près de la maison.','object');}},
+    {go:PLANCHES_POS.stand,activity:'Empile les planches contre le mur',duree:2,act:()=>{gagner('joseph',.08,.03);evoluer('joseph','patience',.012);evoluer('joseph','creativite',.006);note('Joseph range de nouvelles planches près de la maison.','object');}},
     {go:stand,activity:'Range la scie',act:q=>{const o=poser(q,'scie');placeOutil(o);}}
   ]);
 }
@@ -107,7 +107,7 @@ function routineArroser(p){
     {go:{x:sol.x+.1,z:sol.z+.3},activity:'Reprend l’arrosoir',act:q=>{q.carry='arrosoir';outil('arrosoir').etat='porte:'+q.id;}}
   ];
   FLEURS_POS.forEach(([x,z],i)=>E.push({go:{x,z:z-.75},activity:'Arrose les fleurs',duree:3,act:()=>{atelier.fleurs[i].soif=0;}}));
-  E.push({go:stand('arrosoir'),activity:'Range l’arrosoir',act:q=>{const o=poser(q,'arrosoir');placeOutil(o);gagner('marie',.18,.06);note('Marie arrose les fleurs. Cela lui fait plaisir.','care');}});
+  E.push({go:stand('arrosoir'),activity:'Range l’arrosoir',act:q=>{const o=poser(q,'arrosoir');placeOutil(o);gagner('marie',.18,.06);evoluer('marie','patience',.01);evoluer('marie','optimisme',.01);note('Marie arrose les fleurs. Cela lui fait plaisir.','care');}});
   lancerRoutine(p,'Entretient les fleurs',E);
 }
 function stepBricolage(p,i,s){
@@ -149,7 +149,7 @@ function neoToucheOutil(o,s){
   if(premiere){gagner('alex',.08,.03);note('Néo touche pour la première fois '+o.nom+'.','object');}
   const distincts=Object.keys(n.touches).length,total=Object.values(n.touches).reduce((a,b)=>a+b,0);
   if(distincts>=2&&total>=4*(n.fabrications+1)){
-    n.fabrications++;gagner('alex',.25,.08);
+    n.fabrications++;gagner('alex',.25,.08);Brain.trait('creativite',.05);
     note('Néo assemble quelque chose avec ce qu’il a trouvé. Il en est fier.','object');
   }
 }

@@ -1,6 +1,6 @@
 // Pénurie, commerce de proximité, accès aux maisons, miroir des camarades. Aucun personnage n'explique rien à Néo.
 // Argent = 0 : pas de prix ni de caisse. Chaque agent a un quota de prélèvement par jour fictif.
-const QUOTA_JOUR=8,STOCK_JOUR_COMMERCE=60;
+const QUOTA_JOUR=14,STOCK_JOUR_COMMERCE=100;   // assez pour nourrir la famille si les adultes font les courses, pas plus
 let commerce={jour:0,stock:STOCK_JOUR_COMMERCE,prelev:{},total:0,visites:0};
 let acces={amisAccompagnes:false,visites:0,niveau:0};
 // Interdits des parents : zones où Néo peut aller, élargies petit à petit avec l'âge. Jamais chez les autres.
@@ -62,7 +62,7 @@ function routineCourses(p){
     {go:devant,activity:'Rentre à la maison'},
     {go:rue,activity:'Rentre à la maison'},
     {go:portail,activity:'Rentre à la maison'},
-    {go:{x:p.homeX,z:p.homeZ},activity:'Range les provisions',duree:2,act:q=>{if(q.sac){ranger(q.sac);note(characterNames[q.id]+' rapporte des provisions du commerce ('+q.sac+').','food');}q.carry=null;q.sac=0;q.enCourse=false;commerce.visites++;}}
+    {go:{x:p.homeX,z:p.homeZ},activity:'Range les provisions',duree:2,act:q=>{if(q.sac){ranger(q.sac);note(characterNames[q.id]+' rapporte des provisions du commerce ('+q.sac+').','food');}q.carry=null;q.sac=0;q.enCourse=false;commerce.visites++;evoluer(q.id,'independance',.01);}}
   ]);
 }
 function stepCourses(p,i,s){
@@ -85,7 +85,7 @@ function stepVisiteAmi(marie,s){
       if(move(marie,ami.x-.8,ami.z,.9)<.9){v.phase='entre';v.until=s+999;}
     }else if(v.phase==='entre'){
       marie.activity='Fait entrer '+characterNames[ami.id];
-      if(move(marie,-6,-1,.9)<.5){v.phase='salon';v.until=s+30;acces.visites++;note('Marie fait entrer '+characterNames[ami.id]+' dans la maison.','social');}
+      if(move(marie,-6,-1,.9)<.5){v.phase='salon';v.until=s+30;acces.visites++;evoluer('marie','sociabilite',.01);evoluer(ami.id,'sociabilite',.01);note('Marie fait entrer '+characterNames[ami.id]+' dans la maison.','social');}
     }else if(v.phase==='salon'){
       marie.activity='Reçoit '+characterNames[ami.id];
       if(s>=v.until)v.phase='sortie';
@@ -110,12 +110,12 @@ function amiAccompagne(f,s){
   return true;
 }
 // Les camarades ne progressent pas seuls : ils reprennent en miroir ce que Néo a déjà fait sur les équipements du parc.
-const leadershipDe=id=>id==='alex'?Brain.state.social.leadership||0:socialStyle[id]?.leadership||0;
+const leadershipDe=id=>caractereDe(id)?.leadership||0;
 function miroirAmi(f,i,s){
   // Si Néo entraîne davantage que cet enfant et qu'il est proche, l'enfant le suit.
   const d=Math.hypot(alex.x-f.x,alex.z-f.z);
   if((alex.floor||0)===(f.floor||0)&&d<9&&leadershipDe('alex')>leadershipDe(f.id)&&Math.sin(s*.03+i*2.1)>-.2){
-    if(d>1.2&&ticks%240===0)Brain.entraine(.004);
+    if(d>1.2&&ticks%240===0){Brain.entraine(.004);evoluer(f.id,'sociabilite',.002);}
     const a=i*1.6;
     return {x:alex.x+Math.cos(a)*1.1,z:alex.z+Math.sin(a)*1.1,activity:'Suit Néo'};
   }
@@ -123,6 +123,6 @@ function miroirAmi(f,i,s){
   const faits=Object.keys(parkMemory||{}).filter(id=>parkMemory[id]>=1&&park.approaches[id]);
   if(!faits.length||Math.sin(s*.05+i*1.7)<.25)return null;
   const id=faits[(Math.floor(s/40)+i)%faits.length],pt=park.approaches[id];
-  if(ticks%600===0)Brain.entraine(.006);
+  if(ticks%600===0){Brain.entraine(.006);evoluer(f.id,'curiosite',.004);}
   return {x:pt.x,z:pt.z,activity:'Refait ce que Néo a découvert au parc'};
 }

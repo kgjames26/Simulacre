@@ -32,7 +32,9 @@ const Brain=(()=>{
       objets:{registre:{},concepts:[],glyphes:{}},
       memoire:{essais:[],episodes:[],total:0},
       causes:{liste:[]},
-      social:{personnes:{},leadership:0},
+      social:{personnes:{}},
+      // caractère : seule la curiosité est forte dès la naissance (inné), le reste se forge en vivant
+      caractere:{curiosite:.85,perseverance:.4,prudence:.3,sociabilite:.4,empathie:.35,creativite:.3,independance:.2,patience:.3,optimisme:.5,leadership:0},
       emotions:{valence:0,peur:0,frustration:0,ennui:0,confiance:.4,historique:[]},
       envies:{questions:[],objectifs:[],habitudes:[]},
       associations:{noeuds:{},liens:{},idees:[],travail:{items:[],t:0},surprise:0,deductions:0,v:0,sceneAt:-1e9},
@@ -106,6 +108,7 @@ const Brain=(()=>{
     const premiere=i.n===0;
     i.n++;i.t=Math.round(t);
     S.emotions.frustration=Math.min(1,S.emotions.frustration+.04);
+    trait('prudence',.008);
     return premiere;
   }
   const interdit=(x,z,floor)=>(S.espace.interdits[cle3(x,z,floor)]?.n||0);
@@ -117,9 +120,10 @@ const Brain=(()=>{
     p.dernier=t;p.pos=pos;
     return p;
   }
-  function lien(id,delta){const p=S.social.personnes[id];if(p)p.lien=clamp(p.lien+delta,0,100);}
+  function lien(id,delta){const p=S.social.personnes[id];if(p)p.lien=clamp(p.lien+delta,0,100);if(delta>0)trait('sociabilite',.006);}
   // Leadership : grandit quand les autres le suivent ou reprennent ce qu'il a découvert, s'use un peu sinon.
-  function entraine(gain){S.social.leadership=clamp((S.social.leadership||0)+gain*(1-(S.social.leadership||0)),0,1);}
+  function trait(nom,delta){const c=S.caractere;if(c[nom]==null)return;c[nom]=clamp(c[nom]+delta*(delta>0?1-c[nom]:c[nom]),0,1);}
+  const entraine=gain=>trait('leadership',gain);
   function soulagement(besoin,id){const p=S.social.personnes[id];if(p)p.soulage[besoin]=(p.soulage[besoin]||0)+1;}
 
   // ---------- corps ----------
@@ -163,6 +167,9 @@ const Brain=(()=>{
       if(g.essais>=3){g.appris=true;geste=e.prim;note(e.t,'nouveau geste : '+e.prim,e.prim);}
     }
     let c=cause(e.prim,e.cible);
+    if(c&&e.succes&&c.echecs>=3)trait('perseverance',.05);
+    if(e.douleur){trait('prudence',.05);trait('curiosite',-.02);}
+    if(e.succes&&Object.values(e.besoins||{}).some(v=>v>.05))trait('independance',.015);
     if(!c){
       c={id:'c-'+(S.next.c++),action:e.prim,cible:e.cible,effet:[],essais:0,reussites:0,echecs:0,confiance:0,
         statut:'essai',valeur:0,besoins:{},cree:Math.round(e.t)};
@@ -181,7 +188,7 @@ const Brain=(()=>{
     if(c.statut==='confirme'){
       if(c.echecs>=4){c.statut='contredite';question('contredite',c.id,e.t);}
     }else if(c.reussites>=2&&c.reussites/c.essais>=.5){
-      c.statut='confirme';c.echecs=0;nouveau=true;note(e.t,'compris',c.id);
+      c.statut='confirme';c.echecs=0;nouveau=true;note(e.t,'compris',c.id);trait('curiosite',.01);
     }else if(c.reussites>=1)c.statut='hypothese';
     const h=S.emotions;
     h.valence+=(clamp(r,-1,1)-h.valence)*.08;
@@ -197,7 +204,7 @@ const Brain=(()=>{
     if(!k||cause(prim,cible)?.essais)return 0;
     return k.membres.some(m=>m!==cible&&cause(prim,m)?.statut==='confirme')?.45:0;
   }
-  const exploration=()=>clamp(1+S.emotions.ennui*.5-S.emotions.peur*.4,.4,1.6);
+  const exploration=()=>clamp(.5+S.caractere.curiosite*.7+S.emotions.ennui*.5-S.emotions.peur*(.2+S.caractere.prudence*.4),.4,1.8);
   function choisir(cible){
     const inconnus=APPRENABLES.filter(g=>!appris(g));
     if(inconnus.length&&rand()<.26*exploration())return inconnus[Math.floor(rand()*inconnus.length)];
@@ -327,7 +334,7 @@ const Brain=(()=>{
         S.envies.objectifs.push({id:'g-'+(S.next.g++),cible:o.id,source:'reve',statut:'actif',cree:Math.round(t)});
       nuit.reves.push({elements,envie:o.vivant?null:o.id,valence:+S.emotions.valence.toFixed(2)});
     }
-    S.emotions.frustration*=.5;S.emotions.peur*=.6;S.social.leadership=(S.social.leadership||0)*.98;
+    S.emotions.frustration*=.5;S.emotions.peur*=.6;trait('leadership',-.02);trait('prudence',-.02);trait('optimisme',(S.emotions.valence+1)/2>S.caractere.optimisme?.03:-.03);if(S.emotions.frustration>.6)trait('patience',-.02);
     Z.dernier=Math.round(t);
     Z.nuits.push(nuit);if(Z.nuits.length>20)Z.nuits.shift();
     return nuit;
@@ -364,7 +371,7 @@ const Brain=(()=>{
       objets:registre().filter(o=>!o.vivant).sort((a,b)=>b.vu-a.vu).slice(0,24).map(o=>({nom:nom(o.id),vu:o.vu,essais:o.essais,mot:o.mot})),
       lieux:Object.keys(S.espace.cases).length,
       limites:Object.keys(S.espace.interdits).length,
-      personnes:Object.keys(S.social.personnes).length,leadership:S.social.leadership||0,
+      personnes:Object.keys(S.social.personnes).length,leadership:S.caractere.leadership,caractere:{...S.caractere},
       partage:{amis:S.partage.amis,famille:S.partage.famille},
       nuits:S.sommeil.nuits.slice().reverse().map(n=>({...n,reves:n.reves.map(r=>({elements:r.elements.map(nom),envie:r.envie?nom(r.envie):null,valence:r.valence}))})),
       compris:confirmees().length,essais:S.memoire.total,souvenirs:S.memoire.episodes.length,
@@ -374,7 +381,7 @@ const Brain=(()=>{
   }
 
   return {PRIMITIVES,APPRENABLES,CAPACITES,init,save,restore,bind,rand,note,sentir,vu,connu,registre,familleDe,
-    lieu,retenu,interdit,personne,lien,entraine,soulagement,repertoire,appris,entrainer,capacite,defi,
+    lieu,retenu,interdit,personne,lien,entraine,trait,soulagement,repertoire,appris,entrainer,capacite,defi,
     essai,cause,confirmees,choisir,besoinCible,question,atteint,nbAtteints,habitudes,consolider,sommeil,attraitReve,publier,ouvrirPartage,view,
     get state(){return S;}};
 })();
@@ -497,7 +504,7 @@ const Cortex=(()=>{
       else if(idee.type==='besoin'&&idee.essais>=2)ok=false;
       if(ok===null)continue;
       idee.essais++;
-      if(ok){idee.statut='confirmee';idee.fin=Math.round(e.t);verdict=idee;
+      if(ok){idee.statut='confirmee';idee.fin=Math.round(e.t);verdict=idee;Brain.trait('creativite',.04);
         Brain.state.emotions.confiance=Math.min(1,Brain.state.emotions.confiance+.03);}
       else if(idee.essais>=2){idee.statut='refutee';idee.fin=Math.round(e.t);}
     }

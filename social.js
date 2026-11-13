@@ -1,11 +1,23 @@
 const playgroundFriends=['timeo','nathan','francoise','rose'];
-// Caractère de chacun. leadership : envie et capacité d'entraîner les autres. Celui de Néo n'est pas écrit :
-// il le construit (voir Brain.state.social.leadership) quand les autres reprennent ce qu'il fait.
-const socialStyle={
-  alex:{outreach:.64,care:.58,leadership:0},joseph:{outreach:.49,care:.83,leadership:.72},marie:{outreach:.77,care:.92,leadership:.64},
-  juliette:{outreach:.58,care:.68,leadership:.5},timeo:{outreach:.88,care:.62,leadership:.46},nathan:{outreach:.61,care:.72,leadership:.28},
-  francoise:{outreach:.54,care:.82,leadership:.38},rose:{outreach:.72,care:.76,leadership:.33}
+// Traits de caractère : ils évoluent avec ce que chacun vit (jamais figés). Ceux de Néo vivent dans son cerveau.
+const TRAITS={curiosite:'Curiosité',perseverance:'Persévérance',prudence:'Prudence',sociabilite:'Sociabilité',empathie:'Empathie',
+  creativite:'Créativité',independance:'Indépendance',patience:'Patience',optimisme:'Optimisme',leadership:'Leadership'};
+const T0=(curiosite,perseverance,prudence,sociabilite,empathie,creativite,independance,patience,optimisme,leadership)=>
+  ({curiosite,perseverance,prudence,sociabilite,empathie,creativite,independance,patience,optimisme,leadership});
+let caractere={
+  joseph:T0(.45,.75,.62,.49,.8,.55,.82,.7,.6,.72),marie:T0(.55,.65,.58,.77,.92,.6,.75,.78,.72,.64),
+  juliette:T0(.7,.5,.4,.58,.68,.66,.45,.45,.75,.5),timeo:T0(.75,.4,.3,.88,.62,.5,.45,.3,.8,.46),
+  nathan:T0(.5,.55,.6,.61,.72,.45,.35,.6,.55,.28),francoise:T0(.6,.6,.5,.54,.82,.7,.5,.65,.62,.38),
+  rose:T0(.65,.45,.45,.72,.76,.62,.4,.5,.7,.33)
 };
+const caractereDe=id=>id==='alex'?Brain.state.caractere:caractere[id];
+// Faire évoluer un trait : de plus en plus difficile vers les extrêmes.
+function evoluer(id,trait,delta){
+  const c=caractereDe(id);if(!c||c[trait]==null)return;
+  c[trait]=Math.min(1,Math.max(0,c[trait]+delta*(delta>0?1-c[trait]:c[trait])));
+}
+// Compatibilité : les comportements lisent ici l'élan vers les autres, l'attention aux autres, le leadership.
+const socialStyle=new Proxy({},{get:(_,id)=>{const c=caractereDe(id)||T0(.5,.5,.5,.5,.5,.5,.5,.5,.5,0);return {outreach:c.sociabilite,care:c.empathie,leadership:c.leadership};}});
 const adultCircle=new Set(['alex',...playgroundFriends]);
 const female=new Set(['francoise','rose','marie','juliette']);
 const FAMILLE=new Set(['alex','joseph','marie','juliette']);
@@ -50,6 +62,7 @@ function acteAmoureux(data,nom,s){
   data.actes[nom]=(data.actes[nom]||0)+1;
   // Chacun en ressent les effets individuellement.
   if(typeof gagner==='function'){gagner(data.a,acte.plaisir,acte.confiance);gagner(data.b,acte.plaisir,acte.confiance);}
+  for(const id of [data.a,data.b]){evoluer(id,'optimisme',acte.plaisir*.15);evoluer(id,'sociabilite',acte.plaisir>0?.01:-.01);}
   return nom;
 }
 function choisirActe(data){
@@ -61,6 +74,7 @@ function rompre(data,s){
   for(const k of ['tendresse','attirance','complicite'])data[k]=Math.round(data[k]*.4);
   data.romance=romanceOf(data);
   if(typeof gagner==='function'){gagner(data.a,-.3,-.1);gagner(data.b,-.3,-.1);}
+  for(const id of [data.a,data.b]){evoluer(id,'optimisme',-.12);evoluer(id,'prudence',.06);}
   if(typeof note==='function')note((characterNames[data.a]||data.a)+' et '+(characterNames[data.b]||data.b)+' se séparent.','social');
   return 'Séparation';
 }
@@ -71,6 +85,7 @@ function relationshipEvent(a,b,kind,s,age){
   relationshipCooldown[key]=s+12;
   const style=socialStyle[a], other=socialStyle[b];
   data.met++;
+  evoluer(a,'sociabilite',.002);evoluer(b,'sociabilite',.002);
   data.bond=Math.min(100,data.bond+Math.round(2+4*(style.care+other.care)/2));
   let event=kind;
   if(data.couple){

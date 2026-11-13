@@ -242,6 +242,40 @@ function createDialogue(){
     ['500 divisé par 5 donne 100.', 'Et 100 fois 5 redonne 500.'],
     ['Si on enlève 35 000 à 90 000, il reste 55 000.', 'On peut vérifier en ajoutant 35 000.']
   ];
+  function paroleEnfant(enfant,scene,alex){
+    const etape=enfant.age??0;
+    if(etape<1)return null;
+    const motsNeo=language.words().map(e=>e.word);
+    const lex=typeof lexiqueEnfant==='function'?lexiqueEnfant(enfant,scene.ageNeo?.()??0,motsNeo):new Set(motsNeo);
+    if(!lex.size)return null;
+    const cap=t=>t[0].toUpperCase()+t.slice(1);
+    const chose=choseProche(enfant,scene,null);
+    const nomChose=chose?alexTokens(chose.subject).at(-1):null;
+    const connu=nomChose&&lex.has(nomChose)?nomChose:null;
+    const mots=[...lex];
+    if(etape===1)return cap(connu||mots[Math.floor(rng()*Math.min(mots.length,20))])+' !';
+    if(etape===2){
+      const debut=['encore','regarde','veux','là','non','oui'].filter(m=>lex.has(m));
+      const a=debut.length?debut[Math.floor(rng()*debut.length)]:mots[Math.floor(rng()*mots.length)];
+      return cap(a+' '+(connu||mots[Math.floor(rng()*mots.length)]))+'.';
+    }
+    if(phrases.length&&ageNeoOk(scene,enfant)&&rng()<.3)return phrases[Math.floor(rng()*phrases.length)].text;
+    const cle=etape+'|'+lex.size;
+    if(!phrasesEnfant.has(cle)){
+      const banque=[...familyLines,...(typeof familyPhrases!=='undefined'?familyPhrases:[])].map(p=>p[0]);
+      const maxMots=etape===3?4:etape===4?7:99;
+      phrasesEnfant.set(cle,banque.filter(p=>{const t=alexTokens(p);return t.length<=maxMots&&t.every(w=>lex.has(w));}));
+    }
+    const possibles=phrasesEnfant.get(cle);
+    if(chose&&rng()<.5){
+      const modeles=['Regarde @ !','Je vois @.','On va voir @ ?','J’aime bien @.','Tu as vu @ ?'].filter(m=>alexTokens(m.replace('@','')).every(w=>lex.has(w)));
+      if(modeles.length&&alexTokens(chose.subject).every(w=>lex.has(w)))return modeles[Math.floor(rng()*modeles.length)].replace('@',chose.subject);
+    }
+    if(possibles.length)return possibles[Math.floor(rng()*possibles.length)];
+    return cap(connu||mots[Math.floor(rng()*Math.min(mots.length,80))])+'.';
+  }
+  const phrasesEnfant=new Map();
+  const ageNeoOk=(scene,enfant)=>(scene.ageNeo?.()??0)<=(enfant.age??0);
   function otherExchange(s,alex,people,scene){
     const groups=[people.slice(3),[people[2],...people.slice(0,2)]];
     const ordered=turn%3===1?groups:groups.slice().reverse();
@@ -251,12 +285,12 @@ function createDialogue(){
         .filter(other=>(outside||i===0)&&near(person,other,outside?4.5:3.5)).map(other=>[person,other]));
       if(!pairs.length)continue;
       const [first,second]=pairs[Math.floor(rng()*pairs.length)];
-      // Les enfants du même âge que Néo ne parlent pas d'eux-mêmes : ils ne disent que ce que Néo sait déjà dire.
+      // Les enfants parlent avec les mots de leur étape de vie (pris dans le langage des parents) + ceux de Néo s'il est au moins aussi jeune.
       if(outside){
-        const mots=language.words().map(e=>e.word);
-        const dit=phrases.length?phrases[Math.floor(rng()*phrases.length)].text:mots.length?mots[Math.floor(rng()*mots.length)]:null;
+        const dit=paroleEnfant(first,scene,alex);
         if(!dit)continue;
-        emit(s,first.id,dit[0].toUpperCase()+dit.slice(1),near(first,alex,5.2),second.id);
+        emit(s,first.id,dit,near(first,alex,5.2),second.id);
+        if(near(first,alex,5.2)&&first.age>=3)language.hear(dit,observe(alex,first,scene),s,first.id);
         next=s+Math.max(3.5,dit.length*.12);
         return true;
       }

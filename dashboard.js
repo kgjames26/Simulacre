@@ -15,6 +15,7 @@ const EFFETS={mou:'c’est mou',soi_monte:'on peut s’y installer',lumiere:'ça
   mal:'ça fait mal',passage:'on peut passer',rebond:'ça rebondit',hauteur:'on monte haut',glisse:'ça glisse',balance:'ça se balance',tient:'on peut s’accrocher',
   effort:'il faut forcer',outil:'ça se prend en main',vivant:'c’est vivant',doux:'c’est doux',rond:'c’est rond',ecrit:'il y a des signes'};
 const BESOINS={faim:'la faim',soif:'la soif',fatigue:'la fatigue',hygiene:'le besoin de se laver'};
+const TRAITS={curiosite:'Curiosité',perseverance:'Persévérance',prudence:'Prudence',sociabilite:'Sociabilité',empathie:'Empathie',creativite:'Créativité',independance:'Indépendance',patience:'Patience',optimisme:'Optimisme',leadership:'Leadership'};
 const CAPACITES={equilibre:'Équilibre',course:'Course',force:'Force',endurance:'Endurance'};
 const cap=t=>t?t.charAt(0).toUpperCase()+t.slice(1):'';
 const effets=l=>(l||[]).map(e=>EFFETS[e]||e).join(', ')||'rien de visible';
@@ -150,6 +151,7 @@ function renderCerveau(s){
   paint('brain-wishes',wishes.map(w=>w.textContent).join('|'),()=>wishes.length?wishes:[empty('Rien de précis pour l’instant : il explore au hasard.')]);
   const e=b.emotions;
   paint('brain-mood',[e.valence,e.peur,e.frustration,e.ennui].map(v=>Math.round(v*20)).join(),()=>[meter('Se sent bien',Math.max(0,e.valence)),meter('Peur',e.peur,true),meter('Frustration',e.frustration,true),meter('Ennui',e.ennui,true)]);
+  if(b.caractere)paint('brain-traits',JSON.stringify(Object.values(b.caractere).map(v=>Math.round(v*50))),()=>Object.entries(TRAITS).map(([k,l])=>meter(l,b.caractere[k]||0)));
   renderVocabulary(s.dialogue);
   paint('brain-things',JSON.stringify(b.objets),()=>b.objets.length?b.objets.map(o=>el('div',{},el('strong',{textContent:o.nom}),el('small',{textContent:'vu '+o.vu+' fois'+(o.essais?' · essayé '+o.essais+' fois':' · jamais touché')+(o.mot?' · « '+o.mot+' »':'')}))):[empty('Rien pour l’instant.')]);
 }
@@ -192,10 +194,12 @@ function renderCroissance(s){
 function humeur(p){if(p.lie>.8)return 'dort';if(p.fatigue>.7)return 'fatigué';if(p.hunger>.65)return 'a faim';if((p.pleasure||0)>.2)return 'content';return 'calme';}
 function renderEntourage(s){
   const people=[{...s.alex,id:'alex'},...s.people];
-  paint('people',people.map(p=>[p.id,p.activity,humeur(p),p.partage,p.vieux,Math.round((p.leadership||0)*50)].join()).join('|'),()=>people.map(p=>{
+  paint('people',people.map(p=>[p.id,p.activity,humeur(p),p.partage,p.vieux,Object.values(p.caractere||{}).map(v=>Math.round(v*40)).join('')].join()).join('|'),()=>people.map(p=>{
     const info=p.id==='alex'?badge(AGES[s.age]):p.partage?badge('reçoit ses découvertes','good'):badge('ne reçoit rien encore');
     return el('article',{className:'person'},el('header',{},el('h3',{textContent:names[p.id]+(p.vieux?' · âgé':'')}),badge(humeur(p),'')),
-      el('p',{textContent:p.activity||'—'}),meter('Leadership',p.leadership||0),info);
+      el('p',{textContent:p.activity||'—'}),meter('Leadership',p.leadership||0),
+      p.caractere?el('div',{className:'chips'},...Object.entries(p.caractere).filter(([k])=>k!=='leadership').sort((x,y)=>y[1]-x[1]).slice(0,3).map(([k])=>el('span',{className:'chip off',textContent:TRAITS[k]}))):null,
+      p.caractere?el('details',{className:'traits'},el('summary',{textContent:'Caractère'}),...Object.entries(TRAITS).map(([k,l])=>meter(l,p.caractere[k]||0))):null,info);
   }));
   renderRelation(s);
   const kind=ui('interaction-filter').value,events=(s.activityData?.events||[]).filter(e=>!kind||e.kind===kind).slice(0,40);

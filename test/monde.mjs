@@ -13,12 +13,12 @@ if(run(`alex.z`)>12)throw new Error('Néo est sorti');
 run(`ensureFoodStock();kitchen.pantry.forEach(f=>f.stock=0);ensureFoodStock();nextRefill=0;stepKitchen(5000);stepKitchen(5100);`);
 if(run(`kitchen.ingredients`)!==0)throw new Error('réapprovisionnement magique');
 // Quota par agent et par jour, sans argent.
-run(`commerce={jour:0,stock:60,prelev:{},total:0,visites:0};`);
+run(`commerce={jour:0,stock:100,prelev:{},total:0,visites:0};`);
 const a=run(`prelever('joseph')`),b=run(`prelever('joseph')`);
-if(a!==8||b!==0)throw new Error('quota '+a+' '+b);
-if(run(`prelever('marie')`)!==8)throw new Error('quota par agent');
+if(a!==14||b!==0)throw new Error('quota '+a+' '+b);
+if(run(`prelever('marie')`)!==14)throw new Error('quota par agent');
 // Course complète : l'adulte revient avec des provisions rangées.
-run(`commerce={jour:0,stock:60,prelev:{},total:0,visites:0};globalThis.__m=people[1];__m.x=-4;__m.z=10;__m.homeX=-4;__m.homeZ=10;routineCourses(__m);__m.enCourse=true;`);
+run(`commerce={jour:0,stock:100,prelev:{},total:0,visites:0};globalThis.__m=people[1];__m.x=-4;__m.z=10;__m.homeX=-4;__m.homeZ=10;routineCourses(__m);__m.enCourse=true;`);
 let n=0;while(run(`ROUT.has(__m)`)&&n<400000){run(`ticks++;stepRoutine(__m,ticks/120)`);n++;}
 if(run(`kitchen.ingredients`)<6||run(`commerce.visites`)!==1)throw new Error('course '+run(`kitchen.ingredients`)+' '+n);
 // Un ami n'entre que accompagné, et pas avant l'adolescence.

@@ -1,6 +1,6 @@
 importScripts('/cerveau.js','/world.js','/dialogue.js','/collision-map.js','/quartier.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js','/famille-phrases.js','/bricolage.js','/monde.js');
 const dialogue=createDialogue();
-const languageScene={points:{},choses:chosesNommees,visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
+const languageScene={points:{},choses:chosesNommees,ageNeo:()=>age,visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
 const DT = 1 / 120;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const motorGoals=[
@@ -29,10 +29,10 @@ function knowledgeScore(){
   return Brain.confirmees().length+2*Cortex.confirmees()+mots+3*gestes+records.filter(r=>r.mastered).length;
 }
 // Règle générale (pas une méthode) : qui apprécie quelqu'un veut qu'il aille mieux et se sente bien.
-// L'intensité vient du lien et du caractère (socialStyle.care). Rien ne dit COMMENT : chacun fait avec ce qu'il sait.
+// L'intensité vient du lien et du caractère (empathie, dans son caractère). Rien ne dit COMMENT : chacun fait avec ce qu'il sait.
 const apprecie=autre=>Math.min(1,(autre.bond||0)/6);
 const malEtre=autre=>Math.max(autre.faim||0,autre.peine||0);
-const envieDeBienEtre=(qui,autre)=>apprecie(autre)*(socialStyle[qui]?.care??.5)*malEtre(autre);
+const envieDeBienEtre=(qui,autre)=>apprecie(autre)*(caractereDe(qui)?.empathie??.5)*malEtre(autre);
 let knowledge = {};
 let journal = [];
 let interactions = [];
@@ -144,6 +144,7 @@ function motorStep(){
     knowledge['motricité · '+goals[skill]]={visits:record.attempts,senses:['appui','articulations','équilibre'],type:'geste'};
     note('Néo a confirmé son geste · '+goals[skill]+'.');
     Brain.entrainer('equilibre',.2);
+    Brain.trait('patience',.05);Brain.trait('perseverance',.03);
     if(skill<4)skill++;
   }
   episode=newEpisode();
@@ -880,6 +881,7 @@ function experience() {
         relationshipEvent('alex',friend.id,'Rencontre',s,age);
         if(envieDeBienEtre('alex',friend)>.15){
           note('Néo vient voir '+characterNames[friend.id]+', qu’il aime bien et qui ne va pas très bien.','social');
+          Brain.trait('empathie',.03);
           friend.aideRecue=(friend.aideRecue||0)+1;
         }
         if(friend.id==='marie'||friend.id==='joseph') note('Un câlin apaise Néo.','social');
@@ -1054,9 +1056,9 @@ function snapshot() {
     for(const p of people){
       if(p.id==='juliette')p.age=Math.min(8,age+2);else if(playgroundFriends.includes(p.id))p.age=age;
       const recoit=FRIEND_IDS.includes(p.id)?partage.amis:(partage.amis&&K>BASE_LEVEL[p.id]);
-      p.niveau=BASE_LEVEL[p.id];p.partage=recoit;p.leadership=socialStyle[p.id]?.leadership||0;
+      p.niveau=BASE_LEVEL[p.id];p.partage=recoit;p.leadership=caractereDe(p.id)?.leadership||0;p.caractere={...caractereDe(p.id)};
       p.inherited=recoit?Brain.confirmees().length+vocabulary.length:0;
-      if(recoit&&familyLexicons[p.id])for(const word of vocabulary)familyLexicons[p.id].add(word);
+      if(playgroundFriends.includes(p.id))familyLexicons[p.id]=lexiqueEnfant(p,age,vocabulary);
       p.baseWords=familyLexicons[p.id]?.size||0;
     }
     const n=niveauAcces();
@@ -1070,7 +1072,7 @@ function snapshot() {
     brainView.cortex=Cortex.view(observerLabel);
     nextActivitySnapshot=ticks+36;
   }
-  alex.leadership=Brain.state.social.leadership||0;
+  alex.leadership=Brain.state.caractere.leadership;alex.caractere={...Brain.state.caractere};
   return {commerce:{stock:commerce.stock,visites:commerce.visites,quota:QUOTA_JOUR,prelev:{...commerce.prelev}},acces:{...acces},
     atelier:{outils:atelier.outils.map(o=>({...o})),arbre:{...atelier.arbre},bois:{...atelier.bois},fleurs:atelier.fleurs.map(f=>({...f})),pommes:atelier.pommes.map(p=>({...p}))},
     computer:house?.computer||null,ticks,skill,age,score,alex,people,playItems,relationships,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,
@@ -1078,7 +1080,7 @@ function snapshot() {
     playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
 }
 function save() {
-  return {historiqueEtapes,commerce,acces,atelier,courrier,brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
+  return {caractere,historiqueEtapes,commerce,acces,atelier,courrier,brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -1138,6 +1140,7 @@ onmessage=({data})=>{
     if(s.courrier)courrier=s.courrier;
     if(s.commerce)commerce=s.commerce;
     if(Array.isArray(s.historiqueEtapes))historiqueEtapes=s.historiqueEtapes;
+    if(s.caractere)for(const [id,c] of Object.entries(s.caractere))if(caractere[id])Object.assign(caractere[id],c);
     if(s.acces)acces=s.acces;
     if(s.atelier?.outils&&s.atelier.fleurs)atelier=s.atelier;
     nextRefill=Number.isFinite(s.nextRefill)?s.nextRefill:0;

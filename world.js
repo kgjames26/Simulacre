@@ -125,6 +125,9 @@ function entities(){
   for(const person of people)add('personne:'+person.id,'personne',characterNames[person.id],0,0,PERSON_TRAITS,{dynamic:person});
   for(const id of Object.keys(playItems))
     add('jeu:'+id,'jeu',playNames[id],0,0,id==='toy'?[.3,.4,0,0,0,0]:id.startsWith('bike')?[.4,.5,0,0,0,0]:[.1,.2,.5,0,0,0],{dynamic:playItems[id],playId:id});
+  // RÈGLE : toute chose du jeu a un nom, et ce nom entre automatiquement dans le langage de Joseph, Marie et Juliette.
+  if(typeof familyLexicons!=='undefined')for(const e of list)if(e.kind!=='personne')for(const mot of alexTokens(e.name))
+    for(const qui of ['joseph','marie','juliette'])familyLexicons[qui]?.add(mot);
   entityCache=list;entitySignature=signature;
   return list;
 }

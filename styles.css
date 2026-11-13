@@ -232,3 +232,6 @@ dialog p{color:#4a544f}
 .etape[data-etat="en cours"]{border-color:var(--warm)}
 .stage.plein{position:fixed;inset:0;z-index:80;height:100dvh;border-radius:0}
 .stage:fullscreen{height:100%;border-radius:0}
+.traits summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--accent);margin-bottom:6px}
+.traits .meter{margin-top:4px}
+.person .chips{margin:0}
