@@ -1,4 +1,4 @@
-importScripts('/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js');
+importScripts('/brain.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js');
 const dialogue=createDialogue();
 const languageScene={points:{},visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
 const DT = 1 / 120;
@@ -30,12 +30,6 @@ const milestones = [
   {motor:280, life:100, cognition:18, play:65, social:80},
   {motor:400, life:150, cognition:25, play:100, social:120}
 ];
-const landmarks = [
-  ['tapis',-8,2],['baie',-1,1],['table',-5,-3],['cuisine',-2,-4],
-  ['salon',-8,-2],['couloir',-7,0],['lettre A',-8,3],['lettre L',-5,1],['lettre E',-3,2],
-  ['lettre X',-1,2],['jardin',3,4],['chemin',5,3],['parc',8,5],['gravier',11,5],
-  ['bordure',14,5],['bois',12,4]
-];
 let knowledge = {};
 let counts = {life:0,cognition:0,play:0,social:0};
 let journal = [];
@@ -52,15 +46,6 @@ const household={};
 const objectLearning={};
 const cooks={};
 let nextRefill=0, objectContact=null;
-const HOUSE_EFFECTS={
-  sofa:{name:'canapé',activity:'Se repose sur le canapé',duration:8},
-  tv:{name:'télévision',activity:'Regarde la télévision',duration:7},
-  book:{name:'livre',activity:'Feuillette le livre',duration:8},
-  water:{name:'fontaine à eau',activity:'Boit à la fontaine',duration:4},
-  shower:{name:'douche',activity:'Prend une douche',duration:9},
-  dishwasher:{name:'lave-vaisselle',activity:'Fait tourner le lave-vaisselle',duration:7},
-  fireplace:{name:'cheminée',activity:'Observe la cheminée allumée',duration:6}
-};
 const doorKnowledge={};
 const doorStates={};
 importScripts('/home.js');
@@ -90,23 +75,23 @@ function newEpisode(){
   const record=records[skill];
   const previous=records[skill-1];
   const pool=record.champions.length?record.champions:previous?.champions||[];
-  const parent=pool[Math.floor(Math.random()*Math.min(5,pool.length))];
+  const parent=pool[Math.floor(rng()*Math.min(5,pool.length))];
   const replay=record.confirmed>0&&record.attempts%8!==7&&pool.some(candidate=>candidate.valid);
   const reference=replay?pool.find(candidate=>candidate.valid):parent;
   const radius=replay?.006:record.attempts%7===0?.31:.15;
-  const posture=Array.from({length:8},()=>Math.random());
-  const common=Array.from({length:8},()=>Math.random()<.38?(Math.random()-Math.random())*radius:0);
-  const acrossTime=Math.random()<.65;
+  const posture=Array.from({length:8},()=>rng());
+  const common=Array.from({length:8},()=>rng()<.38?(rng()-rng())*radius:0);
+  const acrossTime=rng()<.65;
   const policy=Array.from({length:64},(_,i)=>{
-    if(!reference||record.attempts%31===30)return clamp(posture[i%8]+(acrossTime?0:(Math.random()-.5)*.52),0,1);
+    if(!reference||record.attempts%31===30)return clamp(posture[i%8]+(acrossTime?0:(rng()-.5)*.52),0,1);
     if(!replay&&acrossTime)return clamp(reference.policy[i]+common[i%8],0,1);
-    if(!replay&&Math.random()<.55)return reference.policy[i];
-    return clamp(reference.policy[i]+(Math.random()-Math.random())*radius,0,1);
+    if(!replay&&rng()<.55)return reference.policy[i];
+    return clamp(reference.policy[i]+(rng()-rng())*radius,0,1);
   });
   const available=previous?.champions.filter(candidate=>candidate.valid&&candidate.bestPose)||[];
-  const starting=reference?.start||(available.length?available[Math.floor(Math.random()*Math.min(3,available.length))].bestPose:null);
+  const starting=reference?.start||(available.length?available[Math.floor(rng()*Math.min(3,available.length))].bestPose:null);
   const body=motorBody(policy,starting);
-  body.friction=.83+Math.random()*.055;
+  body.friction=.83+rng()*.055;
   return body;
 }
 function motorStep(){
@@ -198,7 +183,7 @@ function learn(name, type) {
   if(entry.visits===3){
     entry.senses.push('mémoire');
     counts.cognition++;
-    note('Néo associe vision et contact · '+name);
+    note('Néo associe vision et contact · '+(observerLabel(name)||name));
   }
 }
 function doorRecord(mechanism){
@@ -218,57 +203,61 @@ function useDoor(p,door,s) {
   if(!parent&&p!==alex&&!record.known)return;
   if(s<(p.nextDoorTry||0)||state.amount>.2||state.until>s)return;
   p.nextDoorTry=s+1.5;
-  if(p===alex&&!record.known){
+  const cible=opaque('porte:'+door.id);
+  if(p===alex){
+    // Néo choisit un geste ; le monde dit seulement ce qui se passe.
+    const prim=Brain.choisir(cible);
+    const ok=prim===doorPrimitive(door);
+    const result=Brain.essai({t:s,cible,prim,succes:ok,effet:ok?['objet_bouge','passage']:[],besoins:{},plaisir:0});
     record.attempts++;
-    const action=record.actions.indexOf(Math.min(...record.actions));
-    record.actions[action]++;
-    if(action!==door.action){
-      if(record.attempts<=2)note('Néo essaie une autre prise sur la '+door.name+'.');
+    if(result.nouveau&&!record.known)validateDoor(door.mechanism,record);
+    if(!ok){
+      if(record.attempts<=2)note('Néo essaie un autre geste sur la '+door.name+'.');
       return;
     }
     record.success++;
-    if(record.success>=2)validateDoor(door.mechanism,record);
   }
   state.until=s+4.2;
   if(parent&&(alex.floor||0)===(door.floor||0)&&Math.hypot(alex.x-door.x,alex.z-door.z)<2.4&&!record.known){
     record.seen++;
-    note(characterNames[p.id]+' ouvre la '+door.name+' sous les yeux d’Néo.','object');
+    // Néo voit le geste du parent et son effet : une observation compte comme un essai réussi.
+    const result=Brain.essai({t:s,cible,prim:doorPrimitive(door),succes:true,effet:['objet_bouge','passage'],besoins:{},plaisir:0,observe:true});
+    if(result.nouveau&&!record.known)validateDoor(door.mechanism,record);
+    note(characterNames[p.id]+' ouvre la '+door.name+' sous les yeux de Néo.','object');
   }else recordInteraction((characterNames[p.id]||'Néo')+' ouvre la '+door.name+'.','object');
 }
-function tryHouseObject(id,s){
-  const record=objectLearning[id] ||= {attempts:0,success:0,next:0};
-  if(record.next>s)return;
-  const item=HOUSE_EFFECTS[id];
-  record.attempts++;
+// Néo choisit un geste, le monde répond par des sensations, le cerveau en tire (ou non) une cause.
+function tryEntity(entity,s){
+  const record=objectLearning[entity.id] ||= {attempts:0,success:0,next:0};
+  if(record.next>s)return false;
   record.next=s+20;
-  // Néo tries actions independently. Success becomes knowledge only after repetition.
-  const usableAction={sofa:0,tv:2,book:1,water:2,shower:2,dishwasher:2,fireplace:2}[id];
-  const actions=record.actions ||= [0,0,0];
-  const leastTried=Math.min(...actions);
-  const options=actions.map((tries,action)=>tries===leastTried?action:null).filter(action=>action!==null);
-  const action=Number.isInteger(record.successfulAction)?record.successfulAction:options[Math.floor(Math.random()*options.length)];
-  actions[action]++;
-  if(action!==usableAction){
-    if(record.attempts===1)note('Néo essaie de comprendre '+item.name+'.');
-    return;
-  }
-  record.successfulAction=action;
-  objectContact={id,until:s+item.duration};
-  household[id]=1;
-  if(++record.success===2){
+  record.attempts++;
+  const prim=Brain.choisir(entity.id);
+  const out=respond(entity,prim,s);
+  const succes=out.flags.length>0;
+  const result=Brain.essai({t:s,cible:entity.id,prim,succes,effet:out.flags,besoins:out.besoins||{},
+    plaisir:out.plaisir||0,douleur:out.douleur||0});
+  if(out.contact){objectContact=out.contact;household[out.contact.id]=1;}
+  if(out.douleur)alex.pleasure=Math.max(0,(alex.pleasure||0)-out.douleur*2);
+  if(succes)record.success++;
+  if(result.nouveau){
     counts.cognition++;
-    knowledge[item.name]={visits:2,senses:['vision','contact','effet'],type:'objet',action,effect:item.activity};
-    note('Néo découvre comment utiliser le matériel · '+item.name+'.','object');
-  }
+    if(entity.kind==='jeu')counts.play++;
+    knowledge[entity.id]={visits:result.cause.essais,senses:['vision','contact','effet'],type:'objet',action:prim};
+    note('Néo découvre comment utiliser · '+entity.name+'.','object');
+  }else if(!succes&&record.attempts===1)note('Néo essaie de comprendre · '+entity.name+'.');
+  return succes;
 }
 function stepHouseObject(s){
   if(!objectContact)return false;
   const {id,until}=objectContact;
-  alex.activity=HOUSE_EFFECTS[id].activity;
+  const effect=HOUSE_EFFECTS[id];
+  alex.activity=effect.activity;
   alex.pose=id==='sofa'?.64:.12;
   alex.y=id==='sofa'?.37:0;
   alex.effort=0;
   if(s>=until){
+    // Le soulagement a déjà été perçu et consigné par le cerveau lors de l'essai ; ici seul le corps change.
     if(id==='sofa')alex.fatigue=Math.max(.05,alex.fatigue-.44);
     if(id==='water')alex.thirst=.06;
     if(id==='shower')alex.hygiene=1;
@@ -636,31 +625,48 @@ function beginEquipment(item,s){
     joints[11]=1.07;joints[12]=.2;
     for(let i=0;i<5;i++){
       const prior=alex.ropeGrip?.targets?.[i];
-      joints[6+i]=Number.isFinite(prior)?clamp(prior+(Math.random()-.5)*.18,0,1.35):Math.random()*1.35;
+      joints[6+i]=Number.isFinite(prior)?clamp(prior+(rng()-.5)*.18,0,1.35):rng()*1.35;
     }
     contact={kind:'rope-grip',started:s,joints};
   }
 }
+// Néo ne connaît que ce qu'il a perçu : les objectifs viennent de son registre, jamais de la carte du monde.
+let lastPerception=-1e9,nextConsolidation=60;
+function perceiveStep(s){
+  if(s-lastPerception<.5)return;
+  lastPerception=s;
+  const range=age>2?14:9;
+  for(const p of percevoir(alex,range)){
+    Brain.vu(p.id,p.traits,{x:p.x,z:p.z},s,p.vivant);
+    if(p.vivant)Brain.personne(p.id,{x:p.x,z:p.z},s);
+  }
+  Brain.lieu(alex.x,alex.z,alex.floor||0);
+}
+function frontierPoint(){
+  const angle=rng()*Math.PI*2,r=3+rng()*4;
+  return {x:clamp(alex.x+Math.cos(angle)*r,-bounds.x+1,bounds.x-1),z:clamp(alex.z+Math.sin(angle)*r,-bounds.z+1,bounds.z-1)};
+}
 function makeGoalOptions(){
-  const options=landmarks.map(([name,x,z])=>({name,x,z,category:'exploration'}));
-  if(house){
-    options.push({name:'terrasse',x:house.trampoline.entryX,z:house.trampoline.entryZ,category:'exploration'});
-    for(const [id,point] of Object.entries(house.objects)){
-      options.push({...point,name:HOUSE_EFFECTS[id].name,id,category:'objet'});
-    }
-    for(const door of house.doors.filter(door=>!door.floor)){
+  const options=[];
+  for(const o of Brain.registre()){
+    const entity=entityById(o.id);
+    if(!entity||entity.kind==='equipement'||(entity.floor||0)!==(alex.floor||0))continue;
+    const source=entity.dynamic||o.pos||entity;
+    const category=entity.kind==='personne'?'social':entity.kind==='jeu'?'jeu':entity.kind==='objet'?'objet':'exploration';
+    if(entity.kind==='personne'&&(entity.dynamic.floor||entity.dynamic.lie))continue;
+    const base={name:entity.id,x:source.x,z:source.z,id:entity.id,category};
+    if(category==='social')base.person=entity.dynamic;
+    if(entity.kind==='porte'){
+      const door=entity.door;
       const side=(door.axis==='x'?alex.x-door.x:alex.z-door.z)<0?-.26:.26;
-      options.push({name:'poignée de '+door.name,x:door.x+(door.axis==='x'?side:0),
-        z:door.z+(door.axis==='x'?0:side),category:'exploration'});
+      base.x=door.x+(door.axis==='x'?side:0);base.z=door.z+(door.axis==='x'?0:side);
     }
+    options.push(base);
   }
-  for(const person of people){
-    if(person.floor||person.lie)continue;
-    options.push({name:person.id,x:person.x,z:person.z,category:'social',person});
-  }
-  for(const [id,item] of Object.entries(playItems)){
-    if(Math.hypot(item.x-alex.x,item.z-alex.z)>7)continue;
-    options.push({name:playNames[id],id,x:item.x,z:item.z,category:'jeu'});
+  // Terrain inconnu : un point au hasard devant soi, tant que le registre est maigre.
+  if(options.length<4||rng()<.2){
+    const f=frontierPoint();
+    options.push({name:'inconnu:'+Math.round(f.x)+','+Math.round(f.z),x:f.x,z:f.z,category:'exploration'});
   }
   return options;
 }
@@ -675,13 +681,13 @@ function chooseGoal(s){
   if(!candidates.length)return null;
   const interest=goal=>{
     const record=curiosityRecord(goal.name);
-    const observations=knowledge[goal.name]?.visits||0;
+    const known=Brain.connu(goal.name);const observations=(known?known.essais:0)+(known&&known.vu>3?1:0);
     const novelty=1.7/(1+observations+record.completed);
     const unfinished=record.choices>0&&record.completed===0?.32:0;
     const distance=Math.hypot(goal.x-alex.x,goal.z-alex.z);
     return (novelty+unfinished+.23)/(1+distance*.115+record.blocked*.12);
   };
-  let pick=Math.random()*candidates.reduce((sum,goal)=>sum+interest(goal),0);
+  let pick=rng()*candidates.reduce((sum,goal)=>sum+interest(goal),0);
   const selected=candidates.find(goal=>(pick-=interest(goal))<=0)||candidates[0];
   curiosityRecord(selected.name).choices++;
   nextChoice=s+46;
@@ -716,6 +722,7 @@ function experience() {
     person.moving=false;
     person.pleasure=Math.max(0,(person.pleasure||0)-DT*.001);
   }
+  perceiveStep(s);
   const usingEquipment=stepHouseObject(s)||stepPark(s)||sleeping(alex,s,skill===4&&records[4].mastered)||stepNeoUpstairs(s);
   if(!usingEquipment){
   alex.y=Math.max(0,(alex.y||0)-DT*2.8);
@@ -737,12 +744,12 @@ function experience() {
     let category=intention?.category||'observation';
     const equipment=tryEquipment(s);
     const objects=house?.objects;
-    if(alex.hunger>.66&&house?.kitchen&&kitchen.meals>0){
-      goal=['repas',house.kitchen.table.x,house.kitchen.table.z];category='repas';
-    }else if(alex.thirst>.7&&objects?.water&&(objectLearning.water?.next||0)<=s){
-      goal=['eau',objects.water.x,objects.water.z,'water'];category='objet';
-    }else if(alex.hygiene<.25&&objects?.shower&&(objectLearning.shower?.next||0)<=s){
-      goal=['douche',objects.shower.x,objects.shower.z,'shower'];category='objet';
+    const need=alex.hunger>.66?'faim':alex.thirst>.7?'soif':alex.hygiene<.25?'hygiene':null;
+    const relief=need?Brain.besoinCible(need):null;
+    const reliefEntity=relief&&relief.type==='objet'?entityById(relief.id):null;
+    if(reliefEntity&&(objectLearning[reliefEntity.id]?.next||0)<=s){
+      goal=[reliefEntity.id,reliefEntity.x,reliefEntity.z,reliefEntity.id];
+      category=reliefEntity.kind==='objet'?'objet':'exploration';
     }else if(alex.hunger>.86&&!house){goal=['repas',-2,-4];category='repas';}
     else if(equipment){goal=[equipment.name,equipment.x,equipment.z];category='équipement';}
     alex.activity=category==='objet'?'Explore · '+goal[0]:category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category==='équipement'?'Observe · '+goal[0]:category;
@@ -756,7 +763,7 @@ function experience() {
       if(distance>1&&s-progressAt>22)finishGoal(s,false);
     }
     if(category==='objet'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.22){
-      tryHouseObject(goal[3],s);
+      {const entity=entityById(goal[3]);if(entity)tryEntity(entity,s);}
       if(objectContact&&pursuingIntention)finishGoal(s,true);
     }
     if(category!=='observation'&&category!=='objet'&&category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock && (category!=='social'||navigation.clear(alex.x,alex.z,friend.x,friend.z,0))){
@@ -784,7 +791,7 @@ function experience() {
     }
   }else{
     alex.activity=goals[skill];
-    if(episode.heading==null)episode.heading=Math.random()*Math.PI*2;
+    if(episode.heading==null)episode.heading=rng()*Math.PI*2;
     alex.heading=episode.heading;
     bodyPose(alex,episode);
     advanceBody(alex,episode,alex.heading);
@@ -872,8 +879,14 @@ function experience() {
     updateRelationships(alex,people,s,age);
   }
   stepPlay();
+  if(s>=nextConsolidation){
+    nextConsolidation=s+60;
+    Brain.consolider(s,{});
+    if(age>=2)Brain.publier(s);
+    if(age>=5)Brain.synchroniser?.('parents');
+  }
   const gate=milestones[age];
-  if(gate&&skill===4&&pecm>=gate.motor&&Object.keys(counts).every(key=>counts[key]>=gate[key])){
+  if(gate&&skill===4&&pecm>=gate.motor&&Object.keys(counts).every(key=>counts[key]>=gate[key])&&Brain.signature(age)){
     age++;note('Nouveau stade de développement · '+(age+1));
   }
 }
@@ -884,10 +897,10 @@ function recordBallPlay(id,s){
   nextBallEvent[id]=s+9;
   note(characterNames[id]+' joue avec la balle.','play');
 }
-let activityData, nextActivitySnapshot=0;
+let activityData, nextActivitySnapshot=0, brainView=null;
 function snapshot() {
   if(!activityData||ticks>=nextActivitySnapshot){
-    const names=Object.keys(knowledge);
+    const names=Object.keys(knowledge).map(k=>observerLabel(k)||k);
     const vocabulary=dialogue.view().vocabulary.map(entry=>entry.word);
     const shared={skills:records.flatMap((record,i)=>record.mastered?[goals[i]]:[]),discoveries:names,vocabulary};
     for(const p of people){
@@ -901,12 +914,13 @@ function snapshot() {
     activityData={equipment:parkMemory,gate:milestones[age],events:interactions,shared,
       motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered})),
       knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};
+    brainView=Brain.view(observerLabel);
     nextActivitySnapshot=ticks+36;
   }
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
 }
 function save() {
-  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
+  return {brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -949,6 +963,8 @@ onmessage=({data})=>{
       for(const name of Object.keys(knowledge))if(name.startsWith('motricité · '))delete knowledge[name];
       note('Néo recommence ses essais avec un corps articulé.');
     }
+    if(s.brain&&Brain.restore(s.brain)){/* cerveau restauré */}
+    else if(!s.brain)note('Néo repart avec un cerveau vierge (ancienne sauvegarde).');
     dialogue.restore(s.dialogue);
     interactions=(s.interactions||[]).slice(0,100);
     activityData=null;
@@ -970,6 +986,11 @@ onmessage=({data})=>{
     episode=newEpisode();
   }
 };
+Brain.init(20260101);
+Brain.bind({
+  lexique:()=>dialogue.view().vocabulary,
+  competences:()=>records.flatMap((r,i)=>r.mastered?[goals[i]]:[])
+});
 episode=newEpisode();
 note('Néo commence à explorer ses mouvements.');
 let lastPost=0,lastSave=0;

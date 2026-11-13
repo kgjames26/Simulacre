@@ -27,7 +27,7 @@ function relationshipEvent(a,b,kind,s,age){
   data.bond=Math.min(100,data.bond+Math.round(2+4*(style.care+other.care)/2));
   let event=kind;
   if(data.couple)event=data.met%2===0?'Moment tendre en couple':'Attention entre partenaires';
-  else if(isCourtshipEligible(a,b,age)&&data.bond>=30&&Math.random()<(style.outreach+other.outreach)*.3){
+  else if(isCourtshipEligible(a,b,age)&&data.bond>=30&&rng()<(style.outreach+other.outreach)*.3){
     data.romance=Math.min(100,data.romance+5);
     event='Rapprochement affectif';
   }
