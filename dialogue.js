@@ -354,6 +354,7 @@ function createDialogue(){
       pending={speaker:other,listener:speaker,topic:lastTopic};
     },
     takeNew(){return outgoing.splice(0);},
+    lireEcran(text,cue,s){language.hear(text,{[cue]:.9},s,'ecran');},
     resumeAt(last){id=Math.max(id,last||0);},
     view(){
       const vocabulary=language.words().map(entry=>({...entry,context:languageCueNames[entry.cue]||entry.cue}));

@@ -95,6 +95,7 @@ worker.onmessage = ({data}) => {
   }
   if(data.type!=='state')return;
   snapshot=data.state;
+  window.majBoite?.(snapshot.courrier);
   dashboard.capture(data.lines);
   dashboard.update(snapshot);
   updateDialogue(snapshot.dialogue);
@@ -127,6 +128,28 @@ worker.onmessage = ({data}) => {
     ui('journal').replaceChildren(...journal.map(event=>Object.assign(document.createElement('li'),{textContent:event.message})));
   }
 };
+// Boîte aux lettres : aucun texte d'explication. Elle n'apparaît que lorsque Néo a écrit quelque chose.
+const boite=document.getElementById('boite');
+if(boite){
+  const pastille=boite.querySelector('.pastille'),liste=boite.querySelector('ul'),champ=boite.querySelector('input');
+  let ouverte=false,dernier='';
+  boite.querySelector('button.ouvrir').addEventListener('click',()=>{
+    ouverte=!ouverte;boite.classList.toggle('ouverte',ouverte);
+    if(ouverte){worker.postMessage({type:'courrier-lu'});pastille.hidden=true;}
+  });
+  boite.querySelector('form').addEventListener('submit',event=>{
+    event.preventDefault();const text=champ.value.trim();if(!text)return;
+    worker.postMessage({type:'courrier',text});champ.value='';
+  });
+  window.majBoite=courrier=>{
+    if(!courrier||!courrier.sortant.length)return;
+    boite.hidden=false;
+    const cle=courrier.sortant.map(m=>m.at+m.text).join('|');
+    if(cle!==dernier){dernier=cle;liste.replaceChildren(...courrier.sortant.slice().reverse().map(m=>Object.assign(document.createElement('li'),{textContent:m.text,className:m.lu?'':'nouveau'})));}
+    pastille.hidden=ouverte||!courrier.nonLus;pastille.textContent=courrier.nonLus;
+    boite.classList.toggle('alerte',!ouverte&&courrier.nonLus>0);
+  };
+}
 worker.onerror=()=>{ui('mode').textContent='Simulation interrompue';};
 function setSpeedMode(next){
   speedMode=next;
@@ -687,7 +710,7 @@ async function showWorld(){
   const actors=[];
   let physicalRope, trampolineMesh, swingSeat;
   const houseDoors=[];
-  let interiorVisuals, houseCut, houseRoofMeshes=[];
+  let ordinateur3d=null, interiorVisuals, houseCut, houseRoofMeshes=[];
   const ropeUp=new T.Vector3(0,1,0);
   const failures=[];
   let ready=0;
@@ -1025,6 +1048,19 @@ async function showWorld(){
         if(door.mechanism==='coulissante')door.root.position.x=door.pivot.x+door.width*amount;
         else door.root.rotation.y=door.sign*amount*1.5;
       }
+      if(snapshot.computer&&!ordinateur3d){
+        const c=snapshot.computer,g=new T.Group();
+        const bois=mat('#8a6a48'),noir=mat('#20262c');
+        const bureau=new T.Mesh(new T.BoxGeometry(1.1,.05,.55),bois);bureau.position.y=.72;
+        for(const [dx,dz] of [[-.5,-.24],[.5,-.24],[-.5,.24],[.5,.24]]){const p=new T.Mesh(new T.BoxGeometry(.05,.72,.05),bois);p.position.set(dx,.36,dz);g.add(p);}
+        const ecran=new T.Mesh(new T.BoxGeometry(.46,.3,.03),noir);ecran.position.set(0,.93,-.12);
+        const verre=new T.Mesh(new T.PlaneGeometry(.42,.26),new T.MeshBasicMaterial({color:0x2f6f99}));verre.position.set(0,.93,-.103);
+        const clavier=new T.Mesh(new T.BoxGeometry(.4,.02,.14),noir);clavier.position.set(0,.76,.12);
+        g.add(bureau,ecran,verre,clavier);
+        g.position.set(c.x,c.y+.02,c.z);g.rotation.y=c.heading||0;
+        g.userData.floor=1;scene.add(g);ordinateur3d=g;
+      }
+      if(ordinateur3d)ordinateur3d.visible=upperFloorView===true?true:upperFloorView===false?false:upstairs;
       if(interiorVisuals){
         const {tv,flame,lights,water,plates}=interiorVisuals;
         const devices=snapshot.household||{};

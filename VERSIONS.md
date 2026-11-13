@@ -20,3 +20,6 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Envie d'aider = une règle, pas une méthode : qui apprécie quelqu'un veut qu'il aille mieux, avec une intensité liée au lien et au caractère (`care`). Néo va vers ceux qu'il aime bien quand ils vont moins bien ; ce qu'il fait ensuite dépend de ce qu'il a appris.
 - Parents : calculs très rares (1 échange sur ~53), +1000 mots (3000 au total pour Joseph et Marie), +1000 phrases d'échange.
 - Jardin : 3 pancartes (10 chiffres, 26 lettres, 500 mots avec un dessin emoji chacun), vues par Néo comme de simples lieux « écrits ».
+
+## v2.6
+- Un ordinateur à l'étage (seul Néo y accède, aucune explication). Ce que Néo y écrit vient de ce qu'il sait et arrive dans une boîte aux lettres mise en évidence ; ce que l'utilisateur y écrit, Néo le lit à l'écran.

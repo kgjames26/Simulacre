@@ -261,6 +261,35 @@ function useDoor(p,door,s) {
   }else recordInteraction((characterNames[p.id]||'Néo')+' ouvre la '+door.name+'.','object');
 }
 // Néo choisit un geste, le monde répond par des sensations, le cerveau en tire (ou non) une cause.
+
+// Ordinateur de l'étage : seul Néo y accède (aucun personnage n'a de route vers lui). Rien n'est expliqué.
+// Ce que Néo y écrit vient de ce qu'il sait (ses phrases, ses mots) ; ce que l'utilisateur y écrit, il le lit à l'écran.
+let courrier={sortant:[],entrant:[],essais:0,prochain:0};
+function placerOrdinateur(){
+  const bed=house.beds?.[2];
+  if(!bed||!bed.approach)return;
+  for(const r of [1.3,1.7,2.1,2.5])for(let k=0;k<16;k++){
+    const a=k*Math.PI/8,x=bed.approach.x+Math.cos(a)*r,z=bed.approach.z+Math.sin(a)*r;
+    if(navigation.isFree(x,z,1)&&navigation.nearest(x,z,1,null,.4)>=0&&navigation.clear(bed.approach.x,bed.approach.z,x,z,1)){
+      house.computer={x,z,y:floorHeight,heading:a+Math.PI};entityCache=null;return;
+    }
+  }
+}
+function utiliserOrdinateur(s){
+  courrier.essais++;
+  const cue='thing:'+opaque('objet:ordinateur');
+  const lecture=courrier.entrant.find(m=>!m.lu);
+  if(lecture){lecture.lu=true;dialogue.lireEcran(lecture.text,cue,s);}
+  if(courrier.essais<3||s<courrier.prochain||courrier.sortant.length>=200)return;
+  const vue=dialogue.view();
+  const phrase=vue.phrases[0]?.text;
+  const mots=vue.vocabulary.map(entry=>entry.word);
+  if(!phrase&&!mots.length)return;
+  let text=phrase;
+  if(!text){const n=Math.min(mots.length,1+Math.floor(rng()*3));text=Array.from({length:n},()=>mots[Math.floor(rng()*mots.length)]).join(' ');}
+  courrier.sortant.push({at:ticks,text,lu:false});
+  courrier.prochain=s+40;
+}
 function tryEntity(entity,s){
   if(entity.equipId&&(contact||s<(entity.equipId==='trampoline'?trampolineCooldown:parkCooldown[entity.equipId]||0)))return false;
   const record=objectLearning[entity.id] ||= {attempts:0,success:0,next:0};
@@ -1001,7 +1030,7 @@ function snapshot() {
       p.baseWords=familyLexicons[p.id]?.size||0;
     }
     if(!B.synchro.famille&&K>BASE_LEVEL.marie&&Brain.synchroniser('famille'))note('Néo en sait maintenant plus que ses parents : il partage aussi avec eux.','social');
-    activityData={equipment:parkMemory,gate:milestones[age],events:interactions,shared,
+    activityData={courrier:{sortant:courrier.sortant.slice(-40),nonLus:courrier.sortant.filter(m=>!m.lu).length},computer:house?.computer||null,equipment:parkMemory,gate:milestones[age],events:interactions,shared,
       motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered})),
       knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};
     brainView=Brain.view(observerLabel);
@@ -1013,7 +1042,7 @@ function snapshot() {
   return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
 }
 function save() {
-  return {brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
+  return {courrier,brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -1024,6 +1053,7 @@ onmessage=({data})=>{
       repas:kitchen.serve,table:kitchen.table,porte:doors.find(door=>door.id==='breezeway'),
       trampoline:{x:trampoline.entryX,z:trampoline.entryZ}};
     for(const door of house.doors)doorStates[door.id]||={amount:0,until:0};
+    placerOrdinateur();
     for(const person of [...residents,...people.slice(3)])resetRestPosition(person);
     const salon=navigation.nearest(-8,-2,0,null,1.2);
     if(salon>=0){const start=navigation.point(salon);alex.x=start.x;alex.z=start.z;alex.y=0;}
@@ -1033,6 +1063,8 @@ onmessage=({data})=>{
       if(nearest>=0)Object.assign(item,navigation.point(nearest));
     }
   }
+  if(data.type==='courrier'&&typeof data.text==='string'&&data.text.trim())courrier.entrant.push({at:ticks,text:data.text.trim().slice(0,200),lu:false});
+  if(data.type==='courrier-lu')for(const m of courrier.sortant)m.lu=true;
   if(data.type==='play-control')playControl(data.id,data.action,data.value);
   if(data.type==='park'&&data.geometry.slide.length>1){
     park=data.geometry;
@@ -1068,6 +1100,7 @@ onmessage=({data})=>{
     Object.assign(kitchen,s.kitchen);
     if(!s.kitchen?.servings)kitchen.servings=Array(kitchen.meals).fill(.62);
     Object.assign(objectLearning,s.objectLearning);
+    if(s.courrier)courrier=s.courrier;
     nextRefill=Number.isFinite(s.nextRefill)?s.nextRefill:0;
     Object.assign(equipmentSeen,s.equipmentSeen);
     if(s.motorVersion===MOTOR_VERSION)Object.assign(ball,s.ball);

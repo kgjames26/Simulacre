@@ -92,6 +92,7 @@ function entities(){
     }
     for(const door of house.doors.filter(item=>!item.floor))
       add('porte:'+door.id,'porte',door.name,door.x,door.z,doorTraits(door),{door});
+    if(house.computer)add('objet:ordinateur','objet','ordinateur',house.computer.x,house.computer.z,[.8,.3,0,.9,0,1],{computerId:true,floor:1});
     add('equip:trampoline','equipement','trampoline',house.trampoline.entryX,house.trampoline.entryZ,[.3,.5,.6,0,0,0],{equipId:'trampoline'});
   }
   if(park){
@@ -133,6 +134,11 @@ function respond(entity,prim,s){
     if(prim!==effect.prim)return hit(entity,prim);
     return {flags:effect.flags,contact:{id:entity.houseId,until:s+effect.duration},
       besoins:effect.besoin?.(alex)??{},plaisir:effect.plaisir||0};
+  }
+  if(entity.computerId){
+    if(prim!=='pousser')return hit(entity,prim);
+    utiliserOrdinateur(s);
+    return {flags:['lumiere','bruit','ecrit'],plaisir:.05};
   }
   if(entity.kitchenId){
     const spec=KITCHEN_ENTITIES[entity.kitchenId];

@@ -184,3 +184,16 @@ dialog p{margin-top:9px;font-size:14px;color:var(--muted)}
 .regions{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin:14px 0 8px}
 .region{padding:12px 14px;border-radius:12px;background:var(--panel2);border-left:3px solid var(--good)}
 .region strong{display:block;font-size:14px}.region[data-empty=true]{opacity:.45;border-left-color:var(--line2)}
+
+#boite{position:fixed;right:14px;bottom:14px;z-index:30;font:14px system-ui}
+#boite .ouvrir{position:relative;width:48px;height:48px;border-radius:50%;border:1px solid #28443a;background:#fff6dc;color:#28443a;cursor:pointer;display:grid;place-items:center}
+#boite.alerte .ouvrir{animation:boitePulse 1.4s ease-in-out infinite;background:#ffd86b;box-shadow:0 0 0 0 rgba(255,200,60,.8)}
+#boite .pastille{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;border-radius:10px;background:#c0392b;color:#fff;font-size:12px;display:grid;place-items:center;padding:0 4px}
+#boite .contenu{display:none;position:absolute;right:0;bottom:58px;width:min(300px,86vw);max-height:50vh;background:#fffdf5;border:1px solid #28443a;border-radius:12px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+#boite.ouverte .contenu{display:block}
+#boite ul{list-style:none;margin:0 0 8px;padding:0;max-height:30vh;overflow:auto}
+#boite li{padding:6px 8px;border-radius:8px;margin-bottom:4px;background:#f1ecd9}
+#boite li.nouveau{background:#ffe9a8;font-weight:600}
+#boite form{display:flex;gap:6px}#boite input{flex:1;padding:6px 8px;border:1px solid #bdb59a;border-radius:8px}
+#boite form button{border:0;border-radius:8px;background:#28443a;color:#fff;padding:0 12px;cursor:pointer}
+@keyframes boitePulse{50%{box-shadow:0 0 0 12px rgba(255,200,60,0)}}
