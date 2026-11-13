@@ -1,4 +1,4 @@
-importScripts('/brain.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js');
+importScripts('/brain.js','/cortex.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js');
 const dialogue=createDialogue();
 const languageScene={points:{},visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
 const DT = 1 / 120;
@@ -253,12 +253,16 @@ function tryEntity(entity,s){
   if(record.next>s)return false;
   record.next=s+20;
   record.attempts++;
-  const prim=Brain.choisir(entity.id);
+  const prim=Cortex.idee(entity.id)||Brain.choisir(entity.id);
+  const prevu=Cortex.prevoir(prim,entity.id);
   const out=respond(entity,prim,s);
   const succes=out.flags.length>0;
   const result=Brain.essai({t:s,cible:entity.id,prim,succes,effet:out.flags,besoins:out.besoins||{},
     plaisir:out.plaisir||0,douleur:out.douleur||0});
   if(out.contact){objectContact=out.contact;household[out.contact.id]=1;}
+  const verdict=Cortex.apprendre({t:s,cible:entity.id,prim,succes,effet:out.flags,besoins:out.besoins||{},plaisir:out.plaisir||0,douleur:out.douleur||0},
+    prevu,{lieu:cellOf(alex)});
+  if(verdict)note('Néo vérifie une de ses idées et elle se confirme.','object');
   Brain.atteint(entity.id,s);
   if(out.start)beginEquipment(out.start,s);
   if(result.geste)note('Néo apprend un nouveau geste : '+result.geste+'.','object');
@@ -660,6 +664,7 @@ function beginEquipment(item,s){
   }
 }
 // Néo ne connaît que ce qu'il a perçu : les objectifs viennent de son registre, jamais de la carte du monde.
+const cellOf=p=>Math.floor(p.x/2)+','+Math.floor(p.z/2)+','+(p.floor||0);
 let lastPerception=-1e9,nextConsolidation=60;
 function perceiveStep(s){
   if(s-lastPerception<.5)return;
@@ -670,6 +675,9 @@ function perceiveStep(s){
     if(p.vivant)Brain.personne(p.id,{x:p.x,z:p.z},s);
   }
   Brain.lieu(alex.x,alex.z,alex.floor||0);
+  const seen=percevoir(alex,range);
+  Cortex.scene(s,{lieu:cellOf(alex),obj:seen.filter(p=>!p.vivant).map(p=>p.id),pers:seen.filter(p=>p.vivant).map(p=>p.id),
+    besoins:{faim:alex.hunger,soif:alex.thirst,fatigue:alex.fatigue,hygiene:1-alex.hygiene}});
 }
 function frontierPoint(){
   const angle=rng()*Math.PI*2,r=3+rng()*4;
@@ -708,13 +716,14 @@ function chooseGoal(s){
     Math.hypot(goal.x-alex.x,goal.z-alex.z)<(age>2?14:9)&&curiosityRecord(goal.name).retryAt<=s);
   if(!candidates.length)candidates=options.filter(goal=>curiosityRecord(goal.name).retryAt<=s);
   if(!candidates.length)return null;
+  const recall=Cortex.rappel(s);
   const interest=goal=>{
     const record=curiosityRecord(goal.name);
     const known=Brain.connu(goal.name);const observations=(known?known.essais:0)+(known&&known.vu>3?1:0);
     const novelty=2.4/(1+observations+record.completed);
     const unfinished=record.choices>0&&record.completed===0?.32:0;
     const distance=Math.hypot(goal.x-alex.x,goal.z-alex.z);
-    return (novelty+unfinished+.23)/(1+distance*.115+record.blocked*.12);
+    return (novelty+unfinished+.23)*(1+2.5*(recall.get(goal.id)||0)+(Cortex.attendue(goal.id)?2:0))/(1+distance*.115+record.blocked*.12);
   };
   let pick=rng()*candidates.reduce((sum,goal)=>sum+interest(goal),0);
   const selected=candidates.find(goal=>(pick-=interest(goal))<=0)||candidates[0];
@@ -912,6 +921,7 @@ function experience() {
   if(s>=nextConsolidation){
     nextConsolidation=s+60;
     Brain.consolider(s,{});
+    Cortex.deduire(s,{lexique:dialogue.view().vocabulary});
     if(age>=2)Brain.publier(s);
     if(age>=5)Brain.synchroniser?.('parents');
   }
@@ -946,11 +956,11 @@ function evaluateStageGoals(){
     [[P,'Se redresser et ramper',records[0].mastered&&records[1].mastered],[M,'Reconnaître ses proches',proches>=2],[M,'Comprendre un premier mot',mots>=1]],
     [[P,'Tenir debout et faire ses premiers pas',records[2].mastered&&records[3].mastered],[M,'Voir que ses gestes ont des effets (2 choses comprises)',sure.length>=2],[M,'Comprendre 3 mots',mots>=3]],
     [[P,'Marcher seul',records[4].mastered],[P,'Apprendre un nouveau geste',gestes>=1],[M,'Comprendre 6 mots',mots>=6]],
-    [[P,'Maîtriser tous ses gestes',gestes>=4],[P,'Courir',(alex.courseXp||0)>=COURSE_GOAL],[M,'Regrouper les choses par famille',B.concepts.length>=1],[M,'Dire sa première phrase',phrases>=1],[M,'Comprendre 4 choses',sure.length>=4]],
+    [[P,'Maîtriser tous ses gestes',gestes>=4],[P,'Courir',(alex.courseXp||0)>=COURSE_GOAL],[M,'Regrouper les choses par famille',B.concepts.length>=1],[M,'Dire sa première phrase',phrases>=1],[M,'Comprendre 4 choses',sure.length>=4],[M,'Avoir une idée et la vérifier',Cortex.confirmees()>=1]],
     [[P,'Jouer avec 2 équipements du parc',parc>=2],[M,'Atteindre 3 envies',Brain.nbAtteints()>=3],[M,'Comprendre 12 mots',mots>=12]],
-    [[M,'Se débrouiller seul pour ses besoins',besoins>=2],[M,'Partager ses découvertes avec ses parents',!!B.synchro.parents],[M,'Comprendre 8 choses',sure.length>=8]],
+    [[M,'Se débrouiller seul pour ses besoins',besoins>=2],[M,'Partager ses découvertes avec ses parents',!!B.synchro.parents],[M,'Comprendre 8 choses',sure.length>=8],[M,'Vérifier 4 de ses idées',Cortex.confirmees()>=4]],
     [[M,'Acquérir une habitude',B.savoirFaire.length>=1],[M,'Former 5 phrases',phrases>=5],[M,'Comprendre 25 mots',mots>=25]],
-    [[M,'Atteindre 6 envies',Brain.nbAtteints()>=6],[M,'Avoir 3 habitudes',B.savoirFaire.length>=3],[M,'Comprendre 15 choses',sure.length>=15]]
+    [[M,'Atteindre 6 envies',Brain.nbAtteints()>=6],[M,'Avoir 3 habitudes',B.savoirFaire.length>=3],[M,'Comprendre 15 choses',sure.length>=15],[M,'Vérifier 10 de ses idées',Cortex.confirmees()>=10]]
   ];
   return (table[age]||[]).map(([type,label,done])=>({type,label,done:!!done}));
 }
@@ -973,6 +983,8 @@ function snapshot() {
       knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};
     brainView=Brain.view(observerLabel);
     brainView.etape=stageGoals;
+    Object.assign(brainView.tailles,Cortex.tailles());
+    brainView.cortex=Cortex.view(observerLabel,brainView.tailles);
     nextActivitySnapshot=ticks+36;
   }
   return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};

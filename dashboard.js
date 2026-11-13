@@ -331,11 +331,39 @@ function renderLatest(b){
 }
 const FILE_HELP={'sens.log':'ce qu’il a ressenti','essais.jsonl':'tout ce qu’il a essayé','corps.json':'ce que son corps sait faire','objets.json':'les choses repérées',
   'lieux.json':'les endroits visités','personnes.json':'les personnes connues','humeur.json':'son humeur dans le temps','causes.json':'les liens cause → effet','concepts.json':'les familles de choses',
-  'lexique.json':'les mots compris','ecriture.json':'les signes écrits repérés','savoir-faire.json':'ses habitudes','questions.json':'ses questions','objectifs.json':'ses envies'};
-const QUESTION={objet_non_essaye:q=>'Que peut-on faire avec « '+q.ref+' » ?',mot_sans_lien:q=>'Que veut dire « '+q.ref+' » ?'};
+  'lexique.json':'les mots compris','ecriture.json':'les signes écrits repérés','savoir-faire.json':'ses habitudes','episodes.json':'ses souvenirs complets','associations.json':'ce qui va ensemble','idees.json':'ses idées à vérifier','questions.json':'ses questions','objectifs.json':'ses envies'};
+const QUESTION={surprise:q=>'Pourquoi « '+q.ref+' » a-t-il réagi autrement que prévu ?',objet_non_essaye:q=>'Que peut-on faire avec « '+q.ref+' » ?',mot_sans_lien:q=>'Que veut dire « '+q.ref+' » ?'};
+
+const BESOIN={faim:'faim',soif:'soif',fatigue:'sommeil',hygiene:'besoin de se laver'};
+const IDEE={idee:['À vérifier','test'],confirmee:['Vérifiée ✓','sure'],refutee:['Fausse','wrong']};
+function ideeTexte(i){
+  if(i.type==='mot')return 'Le mot « '+i.mot+' » désigne « '+i.cible+' ».';
+  if(i.type==='besoin')return 'Quand il a '+(BESOIN[i.besoin]||i.besoin)+', « '+i.cible+' » pourrait l’aider.';
+  return '« '+i.cible+' » devrait réagir quand il fait « '+(VERBES[i.prim]||i.prim).toLowerCase()+' »'+(i.sources.length?', comme '+i.sources.map(s=>'« '+s+' »').join(' et '):'')+'.';
+}
+function renderCortex(b){
+  const c=b.cortex;
+  if(!c)return;
+  ui('brain-regions').replaceChildren(...c.regions.map(r=>el('div',{className:'region',dataset:{empty:String(!r.elements)}},
+    el('strong',{textContent:r.nom}),el('small',{textContent:fmt(r.elements)+' élément'+(r.elements>1?'s':'')}))));
+  ui('brain-cortex-stats').textContent=fmt(c.liens)+' liens solides entre ses souvenirs · '+fmt(c.deductions)+' idées formées · '+fmt(c.confirmees)+' vérifiées'+
+    (c.surprise>.05?' · surprise '+Math.round(c.surprise*100)+' %':'');
+  ui('brain-ideas').replaceChildren(...(c.idees.length?c.idees.slice(0,10).map(i=>{
+    const [label,kind]=IDEE[i.statut]||[i.statut,'test'];
+    return el('div',{className:'know',dataset:{kind}},
+      el('div',{},el('strong',{textContent:ideeTexte(i)}),el('small',{textContent:'Croise : '+i.regions.join(' + ')})),
+      el('span',{className:'pill',textContent:label}));
+  }):[el('p',{className:'muted',textContent:'Pas encore d’idée : il lui faut d’abord vivre et essayer des choses.'})]));
+  ui('brain-memories').replaceChildren(...(c.souvenirs.length?c.souvenirs.map(m=>
+    el('div',{className:'know',dataset:{kind:m.succes?'sure':'test'}},
+      el('div',{},el('strong',{textContent:(VERBES[m.geste]||cap(m.geste))+' · '+m.cible}),
+        el('small',{textContent:(m.succes?'→ '+effets(m.effet):'rien ne s’est passé')+(m.soulage.length?' · soulage : '+m.soulage.map(x=>BESOIN[x]||x).join(', '):'')})))):
+    [el('p',{className:'muted',textContent:'Aucun souvenir pour le moment.'})]));
+}
 function renderBrain(state){
   const b=state.brain;
   if(!b)return;
+  renderCortex(b);
   const sure=b.savoir.filter(c=>c.statut==='confirme').length;
   ui('brain-head').replaceChildren(...[['Choses comprises',sure],['Essais tentés',b.tailles['essais.jsonl']],
     ['Choses remarquées',b.tailles['objets.json']],['Mots compris',b.tailles['lexique.json']],['Endroits visités',b.lieux]].map(([label,value])=>
