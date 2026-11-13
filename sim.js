@@ -20,6 +20,17 @@ const people = [
   ['timeo', 8, 4], ['nathan', 10, 6], ['francoise', 12, 3], ['rose', 14, 5]
 ].map(([id,x,z])=>({id,x,z,homeX:x,homeZ:z,heading:0,phase:0,bond:0,inherited:0}));
 const bounds = {x:19,z:12};
+// Personne n'apprend seul : ce sont des niveaux écrits d'avance. Les savoirs de Néo vont d'abord aux amis du parc,
+// puis à chacun des autres quand Néo en sait davantage que son niveau.
+const BASE_LEVEL={timeo:6,nathan:6,francoise:6,rose:6,juliette:14,joseph:30,marie:30};
+const FRIEND_IDS=['timeo','nathan','francoise','rose'];
+function knowledgeScore(){
+  const mots=dialogue.view().vocabulary.length;
+  const gestes=Brain.APPRENABLES.filter(g=>Brain.state.gestes[g]?.appris).length;
+  return Brain.confirmees().length+2*Cortex.confirmees()+mots+3*gestes+records.filter(r=>r.mastered).length;
+}
+const aEnvieDAider=p=>p.bond>=3;
+const aBesoin=p=>(p.faim||0)>=.5||(p.peine||0)>=.5;
 const milestones = [
   {motor:35, life:0, cognition:0, play:0, social:0},
   {motor:62, life:8, cognition:3, play:1, social:2},
@@ -723,7 +734,7 @@ function chooseGoal(s){
     const novelty=2.4/(1+observations+record.completed);
     const unfinished=record.choices>0&&record.completed===0?.32:0;
     const distance=Math.hypot(goal.x-alex.x,goal.z-alex.z);
-    return (novelty+unfinished+.23)*(1+2.5*(recall.get(goal.id)||0)+(Cortex.attendue(goal.id)?2:0))/(1+distance*.115+record.blocked*.12);
+    return (novelty+unfinished+.23)*(goal.person&&aEnvieDAider(goal.person)&&aBesoin(goal.person)?3:1)*(1+2.5*(recall.get(goal.id)||0)+(Cortex.attendue(goal.id)?2:0))/(1+distance*.115+record.blocked*.12);
   };
   let pick=rng()*candidates.reduce((sum,goal)=>sum+interest(goal),0);
   const selected=candidates.find(goal=>(pick-=interest(goal))<=0)||candidates[0];
@@ -821,6 +832,13 @@ function experience() {
       if(category==='social'){
         counts.social++; friend.bond++;
         relationshipEvent('alex',friend.id,'Rencontre',s,age);
+        if(aEnvieDAider(friend)&&aBesoin(friend)){
+          // Envie innée d'aider ceux qu'il aime bien ; la façon dépend de ce qu'il a appris.
+          const source=(friend.faim||0)>=.5?Brain.besoinCible('faim'):null;
+          if(source){friend.faim=.1;note('Néo apporte à manger à '+characterNames[friend.id]+', qu’il aime bien.','social');}
+          else{friend.peine=.1;note('Néo reste auprès de '+characterNames[friend.id]+' pour le réconforter.','social');}
+          friend.bond++;counts.social++;counts.aides=(counts.aides||0)+1;friend.aideRecue=(friend.aideRecue||0)+1;
+        }
         if(friend.id==='marie'||friend.id==='joseph') note('Un câlin apaise Néo.','social');
         else note('Néo rencontre '+characterNames[friend.id]+'.','social');
       }
@@ -923,7 +941,8 @@ function experience() {
     Brain.consolider(s,{});
     Cortex.deduire(s,{lexique:dialogue.view().vocabulary});
     if(age>=2)Brain.publier(s);
-    if(age>=5)Brain.synchroniser?.('parents');
+    if(age>=2&&Brain.synchroniser('amis'))note('Néo partage ses découvertes avec ses amis du parc.','social');
+    for(const p of people){p.faim=Math.min(1,(p.faim||0)+.06);p.peine=Math.min(1,(p.peine||0)+.03);if(p.faim>=1)p.faim=.15;if(p.peine>=1)p.peine=.2;}
   }
   if(ticks%600===0){
     stageGoals=evaluateStageGoals();
@@ -958,9 +977,9 @@ function evaluateStageGoals(){
     [[P,'Marcher seul',records[4].mastered],[P,'Apprendre un nouveau geste',gestes>=1],[M,'Comprendre 6 mots',mots>=6]],
     [[P,'Maîtriser tous ses gestes',gestes>=4],[P,'Courir',(alex.courseXp||0)>=COURSE_GOAL],[M,'Regrouper les choses par famille',B.concepts.length>=1],[M,'Dire sa première phrase',phrases>=1],[M,'Comprendre 4 choses',sure.length>=4],[M,'Avoir une idée et la vérifier',Cortex.confirmees()>=1]],
     [[P,'Jouer avec 2 équipements du parc',parc>=2],[M,'Atteindre 3 envies',Brain.nbAtteints()>=3],[M,'Comprendre 12 mots',mots>=12]],
-    [[M,'Se débrouiller seul pour ses besoins',besoins>=2],[M,'Partager ses découvertes avec ses parents',!!B.synchro.parents],[M,'Comprendre 8 choses',sure.length>=8],[M,'Vérifier 4 de ses idées',Cortex.confirmees()>=4]],
+    [[M,'Se débrouiller seul pour ses besoins',besoins>=2],[M,'Partager ses découvertes avec ses amis du parc',!!B.synchro.amis],[M,'Comprendre 8 choses',sure.length>=8],[M,'Vérifier 4 de ses idées',Cortex.confirmees()>=4]],
     [[M,'Acquérir une habitude',B.savoirFaire.length>=1],[M,'Former 5 phrases',phrases>=5],[M,'Comprendre 25 mots',mots>=25]],
-    [[M,'Atteindre 6 envies',Brain.nbAtteints()>=6],[M,'Avoir 3 habitudes',B.savoirFaire.length>=3],[M,'Comprendre 15 choses',sure.length>=15],[M,'Vérifier 10 de ses idées',Cortex.confirmees()>=10]]
+    [[M,'Atteindre 6 envies',Brain.nbAtteints()>=6],[M,'Partager avec sa famille',!!B.synchro.famille],[M,'Avoir 3 habitudes',B.savoirFaire.length>=3],[M,'Comprendre 15 choses',sure.length>=15],[M,'Vérifier 10 de ses idées',Cortex.confirmees()>=10]]
   ];
   return (table[age]||[]).map(([type,label,done])=>({type,label,done:!!done}));
 }
@@ -970,14 +989,18 @@ function snapshot() {
     const names=Object.keys(knowledge).map(k=>observerLabel(k)||k);
     const vocabulary=dialogue.view().vocabulary.map(entry=>entry.word);
     const shared={skills:records.flatMap((record,i)=>record.mastered?[goals[i]]:[]),discoveries:names,vocabulary};
+    const K=knowledgeScore();const B=Brain.state;
     for(const p of people){
       if(p.id==='juliette')p.age=Math.min(8,age+2);else if(playgroundFriends.includes(p.id))p.age=age;
-      p.inherited=names.length+vocabulary.length;
-      p.learnedFromNeo=[...names,...vocabulary];
-      p.inheritedSkills=shared.skills.slice();
-      if(familyLexicons[p.id])for(const word of vocabulary)familyLexicons[p.id].add(word);
+      const recoit=FRIEND_IDS.includes(p.id)?B.synchro.amis:(B.synchro.amis&&K>BASE_LEVEL[p.id]);
+      p.niveau=BASE_LEVEL[p.id];p.partage=recoit;
+      p.inherited=recoit?names.length+vocabulary.length:0;
+      p.learnedFromNeo=recoit?[...names,...vocabulary]:[];
+      p.inheritedSkills=recoit?shared.skills.slice():[];
+      if(recoit&&familyLexicons[p.id])for(const word of vocabulary)familyLexicons[p.id].add(word);
       p.baseWords=familyLexicons[p.id]?.size||0;
     }
+    if(!B.synchro.famille&&K>BASE_LEVEL.marie&&Brain.synchroniser('famille'))note('Néo en sait maintenant plus que ses parents : il partage aussi avec eux.','social');
     activityData={equipment:parkMemory,gate:milestones[age],events:interactions,shared,
       motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered})),
       knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};

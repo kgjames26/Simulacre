@@ -13,3 +13,8 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - v2.1 : interface simplifiée en 5 pages, vocabulaire clair, scène 3D améliorée
 - v2.0 : cerveau en fichiers, contrat d'ignorance, nouvelle interface
 - v1.0 : version initiale
+
+## v2.5 (suite) — partage par paliers et entraide
+- Personne d'autre n'apprend : niveaux écrits d'avance (amis du parc 6, Juliette 14, parents 30).
+- Les savoirs publiés de Néo vont d'abord aux amis du parc, puis à chacun des autres quand Néo en sait plus que leur niveau.
+- Néo a envie d'aider les gens qu'il aime bien (lien ≥ 3) : il apporte à manger s'il connaît une source, sinon il réconforte.

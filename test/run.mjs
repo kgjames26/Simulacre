@@ -1,5 +1,5 @@
 import {spawnSync} from 'node:child_process';
-const tests=['ignorance','determinisme','stades','cortex'];
+const tests=['ignorance','determinisme','stades','cortex','partage'];
 let failed=0;
 for(const name of tests){
   const result=spawnSync(process.execPath,['test/'+name+'.mjs'],{encoding:'utf8'});

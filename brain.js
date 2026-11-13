@@ -20,7 +20,7 @@ const Brain=(()=>{
       sens:[],essais:[],objets:{},lieux:{cases:{}},personnes:{},
       humeur:{valence:0,eveil:0,peur:0,frustration:0,ennui:0,historique:[]},
       causes:[],concepts:[],ecriture:{glyphes:{}},savoirFaire:[],questions:[],objectifs:[],
-      gestes:{},journal:[],publie:[],synchro:{parents:false,proche:0},
+      gestes:{},journal:[],publie:[],synchro:{amis:false,famille:false,proche:0},
       next:{e:1,c:1,q:1,g:1,s:1}};
   }
   S=fresh(1);
@@ -311,7 +311,7 @@ const Brain=(()=>{
   function lire(retard=0){return S.publie[Math.max(0,S.publie.length-1-retard)]||null;}
   const aSynchro=()=>S.synchro;
   function synchroniser(qui){
-    if(qui==='parents'&&S.publie.length>0&&!S.synchro.parents){S.synchro.parents=true;return true;}
+    if((qui==='amis'||qui==='famille')&&S.publie.length>0&&!S.synchro[qui]){S.synchro[qui]=true;return true;}
     if(qui==='proche'){S.synchro.proche=Math.min(1,S.synchro.proche+.05);}
     return false;
   }
@@ -328,7 +328,7 @@ const Brain=(()=>{
       case 2:return mots>=5&&but>=1;
       case 3:return causes>=4&&S.concepts.length>=1;
       case 4:return but>=3;
-      case 5:return S.synchro.parents;
+      case 5:return S.synchro.amis;
       case 6:return S.savoirFaire.length>=1;
       case 7:return but>=6;
       default:return true;

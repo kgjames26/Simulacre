@@ -271,7 +271,8 @@ function renderRelations(state){
     if(person.id==='alex')item.append(row('Soif',percent(person.thirst)),row('Hygiène',percent(person.hygiene)));
     else{
       if(person.age!=null)item.append(row('Stade',ageNames[person.age]));
-      item.append(row('Connaissances reçues de Néo',fmt(person.inherited)));
+      item.append(row('Connaissances reçues de Néo',person.partage?fmt(person.inherited):'pas encore (niveau '+person.niveau+')'));
+      if(person.aideRecue)item.append(row('Aidé par Néo',fmt(person.aideRecue)+' fois'));
       if(person.baseWords)item.append(row('Mots connus en plus',fmt(person.baseWords)));
     }
     return item;
