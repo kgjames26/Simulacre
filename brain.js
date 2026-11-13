@@ -5,7 +5,9 @@
 const Brain=(()=>{
   const VERSION=2;
   // Gestes innés : Néo sait les faire, pas ce qu'ils provoquent.
-  const PRIMITIVES=['pousser','tirer','saisir','monter','frapper','tourner'];
+  // Gestes de base innés : ceux des mains. Les autres s'apprennent en les tentant (babillage moteur).
+  const PRIMITIVES=['pousser','tirer','saisir','frapper'];
+  const APPRENABLES=['monter','tourner','grimper','sauter'];
   const DOMAINS=['moteur','vital','cognition','ludique','social'];
   const FILES=['sens.log','essais.jsonl','corps.json','objets.json','lieux.json','personnes.json','humeur.json',
     'causes.json','concepts.json','lexique.json','ecriture.json','savoir-faire.json','questions.json','objectifs.json'];
@@ -18,7 +20,7 @@ const Brain=(()=>{
       sens:[],essais:[],objets:{},lieux:{cases:{}},personnes:{},
       humeur:{valence:0,eveil:0,peur:0,frustration:0,ennui:0,historique:[]},
       causes:[],concepts:[],ecriture:{glyphes:{}},savoirFaire:[],questions:[],objectifs:[],
-      journal:[],publie:[],synchro:{parents:false,proche:0},
+      gestes:{},journal:[],publie:[],synchro:{parents:false,proche:0},
       next:{e:1,c:1,q:1,g:1,s:1}};
   }
   S=fresh(1);
@@ -113,6 +115,12 @@ const Brain=(()=>{
     S.manifest.nEssais++;
     const o=S.objets[e.cible];
     if(o){o.essais++;if(e.succes)o.reussites++;if(o.essais>=12&&!o.reussites)o.inerte=true;}
+    let geste=null;
+    if(APPRENABLES.includes(e.prim)&&!appris(e.prim)){
+      const g=S.gestes[e.prim]||=({essais:0,appris:false});
+      g.essais++;
+      if(g.essais>=3){g.appris=true;geste=e.prim;xp('moteur',1);note(e.t,'nouveau geste appris : '+e.prim,e.prim);}
+    }
     let c=findCause(e.prim,e.cible);
     if(!c){
       c={id:'c-'+(S.next.c++),type:'cause',enonce:{action:e.prim,cible:e.cible,effet:[]},
@@ -149,7 +157,7 @@ const Brain=(()=>{
     h.valence+=(clamp(r,-1,1)-h.valence)*.08;
     h.frustration=e.succes?h.frustration*.7:Math.min(1,h.frustration+.06);
     if(e.douleur)h.peur=Math.min(1,h.peur+e.douleur);
-    return {cause:c,nouveau,episode:rec};
+    return {cause:c,nouveau,episode:rec,geste};
   }
   function causeDe(prim,cible){return findCause(prim,cible);}
 
@@ -162,11 +170,20 @@ const Brain=(()=>{
     if(c&&c.essais>0)return 0;
     return k.membres.some(m=>m!==cible&&findCause(prim,m)?.statut==='confirme')?.45:0;
   }
+  const appris=g=>!!S.gestes[g]?.appris;
+  const repertoire=()=>PRIMITIVES.concat(APPRENABLES.filter(appris));
   function choisir(cible){
+    // Envie très forte d'essayer : souvent, il tente un geste qu'il ne maîtrise pas encore.
+    const inconnus=APPRENABLES.filter(g=>!appris(g));
+    if(inconnus.length&&rand()<.26*exploration()){
+      const g=inconnus[Math.floor(rand()*inconnus.length)];
+      (S.gestes[g]||=({essais:0,appris:false})).tentes=(S.gestes[g].tentes||0)+1;
+      return g;
+    }
     let total=0;
     for(const c of S.causes)if(c.enonce.cible===cible)total+=c.essais;
     let best=PRIMITIVES[0],bestScore=-1e9;
-    for(const p of PRIMITIVES){
+    for(const p of repertoire()){
       const c=findCause(p,cible);
       const n=c?c.essais:0;
       const moyenne=c?(c.reussites+.35)/(c.essais+1):.35;
@@ -322,7 +339,7 @@ const Brain=(()=>{
   function taille(){
     return {
       'sens.log':S.sens.length,'essais.jsonl':S.manifest.nEssais,
-      'corps.json':sources.competences?.().length||0,'objets.json':Object.keys(S.objets).length,
+      'corps.json':(sources.competences?.().length||0)+repertoire().length,'objets.json':Object.keys(S.objets).length,
       'lieux.json':Object.keys(S.lieux.cases).length,'personnes.json':Object.keys(S.personnes).length,
       'humeur.json':S.humeur.historique.length,'causes.json':S.causes.length,'concepts.json':S.concepts.length,
       'lexique.json':sources.lexique?.().length||0,'ecriture.json':Object.keys(S.ecriture.glyphes).length,
@@ -336,6 +353,7 @@ const Brain=(()=>{
       .map(c=>({id:c.id,statut:c.statut,action:c.enonce.action,cible:nom(c.enonce.cible),effet:c.enonce.effet,
         confiance:c.confiance,essais:c.essais,reussites:c.reussites,preuves:c.preuves}));
     return {
+      gestes:{innes:PRIMITIVES,appris:APPRENABLES.filter(appris),enCours:APPRENABLES.filter(g=>!appris(g)&&(S.gestes[g]?.essais||0)>0)},
       version:S.version,seed:S.seed,xp:S.manifest.xp,tailles:taille(),fichiers:FILES,
       savoir,derniers:dernier,
       concepts:S.concepts.map(k=>({id:k.id,membres:k.membres.map(nom),usages:k.usages})),
@@ -349,7 +367,7 @@ const Brain=(()=>{
     };
   }
 
-  return {synchroniser,PRIMITIVES,DOMAINS,FILES,init,save,restore,bind,rand,xp,note,sentir,vu,connu,registre,lieu,personne,lien,
+  return {synchroniser,PRIMITIVES,APPRENABLES,repertoire,DOMAINS,FILES,init,save,restore,bind,rand,xp,note,sentir,vu,connu,registre,lieu,personne,lien,
     soulagement,essai,causeDe,choisir,besoinCible,question,objectifActif,atteint,bloque,nbAtteints,consolider,
     exploration,publier,lire,aSynchro,confirmees,signature,view,taille,
     get state(){return S;}};

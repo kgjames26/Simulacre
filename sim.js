@@ -228,6 +228,7 @@ function useDoor(p,door,s) {
 }
 // Néo choisit un geste, le monde répond par des sensations, le cerveau en tire (ou non) une cause.
 function tryEntity(entity,s){
+  if(entity.equipId&&(contact||s<(entity.equipId==='trampoline'?trampolineCooldown:parkCooldown[entity.equipId]||0)))return false;
   const record=objectLearning[entity.id] ||= {attempts:0,success:0,next:0};
   if(record.next>s)return false;
   record.next=s+20;
@@ -238,12 +239,19 @@ function tryEntity(entity,s){
   const result=Brain.essai({t:s,cible:entity.id,prim,succes,effet:out.flags,besoins:out.besoins||{},
     plaisir:out.plaisir||0,douleur:out.douleur||0});
   if(out.contact){objectContact=out.contact;household[out.contact.id]=1;}
+  if(out.start)beginEquipment(out.start,s);
+  if(result.geste)note('Néo apprend un nouveau geste : '+result.geste+'.','object');
   if(out.douleur)alex.pleasure=Math.max(0,(alex.pleasure||0)-out.douleur*2);
   if(succes)record.success++;
   if(result.nouveau){
     counts.cognition++;
     if(entity.kind==='jeu')counts.play++;
     knowledge[entity.id]={visits:result.cause.essais,senses:['vision','contact','effet'],type:'objet',action:prim};
+    if(entity.playId==='toy'||entity.playId&&entity.playId.startsWith('bike')){
+      // Les proches peuvent ensuite imiter ce que Néo a découvert.
+      const label=entity.playId==='toy'?playNames.toy:'tricycle';
+      knowledge['usage · '+label]={visits:result.cause.essais,action:entity.playId==='toy'?2:3,senses:['contact','mouvement','mémoire'],type:'objet'};
+    }
     note('Néo découvre comment utiliser · '+entity.name+'.','object');
   }else if(!succes&&record.attempts===1)note('Néo essaie de comprendre · '+entity.name+'.');
   return succes;
@@ -650,9 +658,9 @@ function makeGoalOptions(){
   const options=[];
   for(const o of Brain.registre()){
     const entity=entityById(o.id);
-    if(!entity||entity.kind==='equipement'||(entity.floor||0)!==(alex.floor||0))continue;
+    if(!entity||(entity.floor||0)!==(alex.floor||0))continue;
     const source=entity.dynamic||o.pos||entity;
-    const category=entity.kind==='personne'?'social':entity.kind==='jeu'?'jeu':entity.kind==='objet'?'objet':'exploration';
+    const category=entity.kind==='personne'?'social':entity.kind==='jeu'?'jeu':entity.kind==='objet'?'objet':entity.kind==='equipement'?'équipement':'exploration';
     if(entity.kind==='personne'&&(entity.dynamic.floor||entity.dynamic.lie))continue;
     const base={name:entity.id,x:source.x,z:source.z,id:entity.id,category};
     if(category==='social')base.person=entity.dynamic;
@@ -682,7 +690,7 @@ function chooseGoal(s){
   const interest=goal=>{
     const record=curiosityRecord(goal.name);
     const known=Brain.connu(goal.name);const observations=(known?known.essais:0)+(known&&known.vu>3?1:0);
-    const novelty=1.7/(1+observations+record.completed);
+    const novelty=2.4/(1+observations+record.completed);
     const unfinished=record.choices>0&&record.completed===0?.32:0;
     const distance=Math.hypot(goal.x-alex.x,goal.z-alex.z);
     return (novelty+unfinished+.23)/(1+distance*.115+record.blocked*.12);
@@ -700,7 +708,7 @@ function finishGoal(s,completed){
   const record=curiosityRecord(explorationTarget.name);
   if(completed)record.completed++;
   else record.blocked++;
-  record.retryAt=s+(completed?50:20);
+  record.retryAt=s+(completed?30:15);
   explorationTarget=null;
 }
 function languageVisibility(observer,target){
@@ -742,7 +750,6 @@ function experience() {
     const friend=intention?.person;
     let goal=intention?[intention.name,intention.x,intention.z,intention.id]:['observe',alex.x,alex.z];
     let category=intention?.category||'observation';
-    const equipment=tryEquipment(s);
     const objects=house?.objects;
     const need=alex.hunger>.66?'faim':alex.thirst>.7?'soif':alex.hygiene<.25?'hygiene':null;
     const relief=need?Brain.besoinCible(need):null;
@@ -751,10 +758,9 @@ function experience() {
       goal=[reliefEntity.id,reliefEntity.x,reliefEntity.z,reliefEntity.id];
       category=reliefEntity.kind==='objet'?'objet':'exploration';
     }else if(alex.hunger>.86&&!house){goal=['repas',-2,-4];category='repas';}
-    else if(equipment){goal=[equipment.name,equipment.x,equipment.z];category='équipement';}
-    alex.activity=category==='objet'?'Explore · '+goal[0]:category==='exploration'?'Explore · '+goal[0]:category==='social'?'Rencontre · '+goal[0]:category==='équipement'?'Observe · '+goal[0]:category;
+    const goalLabel=observerLabel(goal[0])||goal[0];
+    alex.activity=category==='objet'||category==='exploration'||category==='équipement'?'Explore · '+goalLabel:category==='social'?'Rencontre · '+goalLabel:category;
     const near=learnedMovement(alex,goal[1],goal[2]);
-    if(category==='équipement'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.23)beginEquipment(equipment,s);
 
     const pursuingIntention=intention&&goal[0]===intention.name&&category===intention.category;
     if(pursuingIntention){
@@ -762,11 +768,14 @@ function experience() {
       if(distance<closestGoal-.16){closestGoal=distance;progressAt=s;}
       if(distance>1&&s-progressAt>22)finishGoal(s,false);
     }
-    if(category==='objet'&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.22){
-      {const entity=entityById(goal[3]);if(entity)tryEntity(entity,s);}
-      if(objectContact&&pursuingIntention)finishGoal(s,true);
+    const handsOn=category==='objet'||category==='équipement'||
+      (category==='jeu'&&!/^(football|softBall)$/.test(entityById(goal[3])?.playId||''));
+    if(handsOn&&Math.hypot(alex.x-goal[1],alex.z-goal[2])<.22){
+      const entity=entityById(goal[3]);
+      if(entity)tryEntity(entity,s);
+      if(pursuingIntention)finishGoal(s,true);
     }
-    if(category!=='observation'&&category!=='objet'&&category!=='équipement'&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock && (category!=='social'||navigation.clear(alex.x,alex.z,friend.x,friend.z,0))){
+    if(category!=='observation'&&!handsOn&&near<1 && Math.hypot(alex.x-goal[1],alex.z-goal[2])<1 && s>=eventClock && (category!=='social'||navigation.clear(alex.x,alex.z,friend.x,friend.z,0))){
       eventClock=s+3;
       learn(goal[0],category);
       if(pursuingIntention)finishGoal(s,true);
@@ -798,7 +807,7 @@ function experience() {
   }
   }
   for(const [id,item] of Object.entries(playItems)){
-    if(Math.hypot(alex.x-item.x,alex.z-item.z)<.49)tryPlayObject(alex,id,s);
+    if((id==='football'||id==='softBall')&&Math.hypot(alex.x-item.x,alex.z-item.z)<.49)tryPlayObject(alex,id,s);
   }
   for(let i=0;i<people.length;i++){
     const p=people[i];

@@ -305,10 +305,10 @@ function update(state,force=false){
 }
 
 const el=(tag,props={},...kids)=>{const {dataset,...rest}=props;const node=Object.assign(document.createElement(tag),rest);if(dataset)Object.assign(node.dataset,dataset);node.append(...kids);return node;};
-const VERBES={pousser:'Pousser',tirer:'Tirer',saisir:'Attraper',frapper:'Frapper',tourner:'Tourner',monter:'Monter sur',regarder:'Regarder'};
+const VERBES={pousser:'Pousser',tirer:'Tirer',saisir:'Attraper',frapper:'Frapper',tourner:'Tourner',monter:'Monter sur',tourner:'Tourner',grimper:'Grimper',sauter:'Sauter',regarder:'Regarder'};
 const EFFETS={mou:'c’est mou',soi_monte:'il peut monter dessus',lumiere:'ça s’allume',bruit:'ça fait du bruit',objet_bouge:'ça bouge',
   papier:'ça se feuillette',eau:'de l’eau coule',chaud:'c’est chaud',froid:'c’est froid',nourriture:'il y a de la nourriture',gout:'ça a du goût',
-  perles:'les perles glissent',roues:'les roues tournent',mal:'ça fait mal',passage:'on peut passer'};
+  perles:'les perles glissent',roues:'les roues tournent',mal:'ça fait mal',passage:'on peut passer',rebond:'ça rebondit',hauteur:'on monte haut',glisse:'ça glisse',balance:'ça se balance',tient:'on s’accroche',effort:'ça demande de l’effort'};
 const effets=list=>(list||[]).map(e=>EFFETS[e]||e).join(' · ')||'rien de visible';
 const STATUT={confirme:['Il en est sûr','sure'],hypothese:['Il le pense','maybe'],essai:['Il teste','test'],contredite:['Il s’est trompé','wrong']};
 const cap=text=>text.charAt(0).toUpperCase()+text.slice(1);
@@ -342,6 +342,11 @@ function renderBrain(state){
   ui('brain-seed').textContent='Chaque fichier se remplit au fil de ses expériences. Les noms sont ceux de l’observateur ; Néo ne manipule que des identifiants anonymes.';
   ui('brain-files').replaceChildren(...Object.entries(b.tailles).map(([name,count])=>
     el('div',{className:'file',dataset:{empty:String(!count)}},el('code',{textContent:name}),el('strong',{textContent:fmt(count)}),el('small',{textContent:FILE_HELP[name]||''}))));
+  const g=b.gestes||{innes:[],appris:[],enCours:[]};
+  ui('brain-gestures').replaceChildren(
+    ...g.innes.map(x=>el('span',{className:'chip',textContent:cap(x)+' · inné'})),
+    ...g.appris.map(x=>el('span',{className:'chip good',textContent:cap(x)+' · appris'})),
+    ...g.enCours.map(x=>el('span',{className:'chip',textContent:cap(x)+' · il s’entraîne'})));
   ui('brain-knowledge').replaceChildren(...(b.savoir.length?b.savoir.slice(0,12).map(knowCard):
     [el('p',{className:'muted',textContent:'Pas encore. Il doit d’abord essayer des gestes sur les objets autour de lui.'})]));
   ui('brain-trials').replaceChildren(...(b.derniers.length?b.derniers.map(t=>

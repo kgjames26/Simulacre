@@ -176,3 +176,5 @@ dialog p{margin-top:9px;font-size:14px;color:var(--muted)}
   .scene-bottom{left:12px;right:12px;bottom:12px}
   .scene-top{left:12px;bottom:76px}
 }
+
+.chip.good{border-color:var(--good);color:var(--good)}

@@ -9,7 +9,7 @@ function opaque(key){
   const text='simulacre:'+key;
   for(let i=0;i<text.length;i++)h=((h<<5)+h+text.charCodeAt(i))>>>0;
   const id='o'+h.toString(36).slice(-4).padStart(4,'0');
-  observerNames[id]=observerNames[id]&&observerNames[id]!==key?observerNames[id]+' / '+key:key;
+  if(!observerNames[id])observerNames[id]=key;
   return id;
 }
 const observerLabel=id=>(observerNames[id]||'').replace(/^(lieu|objet|cuisine|porte|jeu|equip|personne|sujet):/,'');
@@ -57,6 +57,20 @@ const KITCHEN_ENTITIES={
   serve:{name:'comptoir',traits:[.9,.8,0,0,0,0]},
   table:{name:'table à manger',traits:[.75,.6,0,0,0,0],prim:'saisir'}
 };
+// Équipements du parc : le geste qui les « active » et ce que Néo en ressent. Jamais lu par le cerveau.
+const EQUIPMENT={
+  trampoline:{prim:'sauter',flags:['rebond','hauteur'],plaisir:.2},
+  slide:{prim:'grimper',flags:['hauteur','glisse'],plaisir:.2},
+  rope:{prim:'saisir',flags:['balance','tient'],plaisir:.12},
+  swing:{prim:'monter',flags:['balance'],plaisir:.15},
+  bars:{prim:'grimper',flags:['hauteur','effort'],plaisir:.1},
+  wall:{prim:'grimper',flags:['hauteur','effort'],plaisir:.1}
+};
+function equipStart(id,name){
+  if(id==='trampoline'&&house)return {id,name,x:house.trampoline.entryX,z:house.trampoline.entryZ};
+  const spot=park?.equipment?.[id]||park?.approaches?.[id];
+  return spot?{id,name,x:spot.x,z:spot.z}:null;
+}
 const PERSON_TRAITS=[1,.6,.3,0,1,0];
 const doorPrimitive=door=>door.mechanism==='coulissante'?'tirer':'pousser';
 const doorTraits=door=>door.mechanism==='coulissante'?[2,.4,0,.1,0,0]:[2,.4,0,0,0,0];
@@ -131,6 +145,13 @@ function respond(entity,prim,s){
       return none;
     }
     return {flags:spec.flags};
+  }
+  if(entity.equipId){
+    const spec=EQUIPMENT[entity.equipId];
+    if(!spec||prim!==spec.prim)return hit(entity,prim);
+    const start=equipStart(entity.equipId,entity.name);
+    if(!start)return none;
+    return {flags:spec.flags,plaisir:spec.plaisir,start};
   }
   if(entity.playId&&entity.playId!=='football'&&entity.playId!=='softBall'){
     if(entity.playId==='toy'&&prim==='tirer'){
