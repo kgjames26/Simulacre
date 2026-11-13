@@ -6,7 +6,7 @@ const ageNames=['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Je
 const motorNames=['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
 const countLabels={life:'Vie quotidienne',cognition:'Découvertes',play:'Expériences de jeu',social:'Interactions sociales'};
 const eventLabels={social:'Relation',play:'Jeu',food:'Repas',sleep:'Sommeil',object:'Objet ou porte'};
-const pageNames={ensemble:'Vue d’ensemble',monde:'Monde 3D',statistiques:'Statistiques',
+const pageNames={ensemble:'Vue d’ensemble',monde:'Vue plein écran',statistiques:'Statique Néo',
   conversations:'Conversations',developpement:'Développement',relations:'Humeurs et relations'};
 const tabLinks=[...document.querySelectorAll('.pages a')];
 const detailPages=Object.keys(pageNames).slice(2);
@@ -308,7 +308,7 @@ function showPage(scroll=false){
   const sceneLink=ui('scene-link');
   sceneLink.hidden=ui('world-layout').hidden;
   sceneLink.href=page==='monde'?'#ensemble':'#monde';
-  sceneLink.textContent=page==='monde'?'Retour à la vue d’ensemble':'Agrandir le monde ↗';
+  sceneLink.textContent=page==='monde'?'Retour à la vue d’ensemble':'Ouvrir la vue plein écran ↗';
   const active=tabLinks.find(tab=>tab.hasAttribute('aria-current'));
   const navigation=active.parentElement;
   const left=active.getBoundingClientRect().left-navigation.getBoundingClientRect().left;
