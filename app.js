@@ -975,10 +975,11 @@ async function showWorld(){
     if(snapshot){
       const tracked=focus&&(focus.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===focus.id));
       const upstairs=upperFloorView===null?Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier')):upperFloorView;
+      if(upperFloorView===null)ui('floor-view').textContent=upstairs?'Voir le rez-de-chaussée':'Voir l’étage';
       if(houseCut){houseCut.normal.set(0,upstairs?1:-1,0);houseCut.constant=upstairs?-1.8:1.45;scene.userData.floorCut=upstairs?'upper':'ground';}
       play.update(snapshot.playItems);
       for(const door of houseDoors){
-        door.root.visible=!door.floor||upstairs;
+        door.root.visible=upperFloorView===true?Boolean(door.floor):upperFloorView===false?!door.floor:(!door.floor||upstairs);
         const amount=door.id==='fridge'?(snapshot.kitchen?.fridge||0):(snapshot.doors?.[door.id]?.amount||0);
         if(door.mechanism==='coulissante')door.root.position.x=door.pivot.x+door.width*amount;
         else door.root.rotation.y=door.sign*amount*1.5;
