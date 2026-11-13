@@ -369,6 +369,7 @@ function stepNeoUpstairs(s){
   if(!house||age<3||skill!==4||!records[4].mastered)return false;
   if(!alex.upstairsVisit&&s>=(alex.nextUpstairs??210))alex.upstairsVisit={phase:'approach',stair:0};
   const visit=alex.upstairsVisit;if(!visit)return false;
+  if(!alex.floor&&['explore','top','down'].includes(visit.phase)){visit.phase='approach';visit.stair=0;}
   if(visit.phase==='approach'){
     alex.activity='Se dirige vers l’escalier';
     const bottom=house.stairs[0],distance=learnedMovement(alex,bottom.x,bottom.z);
