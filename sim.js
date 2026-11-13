@@ -890,7 +890,7 @@ function snapshot() {
     const vocabulary=dialogue.view().vocabulary.map(entry=>entry.word);
     const shared={skills:records.flatMap((record,i)=>record.mastered?[goals[i]]:[]),discoveries:names,vocabulary};
     for(const p of people){
-      if(playgroundFriends.includes(p.id)||p.id==='juliette')p.age=age;
+      if(p.id==='juliette')p.age=Math.min(8,age+2);else if(playgroundFriends.includes(p.id))p.age=age;
       p.inherited=names.length+vocabulary.length;
       p.learnedFromNeo=[...names,...vocabulary];
       p.inheritedSkills=shared.skills.slice();
