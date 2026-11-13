@@ -365,6 +365,32 @@ function stepParentUpstairs(person,index,s){
   }
   return true;
 }
+function stepNeoUpstairs(s){
+  if(!house||age<3||skill!==4||!records[4].mastered)return false;
+  if(!alex.upstairsVisit&&s>=(alex.nextUpstairs??210))alex.upstairsVisit={phase:'approach',stair:0};
+  const visit=alex.upstairsVisit;if(!visit)return false;
+  if(visit.phase==='approach'){
+    alex.activity='Se dirige vers l’escalier';
+    const bottom=house.stairs[0],distance=learnedMovement(alex,bottom.x,bottom.z);
+    if(distance<.08){visit.phase='up';visit.stair=0;}
+  }else if(visit.phase==='up'){
+    alex.activity='Monte l’escalier';traverseStairs(alex,visit,1);
+  }else if(visit.phase==='bed'){
+    visit.phase='explore';visit.until=s+8;
+  }else if(visit.phase==='explore'){
+    const target=house.beds[1].approach,distance=learnedMovement(alex,target.x,target.z);
+    alex.activity='Observe les pièces de l’étage';
+    if(distance<.2&&s>=visit.until)visit.phase='top';
+  }else if(visit.phase==='top'){
+    const top=house.stairs.at(-1),distance=learnedMovement(alex,top.x,top.z);
+    alex.activity='Se dirige vers l’escalier';
+    if(distance<.08){visit.phase='down';visit.stair=house.stairs.length-1;}
+  }else if(visit.phase==='down'){
+    alex.activity='Descend l’escalier';traverseStairs(alex,visit,-1);
+    if(visit.phase==='finished'){delete alex.upstairsVisit;alex.nextUpstairs=s+260;}
+  }
+  return true;
+}
 function stepParentOuting(person,index,s){
   if(!house||index>1)return false;
   if(!person.outing&&s>=(person.nextOuting??(220+index*55)))person.outing={phase:'walk'};
@@ -689,7 +715,7 @@ function experience() {
     person.moving=false;
     person.pleasure=Math.max(0,(person.pleasure||0)-DT*.001);
   }
-  const usingEquipment=stepHouseObject(s)||stepPark(s)||sleeping(alex,s,skill===4&&records[4].mastered);
+  const usingEquipment=stepHouseObject(s)||stepPark(s)||sleeping(alex,s,skill===4&&records[4].mastered)||stepNeoUpstairs(s);
   if(!usingEquipment){
   alex.y=Math.max(0,(alex.y||0)-DT*2.8);
   if(skill===4 && records[4].mastered){
