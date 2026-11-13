@@ -248,3 +248,10 @@ dialog p{color:var(--ink2)}
   #speed-global::before{font-size:15px;content:"⏩"}
   #speed-global[aria-pressed="false"]::before{content:"1×";font-weight:800}
 }
+/* Deux sortes de jauges, partout les mêmes :
+   - humeur (bon ↔ mauvais) : tête triste à gauche, tête épanouie à droite ;
+   - quantité (ni bon ni mauvais) : un mot à chaque bout (peu ↔ très, débutant ↔ expert). Jamais de pourcentage seul. */
+.meter.niveau{grid-template-columns:96px 52px 1fr 52px;gap:8px}
+.meter .bout{font-size:11.5px;color:var(--muted);font-weight:600;text-align:center;white-space:nowrap}
+.track.neutre i{background:#3c5d8f}
+@media (max-width:720px){.meter.face{grid-template-columns:82px 20px 1fr 20px}.meter.niveau{grid-template-columns:82px 44px 1fr 44px}.meter .bout{font-size:10.5px}}

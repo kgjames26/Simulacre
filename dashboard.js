@@ -26,9 +26,12 @@ const row=(label,value)=>el('div',{className:'row'},el('span',{textContent:label
 const empty=text=>el('p',{className:'empty',textContent:text});
 const badge=(text,kind='')=>el('span',{className:'badge '+kind,textContent:text});
 const item=(title,sub,right)=>el('div',{className:'item'},el('strong',{textContent:title}),right||null,sub?el('small',{textContent:sub}):null);
-function meter(label,value,warn){
-  const track=el('div',{className:'track'+(warn?' warn':'')},el('i',{style:'width:'+Math.round(Math.max(0,Math.min(1,value))*100)+'%'}));
-  return el('div',{className:'meter'},el('span',{textContent:label}),track,el('b',{textContent:pct(value)}));
+// Jauge de quantité (ni bonne ni mauvaise en soi) : un mot à chaque bout au lieu d'un pourcentage.
+function niveauJauge(label,valeur,gauche='peu',droite='très'){
+  const v=Math.max(0,Math.min(1,valeur));
+  const mot=v<.2?'très peu':v<.4?'un peu':v<.6?'moyen':v<.8?'beaucoup':'énormément';
+  return el('div',{className:'meter niveau',title:label+' : '+mot},el('span',{textContent:label}),
+    el('span',{className:'bout',textContent:gauche}),el('div',{className:'track neutre'},el('i',{style:'width:'+Math.round(v*100)+'%'})),el('span',{className:'bout',textContent:droite}));
 }
 // Jauge lisible d'un coup d'œil : tête triste à gauche, tête heureuse à droite, la barre entre les deux (plus elle est pleine, mieux c'est).
 function humeurJauge(label,bien){
@@ -165,15 +168,15 @@ function renderCerveau(s){
   const g=b.gestes;
   paint('brain-gestures',JSON.stringify(g),()=>[...g.innes.map(x=>el('span',{className:'chip off',textContent:cap(x)+' · inné'})),
     ...g.appris.map(x=>el('span',{className:'chip',textContent:cap(x)+' · appris'})),...g.enCours.map(x=>el('span',{className:'chip warm',textContent:cap(x)+' · il essaie'}))]);
-  paint('brain-capacities',JSON.stringify(b.capacites),()=>Object.entries(CAPACITES).map(([k,l])=>meter(l,b.capacites[k]||0)));
+  paint('brain-capacities',JSON.stringify(b.capacites),()=>Object.entries(CAPACITES).map(([k,l])=>niveauJauge(l,b.capacites[k]||0,'débutant','expert')));
   paint('brain-challenges',JSON.stringify(b.defis),()=>b.defis.map(d=>item(d.cible,d.reussites?'réussi '+d.reussites+' fois sur '+d.essais:'pas encore réussi ('+d.essais+' essais)',badge(d.reussites?'il y arrive':'trop dur',d.reussites?'good':'warm'))));
   const wishes=[...b.questions.map(q=>item(q.type==='jamais_essaye'?'Que faire avec '+q.ref+' ?':q.type==='surprise'?'Pourquoi '+q.ref+' a surpris ?':'Ça ne marche plus avec '+q.ref,null,badge('question'))),
     ...b.objectifs.filter(o=>o.statut==='actif').map(o=>item('Aller essayer '+o.cible,null,badge('envie','warm'))),
     ...(b.habitudes?[item(b.habitudes+' habitude'+(b.habitudes>1?'s':'')+' prise'+(b.habitudes>1?'s':''),null,badge('acquis','good'))]:[])];
   paint('brain-wishes',wishes.map(w=>w.textContent).join('|'),()=>wishes.length?wishes:[empty('Rien de précis pour l’instant : il explore au hasard.')]);
   const e=b.emotions;
-  paint('brain-mood',[e.valence,e.peur,e.frustration,e.ennui].map(v=>Math.round(v*20)).join(),()=>[meter('Se sent bien',Math.max(0,e.valence)),meter('Peur',e.peur,true),meter('Frustration',e.frustration,true),meter('Ennui',e.ennui,true)]);
-  if(b.caractere)paint('brain-traits',JSON.stringify(Object.values(b.caractere).map(v=>Math.round(v*50))),()=>Object.entries(TRAITS).map(([k,l])=>meter(l,b.caractere[k]||0)));
+  paint('brain-mood',[e.valence,e.peur,e.frustration,e.ennui].map(v=>Math.round(v*20)).join(),()=>[humeurJauge('Se sent bien',(e.valence+1)/2),humeurJauge('Rassuré',1-e.peur),humeurJauge('Serein',1-e.frustration),humeurJauge('Intéressé',1-e.ennui)]);
+  if(b.caractere)paint('brain-traits',JSON.stringify(Object.values(b.caractere).map(v=>Math.round(v*50))),()=>Object.entries(TRAITS).map(([k,l])=>niveauJauge(l,b.caractere[k]||0)));
   renderVocabulary(s.dialogue);
   paint('brain-things',JSON.stringify(b.objets),()=>b.objets.length?b.objets.map(o=>el('div',{},el('strong',{textContent:o.nom}),el('small',{textContent:'vu '+o.vu+' fois'+(o.essais?' · essayé '+o.essais+' fois':' · jamais touché')+(o.mot?' · « '+o.mot+' »':'')}))):[empty('Rien pour l’instant.')]);
 }
@@ -237,12 +240,12 @@ function renderEntourage(s){
     if(f.cle!==cle){
       f.cle=cle;
       const top=p.caractere?Object.entries(p.caractere).filter(([k])=>k!=='leadership').sort((x,y)=>y[1]-x[1]).slice(0,3).map(([k])=>el('span',{className:'chip off',textContent:TRAITS[k]})):[];
-      f.corps.replaceChildren(meter('Leadership',p.leadership||0),el('div',{className:'chips'},...top),
+      f.corps.replaceChildren(niveauJauge('Leadership',p.leadership||0),el('div',{className:'chips'},...top),
         p.id==='alex'?row('Étape de vie',AGES[s.age]):row('Ce que Néo découvre',p.partage?'il le reçoit':'pas encore'),
         ...(p.baseWords?[row('Mots connus',fmt(p.baseWords))]:[]));
     }
     const ct=JSON.stringify(Object.values(p.caractere||{}).map(v=>Math.round(v*50)));
-    if(f.ct!==ct){f.ct=ct;f.traits.replaceChildren(...Object.entries(TRAITS).map(([k,l])=>meter(l,p.caractere?.[k]||0)));}
+    if(f.ct!==ct){f.ct=ct;f.traits.replaceChildren(...Object.entries(TRAITS).map(([k,l])=>niveauJauge(l,p.caractere?.[k]||0)));}
   }
   renderRelation(s);
   const kind=ui('interaction-filter').value,events=(s.activityData?.events||[]).filter(e=>!kind||e.kind===kind).slice(0,40);
@@ -263,8 +266,8 @@ function renderRelation(s){
   const r=s.relationships?.[select.value]||pairs[0]?.[1];
   if(!r){paint('relationship-summary','0',()=>[empty('Aucun lien pour l’instant.')]);ui('relationship-history').replaceChildren();return;}
   const label=r.couple?'En couple':r.romance>20?'Attirance':r.bond>=45?'Proches':'Se connaissent';
-  paint('relationship-summary',JSON.stringify([r.a,r.b,r.bond,r.tendresse,r.attirance,r.complicite,r.couple]),()=>[meter(label,r.bond/100),
-    ...(r.tendresse||r.attirance||r.complicite?[meter('Tendresse',(r.tendresse||0)/100),meter('Attirance',(r.attirance||0)/100),meter('Complicité',(r.complicite||0)/100)]:[]),
+  paint('relationship-summary',JSON.stringify([r.a,r.b,r.bond,r.tendresse,r.attirance,r.complicite,r.couple]),()=>[humeurJauge(label,r.bond/100),
+    ...(r.tendresse||r.attirance||r.complicite?[niveauJauge('Tendresse',(r.tendresse||0)/100),niveauJauge('Attirance',(r.attirance||0)/100),niveauJauge('Complicité',(r.complicite||0)/100)]:[]),
     ...(r.separations?[row('Séparations',fmt(r.separations))]:[])]);
   const ev=r.history.slice(-30).reverse();
   paint('relationship-history',r.a+r.b+ev.length+(ev[0]?.at||''),()=>ev.map(e=>el('li',{},document.createTextNode(e.event),el('small',{textContent:stamp(e.at)}))));

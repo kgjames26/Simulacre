@@ -82,3 +82,8 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Plus de contraste (texte plus sombre, barre du haut foncée, bordures et pastilles plus marquées).
 - Boutons refaits (hauteur, bordures, survol, appui, focus) ; outils de la carte en groupes.
 - Nouveau : les familles de choses (ressemblances) dans « Ce qu’il comprend ».
+
+## v3.5
+- Deux sortes de jauges, cohérentes partout, plus aucun pourcentage seul :
+  - ce qui est bon ou mauvais (besoins, humeur, liens) : tête triste à gauche, tête épanouie à droite ; l'humeur se lit désormais « Se sent bien, Rassuré, Serein, Intéressé » ;
+  - ce qui n'est ni bon ni mauvais (caractère, capacités, leadership, sentiments) : un mot à chaque bout (peu ↔ très, débutant ↔ expert), barre bleue.
