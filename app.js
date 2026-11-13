@@ -6,7 +6,7 @@ const stages = ['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
 const format = new Intl.NumberFormat('fr-BE');
 const saveKey = 'neo-simulacre-v4';
 const worker = new Worker('/sim.js');
-let snapshot, human = true, speedMode='human', upperFloorView=false, lastJournal = '', resetting=false, initialized=false;
+let snapshot, human = true, speedMode='human', upperFloorView=null, lastJournal = '', resetting=false, initialized=false;
 const personNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Lyra',rose:'Rose'};
 let lastDialogueId=0, lastDialoguePaint=0, voiceEnabled=false, conversationRows=[];
 const dashboard=setupDashboard(personNames);
@@ -548,7 +548,7 @@ async function showWorld(){
   const offset=baseOffset.clone();
   let cameraQuarter=0;
   ui('rotate-camera').onclick=()=>{cameraQuarter=(cameraQuarter+1)%4;offset.copy(baseOffset).applyAxisAngle(new T.Vector3(0,1,0),cameraQuarter*Math.PI/2);};
-  ui('floor-view').onclick=()=>{upperFloorView=!upperFloorView;ui('floor-view').textContent=upperFloorView?'Voir le rez-de-chaussée':'Voir l’étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
+  ui('floor-view').onclick=()=>{upperFloorView=upperFloorView===true?false:true;ui('floor-view').textContent=upperFloorView?'Voir le rez-de-chaussée':'Voir l’étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
   const center=new T.Vector3();
   const manualCenter=new T.Vector3();
   const desiredCenter=new T.Vector3();
@@ -959,7 +959,8 @@ async function showWorld(){
     if(ui('world-layout').hidden){last=now;return;}
     const dt=Math.min(.05,(now-last)/1000);last=now;
     const focus=following&&actors.find(actor=>actor.id===followedPerson);
-    if(focus){
+    if(upperFloorView!==null){desiredCenter.set(-3.65,upperFloorView?2.35:.65,2.6);manualCenter.copy(desiredCenter);}
+    else if(focus){
       desiredCenter.copy(focus.root.position);
       desiredCenter.y+=focus.root.scale.x*.45;
       manualCenter.copy(desiredCenter);
@@ -973,7 +974,7 @@ async function showWorld(){
     camera.updateMatrixWorld(true);
     if(snapshot){
       const tracked=focus&&(focus.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===focus.id));
-      const upstairs=upperFloorView||Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier'));
+      const upstairs=upperFloorView===null?Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier')):upperFloorView;
       if(houseCut){houseCut.normal.set(0,upstairs?1:-1,0);houseCut.constant=upstairs?-1.8:1.45;scene.userData.floorCut=upstairs?'upper':'ground';}
       play.update(snapshot.playItems);
       for(const door of houseDoors){
@@ -1030,7 +1031,7 @@ async function showWorld(){
         const gesture=p.languageGesture;
         const lying=p.lie||0;
         actor.root.rotation.y=gesture&&!lying?gesture.heading:p.heading;
-        actor.root.visible=upperFloorView?Boolean(p.floor):(!p.floor||upstairs);
+        actor.root.visible=upperFloorView===true?Boolean(p.floor):upperFloorView===false?!p.floor:(!p.floor||upstairs);
         actor.root.rotation.order='YXZ';
         actor.root.rotation.x=lying*Math.PI/2+Math.max(-1.38,Math.min(1.38,p.tilt||0))*(1-lying);
         const gait=lying?0:main?p.effort:p.moving?Math.sin(p.phase)*.6:0;
