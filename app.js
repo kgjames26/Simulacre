@@ -654,7 +654,7 @@ async function showWorld(){
   });
   const parse=(loader,data)=>new Promise((resolve,reject)=>loader.parse(data,'',resolve,reject));
   const actors=[];
-  let physicalRope, trampolineMesh;
+  let physicalRope, trampolineMesh, swingSeat;
   const houseDoors=[];
   let interiorVisuals, houseCut;
   const ropeUp=new T.Vector3(0,1,0);
@@ -872,7 +872,18 @@ async function showWorld(){
       physicalRope=new T.Mesh(new T.CylinderGeometry(.035,.035,1,9),mat('#6a4b32'));
       physicalRope.userData={dynamic:true,rope:true,anchor,end};
       scene.add(physicalRope);
-      worker.postMessage({type:'park',geometry:{slide:slide.map(([x,y,z])=>({x,y,z})),rope:{x:anchor.x,y:anchor.y,z:anchor.z,length}}});
+      const equipment={swing:{x:13.5,z:6.2},bars:{x:11.2,z:7.0},wall:{x:15.3,z:6.5}};
+      const postMaterial=mat('#8a6748'),barMaterial=mat('#d5a75e'),holdColors=['#d85c4a','#e4b94f','#5b9b83','#6888bd'];
+      const post=(x,y,z,height,radius=.075,material=postMaterial)=>{const mesh=new T.Mesh(new T.CylinderGeometry(radius,radius,height,10),material);mesh.position.set(x,y+height/2,z);scene.add(mesh);};
+      const beam=(a,b,radius,material)=>{const v=new T.Vector3(...a),w=new T.Vector3(...b),d=w.clone().sub(v);const mesh=new T.Mesh(new T.CylinderGeometry(radius,radius,d.length(),10),material);mesh.position.copy(v).add(w).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),d.normalize());scene.add(mesh);};
+      const sx=equipment.swing.x,sz=equipment.swing.z;post(sx-.72,0,sz-.28,2.05);post(sx+.72,0,sz-.28,2.05);beam([sx-.82,2.02,sz-.28],[sx+.82,2.02,sz-.28],.065,barMaterial);
+      swingSeat=new T.Group();swingSeat.position.set(sx,0,sz-.28);const ropeMat=mat('#6d5541');
+      for(const x of [-.25,.25]){const rope=new T.Mesh(new T.CylinderGeometry(.018,.018,1.48,7),ropeMat);rope.position.set(x,1.26,0);swingSeat.add(rope);}
+      const seat=new T.Mesh(new T.BoxGeometry(.62,.10,.28),mat('#c66f48'));seat.position.y=.49;swingSeat.add(seat);scene.add(swingSeat);
+      const bx=equipment.bars.x,bz=equipment.bars.z;for(const x of [-.65,.65])post(bx+x,0,bz,2.05);beam([bx-.65,2.03,bz],[bx+.65,2.03,bz],.055,barMaterial);for(let i=0;i<7;i++){const x=bx-.54+i*.18;beam([x,1.99,bz],[x,2.03,bz],.045,barMaterial);}
+      const wx=equipment.wall.x,wz=equipment.wall.z;const wallPanel=new T.Mesh(new T.BoxGeometry(1.45,2.1,.16),mat('#b77d58'));wallPanel.position.set(wx,1.05,wz);wallPanel.rotation.x=-.20;scene.add(wallPanel);
+      for(let i=0;i<15;i++){const hold=new T.Mesh(new T.DodecahedronGeometry(.09,0),mat(holdColors[i%holdColors.length]));hold.position.set(wx+((i%3)-1)*.39,.28+Math.floor(i/3)*.35,wz-.13);scene.add(hold);}
+      worker.postMessage({type:'park',geometry:{slide:slide.map(([x,y,z])=>({x,y,z})),rope:{x:anchor.x,y:anchor.y,z:anchor.z,length},equipment}});
     }finally{for(const url of urls.values())URL.revokeObjectURL(url);}
   })());
   load('personnages', (async()=>{
@@ -998,6 +1009,7 @@ async function showWorld(){
         }
         positions.needsUpdate=true;
       }
+      if(swingSeat&&snapshot.playgroundMotion)swingSeat.rotation.x=snapshot.playgroundMotion.swingAngle||0;
       if(physicalRope){
         const {anchor,end}=physicalRope.userData;
         if(snapshot.ropeEnd)end.set(snapshot.ropeEnd.x,snapshot.ropeEnd.y,snapshot.ropeEnd.z);
