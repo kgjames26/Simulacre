@@ -4,12 +4,12 @@ const fmt=value=>number.format(value??0);
 const percent=value=>value==null?'—':Math.round(value*100)+' %';
 const ageNames=['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
 const motorNames=['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
-const countLabels={life:'Vie quotidienne',cognition:'Découvertes',play:'Expériences de jeu',social:'Interactions sociales'};
+const countLabels={life:'Gestes du quotidien',cognition:'Découvertes',play:'Moments de jeu',social:'Moments avec les autres'};
 const eventLabels={social:'Relation',play:'Jeu',food:'Repas',sleep:'Sommeil',object:'Objet ou porte'};
-const pageNames={ensemble:'Vue d’ensemble',monde:'Vue plein écran',cerveau:'Cerveau de Néo',statistiques:'Statistiques',
-  conversations:'Conversations',developpement:'Développement',relations:'Humeurs et relations'};
+const pageNames={monde:'Le monde',apprend:'Ce que Néo sait',grandir:'Sa croissance',paroles:'Ce qui se dit',proches:'Ses proches'};
+const legacyPages={ensemble:'monde',cerveau:'apprend',statistiques:'grandir',developpement:'grandir',conversations:'paroles',relations:'proches'};
 const tabLinks=[...document.querySelectorAll('.pages a')];
-const detailPages=Object.keys(pageNames).slice(2);
+const detailPages=Object.keys(pageNames).slice(1);
 const pageSize=48;
 let page, current, historyBefore=Infinity, historyStack=[], historyRequest=0, displayedLines='';
 let archive, recent=new Map(), latestArchived=0, archiveStatus='opening', pantrySignature='';
@@ -143,11 +143,11 @@ function resetHistoryPage(){
 function renderStats(state){
   const {counts,kitchen,activityData,dialogue}=state;
   ui('stats-grid').replaceChildren(...[
-    ['Essais moteurs',fmt(state.trials)],['Progrès moteurs confirmés',fmt(state.pecm)],['Stabilité du dernier essai',state.score+' %'],
-    ['Marche · essais confirmés',fmt(state.validated)],
+    ['Tentatives de mouvement',fmt(state.trials)],['Points de progrès',fmt(state.pecm)],['Équilibre du dernier essai',state.score+' %'],
+    ['Pas réussis',fmt(state.validated)],
     ...Object.entries(countLabels).map(([key,label])=>[label,fmt(counts[key])]),
-    ['Répliques entendues par Néo',fmt(dialogue.audible)],['Mots associés',fmt(dialogue.known)],
-    ['Imitations de Néo',fmt(dialogue.spoken)],['Temps simulé',stamp(state.ticks/120)]
+    ['Phrases entendues',fmt(dialogue.audible)],['Mots compris',fmt(dialogue.known)],
+    ['Mots répétés par Néo',fmt(dialogue.spoken)],['Temps simulé',stamp(state.ticks/120)]
   ].map(([label,value])=>stat(label,value)));
   ui('fridge-stock').textContent=(kitchen.pantry?.length||0)+' aliments · '+fmt(kitchen.ingredients)+' unités';
   const pantry=(kitchen.pantry||[]).slice().sort((a,b)=>a.group.localeCompare(b.group,'fr')||a.name.localeCompare(b.name,'fr'));
@@ -179,6 +179,8 @@ function renderVocabulary(dialogue){
     return item;
   }):[node('li',words.length?'Aucun mot ne correspond à cette recherche.':'Aucun mot confirmé pour l’instant.')]));
 }
+const SIGNATURE=['avoir compris au moins un mot','avoir compris 2 choses par lui-même','connaître 5 mots et avoir atteint une envie','avoir compris 4 choses et repéré une famille d’objets',
+  'avoir atteint 3 envies','avoir partagé ses découvertes avec ses parents','avoir acquis une habitude','avoir atteint 6 envies'];
 function renderDevelopment(state){
   ui('age-timeline').replaceChildren(...ageNames.map((name,i)=>{
     const stateKey=i<state.age?'done':i===state.age?'active':'later';
@@ -192,21 +194,23 @@ function renderDevelopment(state){
     const item=node('article');
     const status=node('span',record.mastered?'Acquis':i===state.skill?'En cours':'À venir','badge');
     status.dataset.state=record.mastered?'done':'pending';
-    item.append(node('h3',motorNames[i]),status,row('Essais',fmt(record.attempts)),row('Réussites',fmt(record.confirmed)));
-    if(i===state.skill&&!record.mastered)item.append(row('Réussites récentes',record.recent+' / 6 requises'));
+    item.append(node('h3',motorNames[i]),status,row('Essais',fmt(record.attempts)),row('Réussies',fmt(record.confirmed)));
+    if(i===state.skill&&!record.mastered)item.append(row('Réussites récentes',record.recent+' sur 6 nécessaires'));
     return item;
   }));
   const gate=state.activityData.gate;
   const gates=gate?[
-    ['Progrès moteurs confirmés',fmt(state.pecm)+' / '+fmt(gate.motor)],
+    ['Points de progrès',fmt(state.pecm)+' / '+fmt(gate.motor)],
     ...Object.entries(countLabels).filter(([key])=>gate[key]>0).map(([key,label])=>[label,fmt(state.counts[key])+' / '+fmt(gate[key])])
   ]:[['Stade final','Atteint']];
+  const need=SIGNATURE[state.age];
+  if(need&&state.brain)gates.push(['Compréhension : '+need,state.brain.signature?'Acquis ✓':'Pas encore']);
   ui('age-gates').replaceChildren(...gates.map(([label,value])=>row(label,value)));
-  ui('language-stats').replaceChildren(row('Répliques entendues',fmt(state.dialogue.audible)),
-    row('Mots compris',fmt(state.dialogue.known)),row('Imitations',fmt(state.dialogue.spoken)),
-    row('Phrases composées',fmt(state.dialogue.composed)),
-    row('Connaissances en mémoire',fmt(state.activityData.knowledgeCount)));
-  ui('discoveries').replaceChildren(...state.activityData.discoveries.map(name=>node('li',name)));
+  ui('language-stats').replaceChildren(row('Phrases entendues',fmt(state.dialogue.audible)),
+    row('Mots compris',fmt(state.dialogue.known)),row('Mots répétés',fmt(state.dialogue.spoken)),
+    row('Phrases formées',fmt(state.dialogue.composed)),
+    row('Choses découvertes',fmt(state.activityData.knowledgeCount)));
+  ui('discoveries').replaceChildren(...state.activityData.discoveries.filter(name=>!name.startsWith('motricité')).map(name=>node('li',name)));
   renderVocabulary(state.dialogue);
   const phrases=state.dialogue.phrases||[];
   ui('composed-phrases').replaceChildren(...(phrases.length?phrases.map(phrase=>{
@@ -260,12 +264,12 @@ function renderRelations(state){
     item.append(node('h3',names[person.id]),node('small',mood(person,person.id==='alex')),
       node('p',person.activity||'Observe', 'activity'));
     if(person.hunger!=null)item.append(row('Faim',percent(person.hunger)),row('Fatigue',percent(person.fatigue)),
-      row('Plaisir',percent(person.pleasure??0)));
+      row('Bien-être',percent(person.pleasure??0)));
     if(person.id==='alex')item.append(row('Soif',percent(person.thirst)),row('Hygiène',percent(person.hygiene)));
     else{
       if(person.age!=null)item.append(row('Stade',ageNames[person.age]));
-      item.append(row('Acquis partagés',fmt(person.inherited)));
-      if(person.baseWords)item.append(row('Vocabulaire supplémentaire',fmt(person.baseWords)));
+      item.append(row('Connaissances reçues de Néo',fmt(person.inherited)));
+      if(person.baseWords)item.append(row('Mots connus en plus',fmt(person.baseWords)));
     }
     return item;
   }));
@@ -284,18 +288,13 @@ function update(state,force=false){
   const time=performance.now();
   if(!force&&time-lastPaint<500)return;
   lastPaint=time;
-  if(state.brain){
-    ui('brain-confirmed').textContent=fmt(state.brain.savoir.filter(c=>c.statut==='confirme').length);
-    ui('brain-objects').textContent=fmt(state.brain.tailles['objets.json']);
-    ui('brain-goals').textContent=fmt(state.brain.objectifs.filter(g=>g.statut==='actif').length);
-  }
-  if(page==='cerveau')renderBrain(state);
-  if(page==='statistiques')renderStats(state);
-  if(page==='developpement')renderDevelopment(state);
-  if(page==='relations')renderRelations(state);
-  if(page==='conversations'){
+  if(state.brain)renderLatest(state.brain);
+  if(page==='apprend')renderBrain(state);
+  if(page==='grandir'){renderStats(state);renderDevelopment(state);}
+  if(page==='proches')renderRelations(state);
+  if(page==='paroles'){
     const {audible,known,spoken,lines}=state.dialogue;
-    ui('listening-summary').textContent=fmt(audible)+' répliques entendues par Néo · '+fmt(known)+' mots associés · '+fmt(spoken)+' imitations'+
+    ui('listening-summary').textContent=fmt(audible)+' phrases entendues par Néo · '+fmt(known)+' mots compris · '+fmt(spoken)+' mots répétés'+
       (archiveStatus==='unavailable'?' · Archive locale indisponible':'');
     const last=lines.at(-1)?.id||0;
     if(force||historyBefore===Infinity&&last!==lastLine)renderTranscript();
@@ -303,50 +302,70 @@ function update(state,force=false){
   }
 }
 
-const el=(tag,props={},...kids)=>{const node=Object.assign(document.createElement(tag),props);node.append(...kids);return node;};
-const ACTIONS={pousser:'pousser',tirer:'tirer',saisir:'saisir',frapper:'frapper',tourner:'tourner',monter:'monter',regarder:'regarder'};
-const FILE_HELP={'sens.log':'journal des sensations','essais.jsonl':'essais et résultats','corps.json':'capacités du corps','objets.json':'objets vus',
-  'lieux.json':'cases explorées','personnes.json':'personnes connues','humeur.json':'humeur','causes.json':'causes et effets','concepts.json':'catégories formées',
-  'lexique.json':'mots associés','ecriture.json':'signes écrits','savoir-faire.json':'routines','questions.json':'questions ouvertes','objectifs.json':'objectifs'};
+const el=(tag,props={},...kids)=>{const {dataset,...rest}=props;const node=Object.assign(document.createElement(tag),rest);if(dataset)Object.assign(node.dataset,dataset);node.append(...kids);return node;};
+const VERBES={pousser:'Pousser',tirer:'Tirer',saisir:'Attraper',frapper:'Frapper',tourner:'Tourner',monter:'Monter sur',regarder:'Regarder'};
+const EFFETS={mou:'c’est mou',soi_monte:'il peut monter dessus',lumiere:'ça s’allume',bruit:'ça fait du bruit',objet_bouge:'ça bouge',
+  papier:'ça se feuillette',eau:'de l’eau coule',chaud:'c’est chaud',froid:'c’est froid',nourriture:'il y a de la nourriture',gout:'ça a du goût',
+  perles:'les perles glissent',roues:'les roues tournent',mal:'ça fait mal',passage:'on peut passer'};
+const effets=list=>(list||[]).map(e=>EFFETS[e]||e).join(' · ')||'rien de visible';
+const STATUT={confirme:['Il en est sûr','sure'],hypothese:['Il le pense','maybe'],essai:['Il teste','test'],contredite:['Il s’est trompé','wrong']};
+const cap=text=>text.charAt(0).toUpperCase()+text.slice(1);
+function knowCard(c){
+  const [label,kind]=STATUT[c.statut]||[c.statut,'test'];
+  return el('div',{className:'know',dataset:{kind}},
+    el('div',{},el('strong',{textContent:(VERBES[c.action]||cap(c.action))+' · '+c.cible}),el('small',{textContent:'→ '+effets(c.effet)})),
+    el('span',{className:'pill',textContent:label}),
+    el('small',{className:'count',textContent:c.reussites+' réussite'+(c.reussites>1?'s':'')+' sur '+c.essais+' essai'+(c.essais>1?'s':'')}));
+}
+function renderLatest(b){
+  const sure=b.savoir.filter(c=>c.statut==='confirme').slice(0,3);
+  const box=ui('brain-latest');
+  const key=JSON.stringify(sure.map(c=>c.id+c.reussites));
+  if(box.dataset.key===key)return;
+  box.dataset.key=key;
+  box.replaceChildren(...(sure.length?sure.map(c=>el('li',{textContent:(VERBES[c.action]||c.action)+' · '+c.cible+' → '+effets(c.effet)})):
+    [el('li',{className:'muted',textContent:'Rien pour l’instant : il observe et essaie.'})]));
+}
+const FILE_HELP={'sens.log':'ce qu’il a ressenti','essais.jsonl':'tout ce qu’il a essayé','corps.json':'ce que son corps sait faire','objets.json':'les choses repérées',
+  'lieux.json':'les endroits visités','personnes.json':'les personnes connues','humeur.json':'son humeur dans le temps','causes.json':'les liens cause → effet','concepts.json':'les familles de choses',
+  'lexique.json':'les mots compris','ecriture.json':'les signes écrits repérés','savoir-faire.json':'ses habitudes','questions.json':'ses questions','objectifs.json':'ses envies'};
+const QUESTION={objet_non_essaye:q=>'Que peut-on faire avec « '+q.ref+' » ?',mot_sans_lien:q=>'Que veut dire « '+q.ref+' » ?'};
 function renderBrain(state){
   const b=state.brain;
   if(!b)return;
-  const confirmed=b.savoir.filter(c=>c.statut==='confirme').length;
-  ui('brain-head').replaceChildren(
-    ...[['Connaissances confirmées',confirmed],['Hypothèses',b.savoir.filter(c=>c.statut==='hypothese').length],
-      ['Essais menés',b.tailles['essais.jsonl']],['Concepts',b.concepts.length],['Publications',b.publications]].map(([label,value])=>
-      el('div',{className:'stat'},el('strong',{textContent:fmt(value)}),el('span',{textContent:label}))));
-  ui('brain-seed').textContent='graine '+b.seed+' · '+fmt(Object.values(b.xp||{}).reduce((sum,n)=>sum+(Number(n)||0),0))+' points d’expérience';
+  const sure=b.savoir.filter(c=>c.statut==='confirme').length;
+  ui('brain-head').replaceChildren(...[['Choses comprises',sure],['Essais tentés',b.tailles['essais.jsonl']],
+    ['Choses remarquées',b.tailles['objets.json']],['Mots compris',b.tailles['lexique.json']],['Endroits visités',b.lieux]].map(([label,value])=>
+    el('div',{className:'number'},el('strong',{textContent:fmt(value)}),el('span',{textContent:label}))));
+  ui('brain-seed').textContent='Chaque fichier se remplit au fil de ses expériences. Les noms sont ceux de l’observateur ; Néo ne manipule que des identifiants anonymes.';
   ui('brain-files').replaceChildren(...Object.entries(b.tailles).map(([name,count])=>
-    el('div',{className:'file'},el('code',{textContent:name}),el('strong',{textContent:fmt(count)}),el('small',{textContent:FILE_HELP[name]||''}))));
-  for(const node of ui('brain-files').children)node.dataset.empty=String(node.querySelector('strong').textContent==='0');
-  ui('brain-knowledge').replaceChildren(...(b.savoir.length?b.savoir.slice(0,12).map(c=>
-    el('div',{className:'know',dataset:{statut:c.statut}},
-      el('span',{className:'tag-status',textContent:c.statut}),
-      el('span',{textContent:(ACTIONS[c.action]||c.action)+' · '+c.cible+(c.effet?.length?' → '+c.effet.join(', '):'')}),
-      el('small',{textContent:c.reussites+'/'+c.essais}),
-      el('div',{className:'bar'},el('i',{style:'width:'+Math.round(Math.min(1,c.confiance||0)*100)+'%'}))
-    )):[el('p',{className:'hint',textContent:'Rien de confirmé pour l’instant. Néo doit d’abord essayer.'})]));
+    el('div',{className:'file',dataset:{empty:String(!count)}},el('code',{textContent:name}),el('strong',{textContent:fmt(count)}),el('small',{textContent:FILE_HELP[name]||''}))));
+  ui('brain-knowledge').replaceChildren(...(b.savoir.length?b.savoir.slice(0,12).map(knowCard):
+    [el('p',{className:'muted',textContent:'Pas encore. Il doit d’abord essayer des gestes sur les objets autour de lui.'})]));
   ui('brain-trials').replaceChildren(...(b.derniers.length?b.derniers.map(t=>
-    el('div',{className:'know',dataset:{statut:t.succes?'confirme':'essai'}},
-      el('span',{className:'tag-status',textContent:t.succes?'effet':'rien'}),
-      el('span',{textContent:(ACTIONS[t.action]||t.action)+' · '+t.cible}),
-      el('small',{textContent:'t='+t.t+' s'}))):[el('p',{className:'hint',textContent:'Aucun essai pour le moment.'})]));
+    el('div',{className:'know',dataset:{kind:t.succes?'sure':'test'}},
+      el('div',{},el('strong',{textContent:(VERBES[t.action]||cap(t.action))+' · '+t.cible})),
+      el('span',{className:'pill',textContent:t.succes?effets(t.effet):'Rien ne s’est passé'}))):
+    [el('p',{className:'muted',textContent:'Aucun essai pour le moment.'})]));
   ui('brain-questions').replaceChildren(...(b.questions.length?b.questions.map(q=>
-    el('p',{className:'hint',textContent:'? '+q.texte+' · '+q.ref})):[el('p',{className:'hint',textContent:'Aucune question ouverte.'})]));
-  ui('brain-goals-list').replaceChildren(...b.objectifs.map(g=>el('span',{className:'chip',textContent:g.statut+' · '+g.cible})));
+    el('p',{className:'question',textContent:(QUESTION[q.type]||(()=>q.texte))(q)})):[el('p',{className:'muted',textContent:'Aucune question pour le moment.'})]));
+  const goals=b.objectifs.filter(g=>g.statut==='actif'||g.statut==='atteint');
+  ui('brain-goals-list').replaceChildren(...(goals.length?goals.map(g=>el('span',{className:'chip',textContent:(g.statut==='atteint'?'✓ ':'')+'Aller voir · '+g.cible})):
+    [el('span',{className:'muted',textContent:'Rien de précis pour l’instant.'})]));
   ui('brain-concepts').replaceChildren(...(b.concepts.length?b.concepts.map(k=>
-    el('span',{className:'chip',textContent:k.membres.slice(0,4).join(' + ')+(k.membres.length>4?' …':'')})):[el('p',{className:'hint',textContent:'Pas encore de catégorie.'})]));
+    el('span',{className:'chip',textContent:k.membres.slice(0,4).join(' · ')+(k.membres.length>4?' …':'')})):[el('span',{className:'muted',textContent:'Pas encore.'})]));
   const mood=b.humeur;
-  ui('brain-mood').replaceChildren(...[['valence','Bien-être'],['peur','Peur'],['frustration','Frustration'],['ennui','Ennui']].map(([key,label])=>
+  ui('brain-mood').replaceChildren(...[['valence','Se sent bien'],['peur','A peur'],['frustration','Est frustré'],['ennui','S’ennuie']].map(([key,label])=>
     el('label',{},label,el('meter',{min:0,max:1,value:Math.max(0,Math.min(1,mood[key]??0))}))));
-  ui('brain-objects-list').replaceChildren(...b.objets.map(o=>el('div',{className:'file'},
-    el('code',{textContent:o.id}),el('strong',{textContent:o.nom}),
-    el('small',{textContent:'vu '+o.vu+' fois · '+o.reussites+'/'+o.essais+' essais'+(o.mot?' · mot « '+o.mot+' »':'')}))));
+  ui('brain-objects-list').replaceChildren(...(b.objets.length?b.objets.map(o=>el('div',{className:'thing'},
+    el('strong',{textContent:o.nom}),
+    el('small',{textContent:'Vu '+o.vu+' fois'+(o.essais?' · essayé '+o.essais+' fois':' · pas encore essayé')+(o.mot?' · « '+o.mot+' »':'')}))):
+    [el('p',{className:'muted',textContent:'Rien pour l’instant.'})]));
 }
 function showPage(scroll=false){
   const requested=location.hash.slice(1);
-  page=Object.hasOwn(pageNames,requested)?requested:'ensemble';
+  const wanted=legacyPages[requested]||requested;
+  page=Object.hasOwn(pageNames,wanted)?wanted:'monde';
   ui('main').dataset.page=page;
   ui('page-title').textContent=pageNames[page];
   document.title=pageNames[page]+' — Simulacre';
@@ -355,12 +374,7 @@ function showPage(scroll=false){
     else tab.removeAttribute('aria-current');
   }
   for(const key of detailPages)ui('page-'+key).hidden=page!==key;
-  ui('world-layout').hidden=page!=='ensemble'&&page!=='monde';
-  ui('overview-details').hidden=page!=='ensemble';
-  const sceneLink=ui('scene-link');
-  sceneLink.hidden=ui('world-layout').hidden;
-  sceneLink.href=page==='monde'?'#ensemble':'#monde';
-  sceneLink.textContent=page==='monde'?'Retour à la vue d’ensemble':'Ouvrir la vue plein écran ↗';
+  ui('world-layout').hidden=page!=='monde';
   const active=tabLinks.find(tab=>tab.hasAttribute('aria-current'));
   const navigation=active.parentElement;
   const left=active.getBoundingClientRect().left-navigation.getBoundingClientRect().left;
@@ -384,7 +398,7 @@ export function setupDashboard(personNames){
   ui('live-lines').onclick=resetHistoryPage;
   document.addEventListener('click',event=>{
     const link=event.target.closest('a[href^="#"]');
-    if(!link||!Object.hasOwn(pageNames,link.hash.slice(1))||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
+    if(!link||!(Object.hasOwn(pageNames,link.hash.slice(1))||Object.hasOwn(legacyPages,link.hash.slice(1)))||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
     event.preventDefault();
     if(location.hash!==link.hash)history.pushState(null,'',link.hash);
     showPage(true);
