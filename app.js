@@ -548,7 +548,7 @@ async function showWorld(){
   const offset=baseOffset.clone();
   let cameraQuarter=0;
   ui('rotate-camera').onclick=()=>{cameraQuarter=(cameraQuarter+1)%4;offset.copy(baseOffset).applyAxisAngle(new T.Vector3(0,1,0),cameraQuarter*Math.PI/2);};
-  ui('floor-view').onclick=()=>{upperFloorView=upperFloorView===true?false:true;ui('floor-view').textContent=upperFloorView?'Voir le rez-de-chaussée':'Voir l’étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
+  ui('floor-view').onclick=()=>{upperFloorView=upperFloorView===true?false:true;desiredZoom=upperFloorView?1.4:1;ui('zoom-level').textContent=desiredZoom.toLocaleString('fr-BE',{maximumFractionDigits:1})+'×';ui('floor-view').textContent=upperFloorView?'Voir le rez-de-chaussée':'Voir l’étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
   const center=new T.Vector3();
   const manualCenter=new T.Vector3();
   const desiredCenter=new T.Vector3();
@@ -959,7 +959,7 @@ async function showWorld(){
     if(ui('world-layout').hidden){last=now;return;}
     const dt=Math.min(.05,(now-last)/1000);last=now;
     const focus=following&&actors.find(actor=>actor.id===followedPerson);
-    if(upperFloorView!==null){desiredCenter.set(-3.65,upperFloorView?2.35:.65,2.6);manualCenter.copy(desiredCenter);}
+    if(upperFloorView!==null){desiredCenter.set(-3.65,upperFloorView?2.65:.65,2.6);manualCenter.copy(desiredCenter);}
     else if(focus){
       desiredCenter.copy(focus.root.position);
       desiredCenter.y+=focus.root.scale.x*.45;
@@ -976,7 +976,7 @@ async function showWorld(){
       const tracked=focus&&(focus.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===focus.id));
       const upstairs=upperFloorView===null?Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier')):upperFloorView;
       if(upperFloorView===null)ui('floor-view').textContent=upstairs?'Voir le rez-de-chaussée':'Voir l’étage';
-      if(houseCut){houseCut.normal.set(0,upstairs?1:-1,0);houseCut.constant=upstairs?-1.8:1.45;scene.userData.floorCut=upstairs?'upper':'ground';}
+      if(houseCut){houseCut.normal.set(0,upstairs?1:-1,0);houseCut.constant=upstairs?-3.35:1.45;scene.userData.floorCut=upstairs?'upper':'ground';}
       play.update(snapshot.playItems);
       for(const door of houseDoors){
         door.root.visible=upperFloorView===true?Boolean(door.floor):upperFloorView===false?!door.floor:(!door.floor||upstairs);
