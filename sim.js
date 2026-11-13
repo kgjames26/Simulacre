@@ -915,6 +915,7 @@ function snapshot() {
       motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered})),
       knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};
     brainView=Brain.view(observerLabel);
+    brainView.signature=Brain.signature(age);
     nextActivitySnapshot=ticks+36;
   }
   return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};

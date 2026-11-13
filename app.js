@@ -98,7 +98,7 @@ worker.onmessage = ({data}) => {
   updateDialogue(snapshot.dialogue);
   const {ticks,age,skill,score,alex,trials,pecm,journal}=snapshot;
   const days=Math.floor(ticks/120/86400);
-  ui('year').textContent='Année fictive '+format.format(1+Math.floor(days/365));
+  ui('year').textContent='Année '+format.format(1+Math.floor(days/365));
   ui('day').textContent='Jour '+(1+days%365);
   ui('age').textContent=ages[age];
   ui('skill').textContent=stages[skill];
@@ -531,14 +531,16 @@ async function showWorld(){
     import('three'),import('three/addons/loaders/GLTFLoader.js'),import('/assets/3d/load-character.js')
   ]);
   const scene=new T.Scene();
-  scene.background=new T.Color('#59766a');
+  scene.background=new T.Color('#5d7a70');
   const canvas=document.createElement('canvas');
   const graphics=canvas.getContext('webgl2')||canvas.getContext('webgl');
   const renderer=graphics?new T.WebGLRenderer({canvas,context:graphics,antialias:true,powerPreference:'high-performance'}):softwareRenderer(T);
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.65));
   renderer.localClippingEnabled=true;
   renderer.toneMapping=T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.25;
+  renderer.toneMappingExposure=1.1;
+  const realGL=!!graphics;
+  if(realGL){renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;}
   ui('view').append(renderer.domElement);
   const camera=new T.OrthographicCamera();
   const baseOffset=new T.Vector3(23,27,31);
@@ -600,7 +602,17 @@ async function showWorld(){
   };
   new ResizeObserver(resize).observe(ui('view')); resize();
   scene.add(new T.HemisphereLight(0xfff7df,0x688369,2.1));
-  const sun=new T.DirectionalLight(0xfff0d1,2.1);sun.position.set(-10,22,10);scene.add(sun);
+  const sun=new T.DirectionalLight(0xfff0d1,2.3);sun.position.set(-10,22,10);scene.add(sun);
+  if(realGL){
+    const small=matchMedia('(pointer:coarse)').matches;
+    sun.castShadow=true;
+    sun.shadow.mapSize.set(small?1024:2048,small?1024:2048);
+    Object.assign(sun.shadow.camera,{left:-26,right:26,top:20,bottom:-20,near:1,far:70});
+    sun.shadow.bias=-.0004;sun.shadow.normalBias=.05;sun.shadow.radius=3;
+    sun.target.position.set(0,0,0);scene.add(sun.target);
+  }
+  let shadowPass=0;
+  const flagShadows=()=>{if(!realGL)return;scene.traverse(o=>{if(o.isMesh&&!o.userData.shadowSet&&!o.material?.transparent){o.userData.shadowSet=true;o.castShadow=true;o.receiveShadow=true;}});};
   const mat=color=>new T.MeshStandardMaterial({color,roughness:.9});
   function box(w,h,d,x,y,z,material){
     const mesh=new T.Mesh(new T.BoxGeometry(w,h,d),material);mesh.position.set(x,y,z);scene.add(mesh);return mesh;
@@ -1069,6 +1081,7 @@ async function showWorld(){
         actor.label.style.top=(.5-point.y*.5)*100+'%';
       }
     }
+    if(++shadowPass%60===1)flagShadows();
     renderer.render(scene,camera);
   });
 }
