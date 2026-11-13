@@ -880,7 +880,7 @@ async function showWorld(){
       swingSeat=new T.Group();swingSeat.position.set(sx,0,sz-.28);const ropeMat=mat('#6d5541');
       for(const x of [-.25,.25]){const rope=new T.Mesh(new T.CylinderGeometry(.018,.018,1.48,7),ropeMat);rope.position.set(x,1.26,0);swingSeat.add(rope);}
       const seat=new T.Mesh(new T.BoxGeometry(.62,.10,.28),mat('#c66f48'));seat.position.y=.49;swingSeat.add(seat);scene.add(swingSeat);
-      const bx=equipment.bars.x,bz=equipment.bars.z;for(const x of [-.65,.65])post(bx+x,0,bz,2.05);beam([bx-.65,2.03,bz],[bx+.65,2.03,bz],.055,barMaterial);for(let i=0;i<7;i++){const x=bx-.54+i*.18;beam([x,1.99,bz],[x,2.03,bz],.045,barMaterial);}
+      const bx=equipment.bars.x,bz=equipment.bars.z;for(const x of [-.65,.65])post(bx+x,0,bz,2.05);beam([bx-.65,2.03,bz],[bx+.65,2.03,bz],.055,barMaterial);for(let i=0;i<7;i++){const x=bx-.54+i*.18;beam([x,2.03,bz-.34],[x,2.03,bz+.34],.045,barMaterial);}
       const wx=equipment.wall.x,wz=equipment.wall.z;const wallPanel=new T.Mesh(new T.BoxGeometry(1.45,2.1,.16),mat('#b77d58'));wallPanel.position.set(wx,1.05,wz);wallPanel.rotation.x=-.20;scene.add(wallPanel);
       for(let i=0;i<15;i++){const hold=new T.Mesh(new T.DodecahedronGeometry(.09,0),mat(holdColors[i%holdColors.length]));hold.position.set(wx+((i%3)-1)*.39,.28+Math.floor(i/3)*.35,wz-.13);scene.add(hold);}
       worker.postMessage({type:'park',geometry:{slide:slide.map(([x,y,z])=>({x,y,z})),rope:{x:anchor.x,y:anchor.y,z:anchor.z,length},equipment}});
