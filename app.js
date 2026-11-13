@@ -656,7 +656,7 @@ async function showWorld(){
   const actors=[];
   let physicalRope, trampolineMesh, swingSeat;
   const houseDoors=[];
-  let interiorVisuals, houseCut;
+  let interiorVisuals, houseCut, houseRoofMeshes=[];
   const ropeUp=new T.Vector3(0,1,0);
   const failures=[];
   let ready=0;
@@ -671,6 +671,15 @@ async function showWorld(){
     const cut=houseCut=new T.Plane(new T.Vector3(0,-1,0),1.45);
     scene.add(house);
     house.updateMatrixWorld(true);
+    houseRoofMeshes=[];
+    house.traverse(object=>{
+      if(!object.isMesh)return;
+      const bounds=new T.Box3().setFromObject(object),size=bounds.getSize(new T.Vector3());
+      const names=(object.name+' '+[object.material].flat().map(material=>material?.name||'').join(' ')).toLowerCase();
+      const roofByName=/roof|toit|roofing|ceiling|plafond/.test(names);
+      const roofByShape=bounds.min.y>3.15&&size.y<1.45&&Math.max(size.x,size.z)>1.8;
+      if(roofByName||roofByShape)houseRoofMeshes.push(object);
+    });
     const sourcePoint=(x,z,height)=>house.localToWorld(new T.Vector3(x,height,-z));
     const trampoline=house.getObjectByName('Object_112');
     const timber=surfaceTexture('#ebdbc3',['#ddd0b8','#cdbb9f','#efdfc5'],[3,3]);
@@ -976,7 +985,8 @@ async function showWorld(){
       const tracked=focus&&(focus.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===focus.id));
       const upstairs=upperFloorView===null?Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier')):upperFloorView;
       if(upperFloorView===null)ui('floor-view').textContent=upstairs?'Voir le rez-de-chaussée':'Voir l’étage';
-      if(houseCut){houseCut.normal.set(0,upstairs?1:-1,0);houseCut.constant=upstairs?-3.35:1.45;scene.userData.floorCut=upstairs?'upper':'ground';}
+      if(houseCut){houseCut.normal.set(0,upstairs?1:-1,0);houseCut.constant=upstairs?-1.8:1.45;scene.userData.floorCut=upstairs?'upper':'ground';
+      for(const roof of houseRoofMeshes)roof.visible=!upstairs;}
       play.update(snapshot.playItems);
       for(const door of houseDoors){
         door.root.visible=upperFloorView===true?Boolean(door.floor):upperFloorView===false?!door.floor:(!door.floor||upstairs);
