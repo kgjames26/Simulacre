@@ -359,8 +359,27 @@ function doorNear(p,door,depth,padding){
   return Math.abs(across?p.x-door.x:p.z-door.z)<depth&&
     Math.abs(across?p.z-door.z:p.x-door.x)<door.width/2+padding;
 }
+// Deux corps ne se traversent pas : on ne s'approche pas à moins de 35 cm d'un autre (sauf câlin, portage, s'éloigner).
+function corpsLibre(p,x,z){
+  if(p.hug||sleeps.has(p)||p===alex&&contact)return true;
+  const porte=sleeps.get(alex)?.carrier;
+  for(const o of [alex,...people]){
+    if(o===p||o.hug||(o.floor||0)!==(p.floor||0)||o.lie>.5||porte===o&&p===alex||porte===p&&o===alex)continue;
+    const avant=Math.hypot(o.x-p.x,o.z-p.z),apres=Math.hypot(o.x-x,o.z-z);
+    if(apres<.35&&apres<avant)return false;
+  }
+  return true;
+}
 function walkStep(p,x,z){
   if(!navigation.clear(p.x,p.z,x,z,p.floor||0))return false;
+  if(!corpsLibre(p,x,z)){
+    // on contourne d'un pas de côté ; si deux personnes se font face dans un passage étroit, on finit par se croiser
+    const dx=x-p.x,dz=z-p.z,sx=p.x-dz,sz=p.z+dx,t=ticks*DT;
+    if(corpsLibre(p,sx,sz)&&navigation.clear(p.x,p.z,sx,sz,p.floor||0)&&(p!==alex||autorise(sx,sz,p.floor||0))){p.x=sx;p.z=sz;return true;}
+    if(!(p.gene>t-1))p.geneDepuis=t;
+    p.gene=t;
+    if(t-p.geneDepuis<1.5)return false;
+  }
   // Interdits des parents : Néo est retenu au bord de la zone permise. Personne ne lui explique pourquoi.
   if(p===alex&&!autorise(x,z,p.floor||0)){
     if(Brain.retenu(x,z,p.floor||0,ticks*DT))note('Néo veut aller plus loin, mais on le retient.','limite');
@@ -389,12 +408,19 @@ function move(p,x,z,speed) {
   if(!target)return distance;
   const dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);
   if(d<.001)return distance;
-  const step=Math.min(d,speed*DT);
+  // Démarche humaine : on accélère et on ralentit progressivement, on tourne sans pivoter d'un coup,
+  // chacun a son pas (un peu plus vif ou plus posé), et on freine en arrivant.
+  const allure=speed*(.92+((p.id||'x').charCodeAt(0)%7)*.025)*Math.min(1,.35+distance/1.2);
+  p.speed=(p.speed||0)+(allure-(p.speed||0))*Math.min(1,DT*3.2);
+  const voulu=Math.atan2(dx,dz);
+  let ecart=Math.atan2(Math.sin(voulu-(p.heading||0)),Math.cos(voulu-(p.heading||0)));
+  p.heading=(p.heading||0)+clamp(ecart,-6*DT,6*DT);
+  const freinVirage=Math.max(.35,Math.cos(ecart));
+  const step=Math.min(d,p.speed*freinVirage*DT);
   if(walkStep(p,p.x+dx/d*step,p.z+dz/d*step)){
-    p.heading=Math.atan2(dx,dz);
-    p.phase+=step*8;
+    p.phase+=step*5.2;
     p.moving=true;
-  }
+  }else p.speed*=.5;
   return distance;
 }
 function moveViaStairs(person,targetFloor,targetX,targetZ,s){
@@ -746,7 +772,7 @@ function chooseGoal(s){
     const novelty=2.4/(1+observations+record.completed);
     const unfinished=record.choices>0&&record.completed===0?.32:0;
     const distance=Math.hypot(goal.x-alex.x,goal.z-alex.z);
-    const retenu=Brain.interdit(goal.x,goal.z,alex.floor||0)?.15:1;
+    const retenu=(Brain.interdit(goal.x,goal.z,alex.floor||0)?.15:1)*(1+2*Brain.attraitReve(goal.id));
     return retenu*(novelty+unfinished+.23)*(1+(goal.person?6*envieDeBienEtre('alex',goal.person):0))*(1+2.5*(recall.get(goal.id)||0)+(Cortex.attendue(goal.id)?2:0))/(1+distance*.115+record.blocked*.12);
   };
   let pick=rng()*candidates.reduce((sum,goal)=>sum+interest(goal),0);
@@ -785,6 +811,14 @@ function experience() {
     person.pleasure=Math.max(0,(person.pleasure||0)-DT*.001);
   }
   perceiveStep(s);
+  // Le sommeil trie sa mémoire et le fait rêver (une fois par endormissement).
+  const dort=['sleep','ground'].includes(sleeps.get(alex)?.phase);
+  if(dort&&!alex.dort){
+    const nuit=Brain.sommeil(s);
+    const r=nuit.reves[0];
+    if(r)note('Néo dort et rêve de '+r.elements.map(id=>observerLabel(id)||'quelque chose').join(', ')+'.','sleep');
+  }
+  alex.dort=dort;
   const usingEquipment=stepHouseObject(s)||stepPark(s)||sleeping(alex,s,skill===4&&records[4].mastered)||stepNeoUpstairs(s);
   if(!usingEquipment){
   alex.y=Math.max(0,(alex.y||0)-DT*2.8);

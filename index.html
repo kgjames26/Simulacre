@@ -33,6 +33,7 @@
       <a href="#cerveau"><span class="long">Son </span>cerveau</a>
       <a href="#croissance"><span class="long">Sa </span>croissance</a>
       <a href="#entourage"><span class="long">Son </span>entourage</a>
+      <a href="#nuits"><span class="long">Ses </span>nuits</a>
     </nav>
     <div class="top-right">
       <span class="clock" id="clock">Jour 1</span>
@@ -53,9 +54,6 @@
       <div class="toolbar" role="group" aria-label="Caméra">
         <button id="follow" type="button" class="tool" aria-pressed="false">Suivre</button>
         <button id="choose-person" type="button" class="tool" aria-controls="person-dialog">Néo ▾</button>
-        <button id="zoom-out" type="button" class="tool icon" aria-label="Dézoomer">−</button>
-        <output id="zoom-level" class="zoom">1×</output>
-        <button id="zoom-in" type="button" class="tool icon" aria-label="Zoomer">+</button>
         <button id="rotate-camera" type="button" class="tool icon" aria-label="Pivoter la vue" title="Pivoter la vue">↻</button>
         <button id="floor-view" type="button" class="tool" aria-pressed="false">Étage</button>
         <button id="play-open" type="button" class="tool" title="Faire bouger les jouets">Jouets</button>
@@ -128,6 +126,16 @@
       <article class="card"><h3>Apprendre à marcher</h3><p class="hint">Son corps articulé essaie des milliers de combinaisons de mouvements et garde ce qui marche.</p><div class="steps" id="motor-steps"></div></article>
       <article class="card"><h3>Ses premières phrases</h3><div id="language-stats" class="stack"></div><ol class="list" id="composed-phrases"></ol></article>
     </div>
+  </section>
+
+  <!-- SES NUITS -->
+  <section id="page-nuits" class="page" hidden>
+    <header class="intro">
+      <h2>Ses nuits</h2>
+      <p>Quand Néo dort, son cerveau fait le tri : il rejoue sa journée et renforce ce qui allait ensemble, efface ce qui est faible ou inutile, fusionne les souvenirs qui se répètent. Puis il rêve de choses qu’il a vues sans les explorer, et au réveil il a envie d’aller les voir.</p>
+    </header>
+    <div class="regions" id="nuits-total"></div>
+    <div id="nuits" class="stack"></div>
   </section>
 
   <!-- SON ENTOURAGE -->

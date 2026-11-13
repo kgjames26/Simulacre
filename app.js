@@ -48,9 +48,11 @@ function showFollowState(){
   ui('follow').setAttribute('aria-pressed',String(following));
   ui('choose-person').textContent=name+' ▾';
 }
+let zoomSurPersonne=()=>{};
 function selectPerson(id){
   followedPerson=id;
   following=true;
+  zoomSurPersonne();
   showFollowState();
 }
 ui('follow').onclick=()=>{following=!following;showFollowState();};
@@ -139,7 +141,7 @@ function setSpeed(fast){
   ui('speed-global').setAttribute('aria-pressed',String(!fast));
 }
 ui('speed-global').onclick=()=>setSpeed(human);
-setSpeed(true);
+setSpeed(false);   // on démarre à vitesse réelle
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);
 
 const welcome=ui('welcome-screen');
@@ -364,17 +366,43 @@ function skinPopoGeometry(T,geometry,rig){
     geometry.setIndex(triangles);
   }
 }
-function posePopo(rig,channels,crouch,gait,smoothing,lean=0){
+// Posture. Néo : ses articulations viennent de son corps appris (channels).
+// Les autres : une démarche humaine — bassin et épaules en contre-rotation le long de la colonne,
+// bras opposés aux jambes, genou fléchi pendant le pas, tête stabilisée, respiration au repos.
+function posePopo(rig,channels,crouch,gait,smoothing,lean=0,walk=null){
   const smooth=(angle,target)=>angle+(target-angle)*smoothing;
-  rig.trunk.position.y=smooth(rig.trunk.position.y,-crouch*.11);
+  const w=walk||{phase:0,speed:0,time:0,look:0};
+  const v=Math.min(1.4,w.speed||0),amp=Math.min(1,v/.9),ph=w.phase||0,s=Math.sin(ph),c=Math.cos(ph);
+  const humain=!channels&&walk;
+  const souffle=Math.sin((w.time||0)*1.6)*.012*(1-amp);
+  rig.trunk.position.y=smooth(rig.trunk.position.y,-crouch*.11-(humain?Math.abs(c)*.012*amp:0));
+  rig.trunk.rotation.z=smooth(rig.trunk.rotation.z,humain?s*.025*amp:0);
   rig.spine.forEach((joint,i)=>{
-    joint.rotation.x=smooth(joint.rotation.x,(crouch*.45-lean*.26)*(i<4?.19:.12));
-    joint.rotation.y=smooth(joint.rotation.y,gait*(i<4?.045:-.06));
+    const bas=i<3,tete=i===5;
+    const penche=(crouch*.45-lean*.26)*(i<4?.19:.12)+(humain?.025*amp*(bas?1:.5):0);
+    joint.rotation.x=smooth(joint.rotation.x,penche+(i===3?souffle:0));
+    // contre-rotation : le bas suit le bassin, le haut suit les épaules, la tête regarde devant
+    const torsion=humain?(bas?s*.06*amp:tete?-s*.02*amp+(w.look||0):-s*.07*amp):gait*(i<4?.045:-.06);
+    joint.rotation.y=smooth(joint.rotation.y,torsion);
+    joint.rotation.z=smooth(joint.rotation.z,humain?(bas?-s*.02:s*.015)*amp:0);
   });
   rig.sides.forEach((side,i)=>{
     const {sign,shoulder,elbow,wrist,hip,knee,ankle,fingers}=side;
     const offset=i*11;
     const value=(index,fallback)=>channels?.[offset+index]??fallback;
+    if(humain){
+      const pas=sign*s;                                  // jambe en avant quand pas>0
+      const flexion=Math.max(0,Math.sin(ph*1+(sign>0?0:Math.PI)+1.2));
+      shoulder.rotation.z=smooth(shoulder.rotation.z,-sign*(1.18-.04*amp));
+      shoulder.rotation.y=smooth(shoulder.rotation.y,-sign*pas*.42*amp);
+      elbow.rotation.y=smooth(elbow.rotation.y,-sign*(.18+.25*amp+Math.max(0,-pas)*.15*amp));
+      wrist.rotation.x=smooth(wrist.rotation.x,0);
+      hip.rotation.x=smooth(hip.rotation.x,-pas*.42*amp-crouch*.58);
+      knee.rotation.x=smooth(knee.rotation.x,.06+flexion*.75*amp+crouch*.62);
+      ankle.rotation.x=smooth(ankle.rotation.x,(pas>0?-.12:.18)*amp*Math.abs(s));
+      fingers.forEach(({base,tip})=>{base.rotation.y=smooth(base.rotation.y,-sign*.35);tip.rotation.y=smooth(tip.rotation.y,-sign*.3);});
+      return;
+    }
     shoulder.rotation.z=smooth(shoulder.rotation.z,-sign*value(0,1.10));
     shoulder.rotation.y=smooth(shoulder.rotation.y,sign*gait*.38);
     elbow.rotation.y=smooth(elbow.rotation.y,-sign*value(1,.24+crouch*.25));
@@ -388,6 +416,17 @@ function posePopo(rig,channels,crouch,gait,smoothing,lean=0){
       tip.rotation.y=smooth(tip.rotation.y,-sign*curl*.72);
     });
   });
+}
+// Contact avec le sol : aucune partie du corps ne passe sous la surface qui le porte.
+const MARGES={ankle:.045,knee:.04,wrist:.035,hip:.05,head:.13,spine:.07};
+function poserAuSol(T,actor,sol){
+  const rig=actor.rig,k=actor.root.scale.x,pt=new T.Vector3();
+  actor.root.updateMatrixWorld(true);
+  let bas=Infinity;
+  const tester=(bone,m)=>{bone.getWorldPosition(pt);bas=Math.min(bas,pt.y-m*k);};
+  for(const side of rig.sides){tester(side.ankle,MARGES.ankle);tester(side.knee,MARGES.knee);tester(side.wrist,MARGES.wrist);tester(side.hip,MARGES.hip);}
+  rig.spine.forEach((b,i)=>tester(b,i===5?MARGES.head:MARGES.spine));
+  if(bas<sol)actor.root.position.y+=sol-bas;
 }
 
 async function showWorld(){
@@ -412,7 +451,7 @@ async function showWorld(){
   const offset=baseOffset.clone();
   let cameraQuarter=0;
   ui('rotate-camera').onclick=()=>{cameraQuarter=(cameraQuarter+1)%4;offset.copy(baseOffset).applyAxisAngle(new T.Vector3(0,1,0),cameraQuarter*Math.PI/2);};
-  ui('floor-view').onclick=()=>{upperFloorView=upperFloorView===true?false:true;desiredZoom=upperFloorView?1.4:1;ui('zoom-level').textContent=desiredZoom.toLocaleString('fr-BE',{maximumFractionDigits:1})+'×';ui('floor-view').textContent=upperFloorView?'Rez':'Étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
+  ui('floor-view').onclick=()=>{upperFloorView=upperFloorView===true?false:true;desiredZoom=upperFloorView?1.4:1;ui('floor-view').textContent=upperFloorView?'Rez':'Étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
   const center=new T.Vector3();
   const manualCenter=new T.Vector3();
   const desiredCenter=new T.Vector3();
@@ -421,10 +460,9 @@ async function showWorld(){
   let desiredZoom=1;
   function zoomBy(ratio){
     desiredZoom=Math.max(.3,Math.min(28,desiredZoom*ratio));
-    ui('zoom-level').textContent=desiredZoom.toLocaleString('fr-BE',{maximumFractionDigits:1})+'×';
   }
-  ui('zoom-in').onclick=()=>zoomBy(1.55);
-  ui('zoom-out').onclick=()=>zoomBy(1/1.55);
+  // Zoom : roulette de la souris ou pincement. Cliquer sur un personnage : zoom et suivi.
+  zoomSurPersonne=()=>{desiredZoom=Math.max(desiredZoom,3.2);upperFloorView=null;};
   const view=ui('view');
   view.addEventListener('wheel',event=>{
     event.preventDefault();
@@ -436,16 +474,31 @@ async function showWorld(){
     const [a,b]=pointers.values();
     return b?Math.hypot(a.x-b.x,a.y-b.y):0;
   }
+  let appui=null;
+  const rayon=new T.Raycaster(),souris=new T.Vector2();
   view.addEventListener('pointerdown',event=>{
     pointers.set(event.pointerId,position(event));
     view.setPointerCapture(event.pointerId);
+    appui=pointers.size===1?{...position(event),glisse:false}:null;
+  });
+  view.addEventListener('pointerup',event=>{
+    if(!appui||appui.glisse||pointers.size>1)return;
+    const r=view.getBoundingClientRect();
+    souris.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);
+    rayon.setFromCamera(souris,camera);
+    const touches=rayon.intersectObjects(actors.filter(x=>x.root.visible).map(x=>x.root),true);
+    const cible=touches.length&&actors.find(x=>{let o=touches[0].object;while(o){if(o===x.root)return true;o=o.parent;}return false;});
+    if(cible)selectPerson(cible.id);
+    appui=null;
   });
   view.addEventListener('pointermove',event=>{
     const previous=pointers.get(event.pointerId);
     if(!previous)return;
     const before=pinchDistance(), current=position(event);
     pointers.set(event.pointerId,current);
+    if(appui&&Math.hypot(current.x-appui.x,current.y-appui.y)>6)appui.glisse=true;
     if(before>0){zoomBy(pinchDistance()/before);return;}
+    if(appui?.glisse&&following){following=false;manualCenter.copy(center);showFollowState();}
     if(following)return;
     const unit=(camera.top-camera.bottom)/(Math.max(1,view.clientHeight)*camera.zoom);
     const right=new T.Vector3().setFromMatrixColumn(camera.matrixWorld,0);
@@ -944,7 +997,9 @@ async function showWorld(){
         const ageIndex=Math.min(8,snapshot.age+(actor.id==='juliette'?2:0));
         const size=(grows?actors[0].ageProfiles[ageIndex].scale:actor.profile.scale)*1.85;
         actor.root.scale.setScalar(size);
-        actor.root.position.lerp(point.set(p.x,p.y||0,p.z),1-Math.exp(-dt*(human?22:12)));
+        actor.base||=actor.root.position.clone();
+        actor.base.lerp(point.set(p.x,p.y||0,p.z),1-Math.exp(-dt*(human?22:12)));
+        actor.root.position.copy(actor.base);
         const gesture=p.languageGesture;
         const lying=p.lie||0;
         actor.root.rotation.y=gesture&&!lying?gesture.heading:p.heading;
@@ -954,7 +1009,8 @@ async function showWorld(){
         const gait=lying?0:main?p.effort:p.moving?Math.sin(p.phase)*.6:0;
         const crouch=p.pose||0;
         const pointing=gesture?.kind==='point'&&!lying;
-        posePopo(actor.rig,p.joints,crouch,gait,1-Math.exp(-dt*14),p.tilt||0);
+        const marche=main?null:{phase:p.phase||0,speed:p.moving?(p.speed||.8):0,time:now/1000+actor.id.length,look:p.moving?0:Math.sin(now/2300+actor.id.length*1.7)*.35};
+        posePopo(actor.rig,p.joints,crouch,gait,1-Math.exp(-dt*14),p.tilt||0,marche);
         if(p.hug){
           for(const side of actor.rig.sides){side.shoulder.rotation.x=-.82;side.shoulder.rotation.z=Math.sign(side.shoulder.position.x||1)*.58;side.elbow.rotation.x=-1.02;side.wrist.rotation.x=.12;}
         }
@@ -964,6 +1020,7 @@ async function showWorld(){
           arm.shoulder.rotation.y=-Math.PI/3;
           arm.elbow.rotation.y*=.6;
         }
+        if(p.activity!=='Se suspend à la corde')poserAuSol(T,actor,p.y||0);
         atelier3d.porteur(actor,p.carry||null);
         if(actor.face.hairMaterial&&actor.gris!==!!p.vieux){actor.gris=!!p.vieux;actor.face.hairMaterial.color.set(p.vieux?'#b9b6b2':faceProfiles[actor.id].hair);}
         actor.root.userData.crouch=crouch;

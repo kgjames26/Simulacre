@@ -6,7 +6,7 @@ const pct=v=>Math.round((v||0)*100)+' %';
 export const TIME_SCALE=144;           // 1 jour fictif = 10 minutes de simulation
 export const AGES=['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
 const MARCHE=['Se redresser','Ramper','Tenir debout','Premiers pas','Marcher'];
-const PAGES={monde:'Le monde',cerveau:'Son cerveau',croissance:'Sa croissance',entourage:'Son entourage'};
+const PAGES={monde:'Le monde',cerveau:'Son cerveau',croissance:'Sa croissance',entourage:'Son entourage',nuits:'Ses nuits'};
 const ANCIENNES={apprend:'cerveau',grandir:'croissance',paroles:'entourage',proches:'entourage',ensemble:'monde'};
 const GENRES={social:'Relation',play:'Jeu',food:'Repas',sleep:'Sommeil',object:'Objet',care:'Soin',limite:'Limite'};
 const VERBES={pousser:'Pousser',tirer:'Tirer',saisir:'Prendre',frapper:'Frapper',tourner:'Tourner',monter:'Monter sur',grimper:'Grimper sur',sauter:'Sauter sur'};
@@ -206,6 +206,20 @@ function renderRelation(s){
   paint('relationship-history',r.a+r.b+ev.length+(ev[0]?.at||''),()=>ev.map(e=>el('li',{},document.createTextNode(e.event),el('small',{textContent:stamp(e.at)}))));
 }
 
+// ---------- page : ses nuits ----------
+function renderNuits(s){
+  const n=s.brain?.nuits||[];
+  const tot=k=>n.reduce((a,x)=>a+x[k],0);
+  const totals=[['Nuits',n.length,'derniers sommeils gardés'],['Liens renforcés',tot('renforces'),'ce qui allait ensemble'],['Liens effacés',tot('effaces'),'trop faibles pour compter'],
+    ['Souvenirs fusionnés',tot('fusionnes'),'redondances retirées'],['Choses oubliées',tot('oublies'),'essais ratés, causes inutiles'],['Rêves',n.reduce((a,x)=>a+x.reves.length,0),'devenus des envies']];
+  paint('nuits-total',JSON.stringify(totals),()=>totals.map(([nom,v,desc])=>el('div',{className:'region'},el('strong',{textContent:fmt(v)}),el('span',{textContent:nom}),el('small',{textContent:desc}))));
+  paint('nuits',n.map(x=>x.t).join(),()=>n.length?n.map(x=>el('article',{className:'card night'},
+    el('div',{className:'card-head'},el('h3',{textContent:'Nuit du '+stamp(x.t).replace(/, .*/,'')}),el('small',{textContent:'endormi vers '+stamp(x.t).replace(/^.*, /,'')})),
+    el('div',{className:'chips'},el('span',{className:'chip',textContent:fmt(x.renforces)+' liens renforcés'}),el('span',{className:'chip off',textContent:fmt(x.effaces)+' effacés'}),
+      el('span',{className:'chip off',textContent:fmt(x.fusionnes)+' souvenirs fusionnés'}),el('span',{className:'chip off',textContent:fmt(x.oublies)+' oubliés'})),
+    ...x.reves.map(r=>el('p',{className:'dream',textContent:'Il rêve de '+r.elements.join(', puis de ')+'.'+(r.envie?' Au réveil, il a envie d’aller voir '+r.envie+'.':'')})))):[empty('Néo n’a pas encore dormi.')]);
+}
+
 // ---------- navigation ----------
 let lastPaint=-1e9,lastLine=0;
 function update(state,force=false){
@@ -218,6 +232,7 @@ function update(state,force=false){
   if(page==='monde')renderMonde(state);
   if(page==='cerveau')renderCerveau(state);
   if(page==='croissance')renderCroissance(state);
+  if(page==='nuits')renderNuits(state);
   if(page==='entourage'){
     renderEntourage(state);
     const last=state.dialogue.lines.at(-1)?.id||0;

@@ -36,7 +36,8 @@ const Brain=(()=>{
       emotions:{valence:0,peur:0,frustration:0,ennui:0,confiance:.4,historique:[]},
       envies:{questions:[],objectifs:[],habitudes:[]},
       associations:{noeuds:{},liens:{},idees:[],travail:{items:[],t:0},surprise:0,deductions:0,v:0,sceneAt:-1e9},
-      partage:{publie:[],amis:false,famille:false}};
+      partage:{publie:[],amis:false,famille:false},
+      sommeil:{nuits:[],reves:{},dernier:0}};
   }
   S=fresh(1);
 
@@ -274,6 +275,63 @@ const Brain=(()=>{
     if(h.historique.length>60)h.historique.shift();
   }
 
+  // ---------- sommeil : le tri de la nuit ----------
+  // Rejoue les souvenirs du jour (renforce ce qui va ensemble), efface les liens faibles et les choses inutiles,
+  // fusionne les souvenirs redondants, puis rêve : des choses vues mais peu explorées remontent et deviennent des envies.
+  function sommeil(t,label=id=>id){
+    const A=S.associations,M=S.memoire,Z=S.sommeil;
+    const nuit={t:Math.round(t),renforces:0,effaces:0,fusionnes:0,oublies:0,reves:[]};
+    // 1. rejouer la journée
+    const jour=M.episodes.filter(e=>e.t>Z.dernier);
+    const touches=new Set();
+    for(const e of jour){
+      const noeuds=['ges:'+e.geste,'obj:'+e.cible,...(e.effet||[]).map(f=>'eff:'+f),...(e.soulage||[]).map(b=>'bes:'+b)];
+      if(e.lieu)noeuds.push('lieu:'+e.lieu);
+      for(let i=0;i<noeuds.length;i++)for(let j=i+1;j<noeuds.length;j++){
+        const k=noeuds[i]<noeuds[j]?noeuds[i]+'|'+noeuds[j]:noeuds[j]+'|'+noeuds[i];
+        const l=A.liens[k];if(l&&e.succes){l.n+=.3;touches.add(k);}
+      }
+    }
+    nuit.renforces=touches.size;
+    // 2. effacer ce qui est faible
+    for(const [k,l] of Object.entries(A.liens)){if(touches.has(k))continue;l.n*=.85;if(l.n<.6){delete A.liens[k];nuit.effaces++;}}
+    for(const [k,n] of Object.entries(A.noeuds)){n.n*=.92;if(n.n<.3)delete A.noeuds[k];}
+    A.v++;
+    // 3. fusionner les souvenirs identiques
+    const vus=new Map(),garde=[];
+    for(let i=M.episodes.length-1;i>=0;i--){
+      const e=M.episodes[i],k=[e.cible,e.geste,e.succes,(e.effet||[]).join(',')].join('|');
+      if(vus.has(k)){vus.get(k).fois=(vus.get(k).fois||1)+(e.fois||1);nuit.fusionnes++;}
+      else{vus.set(k,e);garde.push(e);}
+    }
+    M.episodes=garde.reverse();
+    // oublier les essais ratés anciens et les causes sur des choses qui ne réagissent jamais
+    const avant=M.essais.length;
+    M.essais=M.essais.filter(e=>e.succes||t-e.t<600);
+    nuit.oublies+=avant-M.essais.length;
+    const inutiles=liste().filter(c=>c.statut==='essai'&&c.essais>=4&&!c.reussites);
+    S.causes.liste=liste().filter(c=>!inutiles.includes(c));
+    nuit.oublies+=inutiles.length;
+    S.envies.questions=S.envies.questions.filter(q=>q.statut==='ouverte'||t-q.cree<900);
+    // 4. rêver
+    for(const id of Object.keys(Z.reves)){Z.reves[id]*=.5;if(Z.reves[id]<.1)delete Z.reves[id];}
+    const candidats=registre().filter(o=>!o.inerte&&o.vu>=2&&(o.vivant||o.essais<=2))
+      .map(o=>({o,score:o.vu/(1+o.essais*2)*(o.vivant?.5:1)+rand()*2})).sort((a,b)=>b.score-a.score).slice(0,1+Math.floor(rand()*2));
+    for(const {o} of candidats){
+      const act=[...Cortex.activer({['obj:'+o.id]:1})].filter(([n])=>/^(obj|pers):/.test(n)&&n!=='obj:'+o.id).sort((a,b)=>b[1]-a[1]).slice(0,2);
+      const elements=[o.id,...act.map(([n])=>n.split(':')[1])];
+      Z.reves[o.id]=Math.min(1,(Z.reves[o.id]||0)+.8);
+      if(!o.vivant&&!S.envies.objectifs.some(g=>g.statut==='actif'&&g.cible===o.id))
+        S.envies.objectifs.push({id:'g-'+(S.next.g++),cible:o.id,source:'reve',statut:'actif',cree:Math.round(t)});
+      nuit.reves.push({elements,envie:o.vivant?null:o.id,valence:+S.emotions.valence.toFixed(2)});
+    }
+    S.emotions.frustration*=.5;S.emotions.peur*=.6;
+    Z.dernier=Math.round(t);
+    Z.nuits.push(nuit);if(Z.nuits.length>20)Z.nuits.shift();
+    return nuit;
+  }
+  const attraitReve=id=>S.sommeil.reves[id]||0;
+
   // ---------- partage : seules les choses comprises sortent ----------
   function publier(t){
     const P=S.partage.publie;
@@ -306,6 +364,7 @@ const Brain=(()=>{
       limites:Object.keys(S.espace.interdits).length,
       personnes:Object.keys(S.social.personnes).length,
       partage:{amis:S.partage.amis,famille:S.partage.famille},
+      nuits:S.sommeil.nuits.slice().reverse().map(n=>({...n,reves:n.reves.map(r=>({elements:r.elements.map(nom),envie:r.envie?nom(r.envie):null,valence:r.valence}))})),
       compris:confirmees().length,essais:S.memoire.total,souvenirs:S.memoire.episodes.length,
       sens:S.sens.flux.at(-1)?.n||0,nbObjets:registre().filter(o=>!o.vivant).length,familles:S.objets.concepts.length,
       envies:S.envies.questions.filter(q=>q.statut==='ouverte').length+S.envies.objectifs.filter(g=>g.statut==='actif').length
@@ -314,7 +373,7 @@ const Brain=(()=>{
 
   return {PRIMITIVES,APPRENABLES,CAPACITES,init,save,restore,bind,rand,note,sentir,vu,connu,registre,familleDe,
     lieu,retenu,interdit,personne,lien,soulagement,repertoire,appris,entrainer,capacite,defi,
-    essai,cause,confirmees,choisir,besoinCible,question,atteint,nbAtteints,habitudes,consolider,publier,ouvrirPartage,view,
+    essai,cause,confirmees,choisir,besoinCible,question,atteint,nbAtteints,habitudes,consolider,sommeil,attraitReve,publier,ouvrirPartage,view,
     get state(){return S;}};
 })();
 const rng=()=>Brain.rand();

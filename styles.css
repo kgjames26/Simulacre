@@ -72,7 +72,6 @@ main{max-width:1480px;margin:auto;padding:18px 20px 30px}
 .tool:hover{background:#fff;filter:none}
 .tool[aria-pressed="true"]{background:var(--ink);color:#fff}
 .tool.icon{width:34px;padding:7px 0}
-.zoom{align-self:center;font-size:12px;color:var(--ink);background:#ffffffc0;border-radius:99px;padding:3px 7px}
 .now{position:absolute;left:12px;bottom:12px;right:12px;max-width:420px;padding:10px 14px;border-radius:14px;background:#ffffffe8;box-shadow:0 2px 8px #0002}
 .now strong{font-size:15px}
 
@@ -154,6 +153,7 @@ main{max-width:1480px;margin:auto;padding:18px 20px 30px}
 .step[data-state="active"]{border-color:var(--warm)}
 
 /* entourage */
+.dream{margin-top:8px;padding:10px 12px;border-radius:12px;background:#efeaf8;color:#3f2f66;font-style:italic;font-size:14px}
 .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .person{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:grid;gap:6px}
 .person header{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -202,7 +202,7 @@ dialog p{color:#4a544f}
   .top-in{gap:10px;padding:0 12px}
   .brand span,.clock,.tabs .long{display:none}
   .brand{display:none}
-  .tabs a{padding:6px 7px;font-size:12.5px}
+  .tabs a{padding:6px 7px;font-size:12.5px;flex:none}
   .top-in{gap:6px}
   #speed-global{padding:6px 10px;font-size:12.5px}
   .people{grid-template-columns:repeat(2,minmax(0,1fr))}

@@ -52,3 +52,10 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Bugs corrigés : conversations jamais affichées, rendu 3D bloqué par les pommes, ordinateur jamais dessiné, courses impossibles (câlin des parents qui les retenait, marche coupée à 50 s), journal répétitif.
 - Allègement : ancien système de « découvertes » et compteurs retirés, rendu de secours supprimé, construction automatique de la liste des fichiers.
 - Nouvelle partie (sauvegarde v5).
+
+## v3.1
+- Sommeil : à chaque endormissement, le cerveau rejoue la journée (renforce les liens), efface les liens faibles, fusionne les souvenirs redondants, oublie les essais ratés et causes inutiles, puis rêve de choses vues mais peu explorées, qui deviennent des envies au réveil. Nouvel onglet « Ses nuits ».
+- Caméra : plus de boutons +/− (roulette ou pincement) ; toucher un personnage le suit et zoome ; glisser arrête le suivi.
+- Contacts : aucune partie du corps ne passe sous le sol ; les personnages ne se traversent plus (pas de côté, croisement dans les passages étroits).
+- Démarche des personnages : accélération et freinage, virages progressifs, pas propre à chacun, contre-rotation bassin/épaules le long de la colonne (6 vertèbres), balancement des bras, genou fléchi, tête stable, respiration au repos.
+- Le jeu démarre à vitesse réelle.
