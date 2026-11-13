@@ -29,11 +29,11 @@
   <div class="masthead">
     <a class="brand" href="#ensemble"><img src="/icon.svg" alt=""><span>SIMULACRE<small>Le monde de Néo</small></span></a>
     <div class="clock"><span id="year">Année fictive 1</span><span id="day">Jour 1</span></div>
-    <div id="mode" class="live" role="status">Vitesse normale · ×1</div>
+    <div class="masthead-actions"><div id="mode" class="live" role="status">Vitesse normale · ×1</div><button id="speed-global" type="button" aria-label="Changer la vitesse de simulation">Ralentir</button></div>
   </div>
   <nav class="pages" aria-label="Pages de Simulacre">
     <a href="#ensemble" aria-current="page">Vue d’ensemble</a>
-    <a href="#monde">Monde 3D</a>
+    <a href="#monde">Vue plein écran</a>
     <a href="#statistiques">Statistiques</a>
     <a href="#conversations">Conversations</a>
     <a href="#developpement">Développement</a>
@@ -53,9 +53,9 @@
       <div class="camera-tools" role="group" aria-label="Caméra">
         <div class="follow-tools"><button id="follow" type="button" aria-pressed="false">Suivi de Néo</button><button id="choose-person" type="button" aria-controls="person-dialog" aria-label="Choisir le personnage à suivre">Néo ▾</button></div>
         <div class="zoom-tools"><button id="zoom-out" type="button" aria-label="Dézoomer">−</button><output id="zoom-level">1×</output><button id="zoom-in" type="button" aria-label="Zoomer">+</button></div>
-        <button id="rotate-camera" type="button" aria-label="Changer l’angle de vue" title="Pivoter la vue">Angle de vue ↻</button>
+        <button id="rotate-camera" type="button" aria-label="Changer l’angle de vue" title="Pivoter la vue">Angle de vue ↻</button><button id="floor-view" type="button" aria-pressed="false">Voir l’étage</button>
       </div>
-      <div class="scene-bottom"><div><small id="activity-person">Néo</small><strong id="activity">Se redresser</strong></div><div class="scene-actions"><button id="play-open" class="quiet" type="button">Objets</button><button id="speed" type="button" aria-pressed="false">Accélérer</button></div></div>
+      <div class="neo-perception" id="neo-perception" aria-live="polite"><strong>Ce que Néo perçoit</strong><span>Néo découvre son environnement.</span></div><div class="scene-bottom"><div><small id="activity-person">Néo</small><strong id="activity">Se redresser</strong></div><div class="scene-actions"><button id="play-open" class="quiet" type="button">Objets</button><button id="speed" type="button" aria-pressed="false">Ralentir</button></div></div>
     </section>
     <aside id="overview-details" class="overview-details" aria-label="État de la simulation">
       <section class="card hero-card">
