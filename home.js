@@ -1,6 +1,47 @@
 const residents=[alex,...people.slice(0,3)];
 const residentNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette'};
 const floorHeight=1.9525;
+const FOOD_CATALOG=[
+  ['poulet','Poulet','Protéine'],['boeuf','Bœuf','Protéine'],['jambon','Jambon','Protéine'],['saumon','Saumon','Poisson'],['thon','Thon','Poisson'],['oeufs','Œufs','Protéine'],['tofu','Tofu','Protéine'],['lentilles','Lentilles','Légumineuse'],
+  ['tomates','Tomates','Légume'],['carottes','Carottes','Légume'],['courgettes','Courgettes','Légume'],['brocoli','Brocoli','Légume'],['poivrons','Poivrons','Légume'],['champignons','Champignons','Légume'],['epinards','Épinards','Légume'],['salade','Salade','Légume'],['concombre','Concombre','Légume'],['oignons','Oignons','Légume'],['ail','Ail','Condiment'],['pommes-de-terre','Pommes de terre','Féculent'],
+  ['pates','Pâtes','Féculent'],['riz','Riz','Féculent'],['pain','Pain','Féculent'],['farine','Farine','Féculent'],['semoule','Semoule','Féculent'],
+  ['fromage','Fromage','Laitier'],['lait','Lait','Laitier'],['creme','Crème','Laitier'],['yaourt','Yaourt','Laitier'],['beurre','Beurre','Laitier'],
+  ['pommes','Pommes','Fruit'],['bananes','Bananes','Fruit'],['fraises','Fraises','Fruit'],['oranges','Oranges','Fruit'],['poires','Poires','Fruit'],
+  ['huile-olive','Huile d’olive','Assaisonnement'],['basilic','Basilic','Assaisonnement'],['herbes','Herbes aromatiques','Assaisonnement'],['chocolat','Chocolat','Sucré'],['miel','Miel','Sucré']
+].map(([id,name,group])=>({id,name,group,stock:2}));
+const INCOMPATIBLE_FOODS=new Set([
+  'saumon|chocolat','thon|fraises','poulet|bananes','boeuf|chocolat',
+  'ail|fraises','oignons|bananes','tomates|chocolat','concombre|chocolat',
+  'poivrons|yaourt','thon|miel','jambon|miel','lentilles|fraises'
+]);
+function ensureFoodStock(){
+  if(!Array.isArray(kitchen.pantry)||kitchen.pantry.length!==40)kitchen.pantry=FOOD_CATALOG.map(food=>({...food}));
+  kitchen.ingredients=kitchen.pantry.reduce((sum,food)=>sum+Math.max(0,food.stock||0),0);
+}
+function chooseMeal(s){
+  ensureFoodStock();
+  const available=kitchen.pantry.filter(food=>food.stock>0);
+  const dessert=Math.floor(s/120)%5===4;
+  const chosen=[];
+  const take=groups=>{
+    const candidates=available.filter(food=>groups.includes(food.group)&&!chosen.includes(food)&&
+      chosen.every(other=>!INCOMPATIBLE_FOODS.has([food.id,other.id].sort().join('|'))));
+    if(!candidates.length)return null;
+    const pick=candidates[Math.abs(Math.floor(s*13+chosen.length*17))%candidates.length];
+    chosen.push(pick);return pick;
+  };
+  if(dessert){
+    take(['Fruit']);take(['Fruit']);take(['Laitier']);take(['Sucré']);take(['Féculent']);
+  }else{
+    take(['Féculent']);take(['Protéine','Poisson','Légumineuse']);take(['Légume']);take(['Légume']);
+    take(['Assaisonnement','Condiment']);if(Math.floor(s/17)%2===0)take(['Laitier']);
+  }
+  if(chosen.length<3){for(const food of available){if(chosen.length>=3)break;if(!chosen.includes(food)&&chosen.every(other=>!INCOMPATIBLE_FOODS.has([food.id,other.id].sort().join('|'))))chosen.push(food);}}
+  const names=chosen.map(food=>food.name.toLowerCase());
+  const mealName=dessert?'Dessert maison aux '+names.slice(0,2).join(' et '):
+    (chosen.find(food=>food.group==='Féculent')?.name||'Plat')+' aux '+names.slice(1,3).join(' et ');
+  return {name:mealName,foods:chosen.map(food=>food.id),quality:chosen.length>=4?.94:.72};
+}
 const sleeps=new Map();
 
 function takeServing(person){
@@ -32,8 +73,11 @@ const recipe=[
 let kitchenOwner=null;
 function stepKitchen(s){
   if(!house?.kitchen)return;
+  ensureFoodStock();
   if(s>=nextRefill){
-    kitchen.ingredients=Math.min(8,kitchen.ingredients+1);
+    const restock=kitchen.pantry.filter(food=>food.stock<3);
+    if(restock.length)restock[Math.abs(Math.floor(s/19))%restock.length].stock++;
+    ensureFoodStock();
     nextRefill=s+19;
   }
   const running=kitchenOwner&&cooks[kitchenOwner];
@@ -58,9 +102,12 @@ function releaseKitchen(person,s){
 function cookMeal(person,s){
   if(!house?.kitchen)return false;
   const cook=cooks[person.id] ||= {step:0,next:s+(person.id==='joseph'?2:18),until:0};
-  if(!kitchenOwner&&s>=cook.next&&kitchen.ingredients&&kitchen.meals<=4){
+  if(!kitchenOwner&&s>=cook.next&&kitchen.ingredients>=3&&kitchen.meals<=4){
+    const meal=chooseMeal(s);
+    if(meal.foods.length<3)return false;
     kitchenOwner=person.id;
-    Object.assign(cook,{temperature:5,cooked:0,washed:false,prepared:false,deadline:s+45});
+    kitchen.currentMeal=meal;
+    Object.assign(cook,{temperature:5,cooked:0,washed:false,prepared:false,deadline:s+45,meal});
   }
   if(kitchenOwner!==person.id)return false;
   const [station,activity,duration]=recipe[cook.step];
@@ -74,7 +121,10 @@ function cookMeal(person,s){
   }
   person.activity=activity;
   if(s<cook.until)return true;
-  if(station==='fridge')kitchen.ingredients--;
+  if(station==='fridge'){
+    for(const id of cook.meal.foods){const food=kitchen.pantry.find(item=>item.id===id);if(food)food.stock=Math.max(0,food.stock-1);}
+    ensureFoodStock();
+  }
   if(station==='sink')cook.washed=true;
   if(station==='counter')cook.prepared=true;
   if(station==='oven'){
@@ -85,7 +135,10 @@ function cookMeal(person,s){
   if(station==='serve'){
     kitchen.servings.push(cook.quality,cook.quality);
     kitchen.meals=kitchen.servings.length;
-    note(residentNames[person.id]+' prépare deux portions.','food');
+    kitchen.lastMeal=cook.meal.name;
+    kitchen.lastIngredients=cook.meal.foods.map(id=>kitchen.pantry.find(food=>food.id===id)?.name||id);
+    kitchen.lastCompatibility='Ingrédients compatibles';
+    note(residentNames[person.id]+' prépare deux portions de '+cook.meal.name+'.','food');
   }
   if(station==='dishwasher'){
     kitchen.washUntil=s+16;
