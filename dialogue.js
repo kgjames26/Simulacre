@@ -119,7 +119,7 @@ const sayText=(frame,subject,ending='')=>frame.replace(' ?', '').replace('@',sub
 
 function createDialogue(){
   const lines=[], outgoing=[];
-  let turn=0;
+  let turn=0, hasNeoSpoken=false;
   let id=0,next=2,pending=null,lastTopic=-1,imitation=null;
   let heard=0,audibleCount=0,spoken=0,lastImitation=-1e9;
   let composed=0,lastComposition=-1e9,lastInvitation=-1e9;
@@ -127,6 +127,7 @@ function createDialogue(){
   const language=createLanguageMemory();
   function emit(s,speaker,text,heardByNéo,listener){
     const line={id:++id,at:s,speaker,text,heardByNéo,listener};
+    if(speaker==='alex')hasNeoSpoken=true;
     lines.push(line);outgoing.push(line);
     if(speaker!=='alex'&&heardByNéo)audibleCount++;
     if(lines.length>40)lines.shift();
@@ -223,6 +224,7 @@ function createDialogue(){
     const ordered=turn%3===1?groups:groups.slice().reverse();
     for(const group of ordered){
       const outside=group.length===4;
+      if(outside&&!hasNeoSpoken)continue;
       const pairs=group.flatMap((person,i)=>group.slice(i+1)
         .filter(other=>(outside||i===0)&&near(person,other,outside?4.5:3.5)).map(other=>[person,other]));
       if(!pairs.length)continue;
@@ -357,10 +359,10 @@ function createDialogue(){
       const vocabulary=language.words().map(entry=>({...entry,context:languageCueNames[entry.cue]||entry.cue}));
       return {lines,heard,audible:audibleCount,known:vocabulary.length,vocabulary,spoken,composed,phrases};
     },
-    save(){return {id,lines,heard,audibleCount,spoken,lastImitation,language:language.save(),composed,lastComposition,phrases};},
+    save(){return {id,lines,heard,audibleCount,spoken,lastImitation,hasNeoSpoken,language:language.save(),composed,lastComposition,phrases};},
     restore(data){
       if(!data)return;
-      id=Math.max(id,data.id||0); heard=data.heard||0; audibleCount=data.audibleCount??heard; spoken=data.spoken||0;
+      id=Math.max(id,data.id||0); heard=data.heard||0; audibleCount=data.audibleCount??heard; spoken=data.spoken||0;hasNeoSpoken=Boolean(data.hasNeoSpoken||(data.lines||[]).some(line=>line.speaker==='alex'));
       language.restore(data.language);
       composed=data.composed||0;lastComposition=data.lastComposition??-1e9;
       phrases.push(...(data.phrases||[]).slice(0,6));
