@@ -84,7 +84,7 @@ export function bindPlayViews(T,scene,worker,mat,focus){
     const frontNames=['Cylinder001_Tricycle_0','Circle_Tricycle_0'];
     for(const id of ['bikePark','bikeHome']){
       const root=new T.Group();
-      const model=new T.Group();model.scale.setScalar(.12);root.add(model);
+      const model=new T.Group();model.scale.setScalar(id==='bikeHome'?.12:.183);root.add(model);
       const forkPivot=new T.Vector3(0,2.65,-.14),axle=new T.Vector3(0,.791,.266);
       const fork=new T.Group();fork.position.copy(forkPivot);model.add(fork);
       const wheel=new T.Group();wheel.position.copy(axle).sub(forkPivot);fork.add(wheel);
