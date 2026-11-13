@@ -6,7 +6,7 @@ const stages = ['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
 const format = new Intl.NumberFormat('fr-BE');
 const saveKey = 'neo-simulacre-v4';
 const worker = new Worker('/sim.js');
-let snapshot, human = true, speedMode='human', upperFloorView=null, lastJournal = '', resetting=false, initialized=false;
+let snapshot, human = false, speedMode='turbo', upperFloorView=null, lastJournal = '', resetting=false, initialized=false;
 const personNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Lyra',rose:'Rose'};
 let lastDialogueId=0, lastDialoguePaint=0, voiceEnabled=false, conversationRows=[];
 const dashboard=setupDashboard(personNames);
@@ -131,17 +131,14 @@ function setSpeedMode(next){
   human=speedMode!=='turbo';
   if(!human&&voiceEnabled)speechSynthesis.cancel();
   worker.postMessage({type:'mode',mode:speedMode});
-  const labels={human:'Ralentir',slow:'Accélérer',turbo:'Vitesse normale'};
-  const status={human:'Vitesse normale · ×1',slow:'Vitesse réduite · ×0,45',turbo:'Simulation accélérée'};
-  for(const button of [ui('speed'),ui('speed-global')]){
-    button.textContent=labels[speedMode];
-    button.setAttribute('aria-pressed',String(speedMode!=='human'));
-  }
-  ui('mode').textContent=status[speedMode];
+  const button=ui('speed-global');
+  button.textContent=human?'Accélérer':'Ralentir';
+  button.setAttribute('aria-pressed',String(human));
+  ui('mode').textContent=human?'Vitesse normale · ×1':'Simulation accélérée';
 }
-function cycleSpeed(){setSpeedMode(speedMode==='human'?'slow':speedMode==='slow'?'turbo':'human');}
-ui('speed').onclick=cycleSpeed;
-ui('speed-global').onclick=cycleSpeed;
+// Un seul bouton : accéléré par défaut, ralenti à la demande, puis ré-accélération.
+ui('speed-global').onclick=()=>setSpeedMode(human?'turbo':'human');
+setSpeedMode('turbo');
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);
 
 const welcome=ui('welcome-screen');

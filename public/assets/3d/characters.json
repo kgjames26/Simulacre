@@ -7,7 +7,7 @@
   "variants": [
     {
       "id": "alex-bebe",
-      "name": "Alex",
+      "name": "Néo",
       "stage": "Bébé",
       "age": "0–1 an",
       "scale": 0.28,
@@ -17,7 +17,7 @@
     },
     {
       "id": "alex-petit-enfant",
-      "name": "Alex",
+      "name": "Néo",
       "stage": "Petit enfant",
       "age": "1–3 ans",
       "scale": 0.42,
@@ -27,7 +27,7 @@
     },
     {
       "id": "alex-enfant",
-      "name": "Alex",
+      "name": "Néo",
       "stage": "Enfant",
       "age": "3–8 ans",
       "scale": 0.62,
@@ -37,7 +37,7 @@
     },
     {
       "id": "alex-grand-enfant",
-      "name": "Alex",
+      "name": "Néo",
       "stage": "Grand enfant",
       "age": "8–11 ans",
       "scale": 0.76,
@@ -47,7 +47,7 @@
     },
     {
       "id": "alex-petit-ado",
-      "name": "Alex",
+      "name": "Néo",
       "stage": "Petit ado",
       "age": "11–13 ans",
       "scale": 0.88,
@@ -57,7 +57,7 @@
     },
     {
       "id": "alex-ado",
-      "name": "Alex",
+      "name": "Néo",
       "stage": "Adolescent",
       "age": "13–17 ans",
       "scale": 0.96,
@@ -67,7 +67,7 @@
     },
     {
       "id": "alex-jeune-homme",
-      "name": "Alex",
+      "name": "Néo",
       "stage": "Jeune homme",
       "age": "17–25 ans",
       "scale": 1,
@@ -77,7 +77,7 @@
     },
     {
       "id": "alex-homme",
-      "name": "Alex",
+      "name": "Néo",
       "stage": "Homme",
       "age": "25 ans et +",
       "scale": 1.02,
@@ -109,7 +109,7 @@
       "id": "juliette",
       "name": "Juliette",
       "stage": "Enfant",
-      "age": "Légèrement plus âgée qu’Alex",
+      "age": "Légèrement plus âgée qu’Néo",
       "scale": 0.7,
       "skin": "#E6B88E",
       "suit": "#A675B4",
@@ -139,7 +139,7 @@
       "id": "francoise",
       "name": "Françoise",
       "stage": "Enfant",
-      "age": "Amie d’Alex",
+      "age": "Amie de Néo",
       "scale": 0.72,
       "skin": "#D69C75",
       "suit": "#638E70",
@@ -149,7 +149,7 @@
       "id": "rose",
       "name": "Rose",
       "stage": "Enfant",
-      "age": "Amie d’Alex",
+      "age": "Amie de Néo",
       "scale": 0.66,
       "skin": "#F1C5A3",
       "suit": "#C96983",

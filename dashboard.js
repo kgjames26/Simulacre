@@ -6,7 +6,7 @@ const ageNames=['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Je
 const motorNames=['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
 const countLabels={life:'Vie quotidienne',cognition:'Découvertes',play:'Expériences de jeu',social:'Interactions sociales'};
 const eventLabels={social:'Relation',play:'Jeu',food:'Repas',sleep:'Sommeil',object:'Objet ou porte'};
-const pageNames={ensemble:'Vue d’ensemble',monde:'Vue plein écran',statistiques:'Statique Néo',
+const pageNames={ensemble:'Vue d’ensemble',monde:'Vue plein écran',cerveau:'Cerveau de Néo',statistiques:'Statistiques',
   conversations:'Conversations',developpement:'Développement',relations:'Humeurs et relations'};
 const tabLinks=[...document.querySelectorAll('.pages a')];
 const detailPages=Object.keys(pageNames).slice(2);
@@ -284,6 +284,12 @@ function update(state,force=false){
   const time=performance.now();
   if(!force&&time-lastPaint<500)return;
   lastPaint=time;
+  if(state.brain){
+    ui('brain-confirmed').textContent=fmt(state.brain.savoir.filter(c=>c.statut==='confirme').length);
+    ui('brain-objects').textContent=fmt(state.brain.tailles['objets.json']);
+    ui('brain-goals').textContent=fmt(state.brain.objectifs.filter(g=>g.statut==='actif').length);
+  }
+  if(page==='cerveau')renderBrain(state);
   if(page==='statistiques')renderStats(state);
   if(page==='developpement')renderDevelopment(state);
   if(page==='relations')renderRelations(state);
@@ -295,6 +301,48 @@ function update(state,force=false){
     if(force||historyBefore===Infinity&&last!==lastLine)renderTranscript();
     lastLine=last;
   }
+}
+
+const el=(tag,props={},...kids)=>{const node=Object.assign(document.createElement(tag),props);node.append(...kids);return node;};
+const ACTIONS={pousser:'pousser',tirer:'tirer',saisir:'saisir',frapper:'frapper',tourner:'tourner',monter:'monter',regarder:'regarder'};
+const FILE_HELP={'sens.log':'journal des sensations','essais.jsonl':'essais et résultats','corps.json':'capacités du corps','objets.json':'objets vus',
+  'lieux.json':'cases explorées','personnes.json':'personnes connues','humeur.json':'humeur','causes.json':'causes et effets','concepts.json':'catégories formées',
+  'lexique.json':'mots associés','ecriture.json':'signes écrits','savoir-faire.json':'routines','questions.json':'questions ouvertes','objectifs.json':'objectifs'};
+function renderBrain(state){
+  const b=state.brain;
+  if(!b)return;
+  const confirmed=b.savoir.filter(c=>c.statut==='confirme').length;
+  ui('brain-head').replaceChildren(
+    ...[['Connaissances confirmées',confirmed],['Hypothèses',b.savoir.filter(c=>c.statut==='hypothese').length],
+      ['Essais menés',b.tailles['essais.jsonl']],['Concepts',b.concepts.length],['Publications',b.publications]].map(([label,value])=>
+      el('div',{className:'stat'},el('strong',{textContent:fmt(value)}),el('span',{textContent:label}))));
+  ui('brain-seed').textContent='graine '+b.seed+' · '+fmt(Object.values(b.xp||{}).reduce((sum,n)=>sum+(Number(n)||0),0))+' points d’expérience';
+  ui('brain-files').replaceChildren(...Object.entries(b.tailles).map(([name,count])=>
+    el('div',{className:'file'},el('code',{textContent:name}),el('strong',{textContent:fmt(count)}),el('small',{textContent:FILE_HELP[name]||''}))));
+  for(const node of ui('brain-files').children)node.dataset.empty=String(node.querySelector('strong').textContent==='0');
+  ui('brain-knowledge').replaceChildren(...(b.savoir.length?b.savoir.slice(0,12).map(c=>
+    el('div',{className:'know',dataset:{statut:c.statut}},
+      el('span',{className:'tag-status',textContent:c.statut}),
+      el('span',{textContent:(ACTIONS[c.action]||c.action)+' · '+c.cible+(c.effet?.length?' → '+c.effet.join(', '):'')}),
+      el('small',{textContent:c.reussites+'/'+c.essais}),
+      el('div',{className:'bar'},el('i',{style:'width:'+Math.round(Math.min(1,c.confiance||0)*100)+'%'}))
+    )):[el('p',{className:'hint',textContent:'Rien de confirmé pour l’instant. Néo doit d’abord essayer.'})]));
+  ui('brain-trials').replaceChildren(...(b.derniers.length?b.derniers.map(t=>
+    el('div',{className:'know',dataset:{statut:t.succes?'confirme':'essai'}},
+      el('span',{className:'tag-status',textContent:t.succes?'effet':'rien'}),
+      el('span',{textContent:(ACTIONS[t.action]||t.action)+' · '+t.cible}),
+      el('small',{textContent:'t='+t.t+' s'}))):[el('p',{className:'hint',textContent:'Aucun essai pour le moment.'})]));
+  ui('brain-questions').replaceChildren(...(b.questions.length?b.questions.map(q=>
+    el('p',{className:'hint',textContent:'? '+q.texte+' · '+q.ref})):[el('p',{className:'hint',textContent:'Aucune question ouverte.'})]));
+  ui('brain-goals-list').replaceChildren(...b.objectifs.map(g=>el('span',{className:'chip',textContent:g.statut+' · '+g.cible})));
+  ui('brain-concepts').replaceChildren(...(b.concepts.length?b.concepts.map(k=>
+    el('span',{className:'chip',textContent:k.membres.slice(0,4).join(' + ')+(k.membres.length>4?' …':'')})):[el('p',{className:'hint',textContent:'Pas encore de catégorie.'})]));
+  const mood=b.humeur;
+  ui('brain-mood').replaceChildren(...[['valence','Bien-être'],['peur','Peur'],['frustration','Frustration'],['ennui','Ennui']].map(([key,label])=>
+    el('label',{},label,el('meter',{min:0,max:1,value:Math.max(0,Math.min(1,mood[key]??0))}))));
+  ui('brain-objects-list').replaceChildren(...b.objets.map(o=>el('div',{className:'file'},
+    el('code',{textContent:o.id}),el('strong',{textContent:o.nom}),
+    el('small',{textContent:'vu '+o.vu+' fois · '+o.reussites+'/'+o.essais+' essais'+(o.mot?' · mot « '+o.mot+' »':'')}))));
 }
 function showPage(scroll=false){
   const requested=location.hash.slice(1);

@@ -8,6 +8,6 @@ if (!revision) {
 const version = /^[0-9a-f]{7,64}$/i.test(revision || '') ? revision.slice(0, 8) : 'local';
 mkdirSync('dist', { recursive: true });
 cpSync('public', 'dist', { recursive: true });
-for (const file of ['manifest.webmanifest', 'icon.svg', 'app.js', 'sim.js', 'dialogue.js', 'collision-map.js', 'navigation.js', 'home.js', 'dashboard.js', 'styles.css', 'motor.js', 'social.js', 'play.js', 'french-words.js', 'play-view.js', 'toy-rails.js']) cpSync(file, 'dist/' + file);
-writeFileSync('dist/index.html', readFileSync('index.html', 'utf8').replaceAll('__ALEX_VERSION__', version));
-writeFileSync('dist/sw.js', readFileSync('sw.js', 'utf8').replaceAll('__ALEX_VERSION__', version));
+for (const file of ['manifest.webmanifest', 'icon.svg', 'app.js', 'sim.js', 'brain.js', 'world.js', 'dialogue.js', 'collision-map.js', 'navigation.js', 'home.js', 'dashboard.js', 'styles.css', 'motor.js', 'social.js', 'play.js', 'french-words.js', 'play-view.js', 'toy-rails.js']) cpSync(file, 'dist/' + file);
+writeFileSync('dist/index.html', readFileSync('index.html', 'utf8').replaceAll('__NÉO_VERSION__', version));
+writeFileSync('dist/sw.js', readFileSync('sw.js', 'utf8').replaceAll('__NÉO_VERSION__', version));

@@ -87,10 +87,10 @@ function tryPlayObject(person,id,s){
   const learned=knowledge['usage · '+label];
   if((person!==alex&&!learned)||s<memory.next)return;
   memory.next=s+10;
-  const action=memory.action??learned?.action??Math.floor(Math.random()*5);
+  const action=memory.action??learned?.action??Math.floor(rng()*5);
   if(id==='toy'&&action===2){
-    const index=Math.floor(Math.random()*12);
-    playControl(id,'slide',{bead:index,position:Math.random()});
+    const index=Math.floor(rng()*12);
+    playControl(id,'slide',{bead:index,position:rng()});
   }else if(id.startsWith('bike')&&action===3){
     playControl(id,'pedal');
   }else return;
@@ -99,7 +99,7 @@ function tryPlayObject(person,id,s){
     if(++memory.success===3){
       counts.play++;counts.cognition++;
       knowledge['usage · '+label]={visits:memory.success,action,senses:['contact','mouvement','mémoire'],type:'objet'};
-      note('Alex découvre comment faire bouger le '+playNames[id]+'.','object');
+      note('Néo découvre comment faire bouger le '+playNames[id]+'.','object');
     }
   }
 }
