@@ -124,7 +124,7 @@ function traverseStairs(person,sleep,direction){
 
 function chooseBed(person){
   const taken=new Set([...sleeps.values()].map(sleep=>sleep.bed));
-  const upstairs=person.id==='joseph'||person.id==='marie';
+  const upstairs=person.floor===1||person.id==='joseph'||person.id==='marie';
   return house.beds.find(bed=>bed.floor===Number(upstairs)&&!taken.has(bed))||
     house.beds.find(bed=>bed.floor===0&&!taken.has(bed));
 }
@@ -142,7 +142,7 @@ function sleeping(person,s,canWalk=true){
     const bed=chooseBed(person);
     const carrier=canWalk?null:people.slice(0,2).find(parent=>!parent.floor&&!sleeps.has(parent)&&parent.id!==kitchenOwner);
     if(!bed||!canWalk&&!carrier)return false;
-    sleeps.set(person,{bed,carrier,phase:carrier?'pickup':bed.floor?'stairs-start':'bed',until:s+80});
+    sleeps.set(person,{bed,carrier,phase:carrier?'pickup':bed.floor&&!person.floor?'stairs-start':person.floor&&!bed.floor?'stairs-down-start':'bed',until:s+80});
     return true;
   }
   if(sleep.phase==='ground'){
@@ -167,9 +167,14 @@ function sleeping(person,s,canWalk=true){
     person.activity='Va vers l’escalier';
     const bottom=house.stairs[0];
     if(move(person,bottom.x,bottom.z,speed)<.075){sleep.phase='up';sleep.stair=0;}
+  }else if(sleep.phase==='stairs-down-start'){
+    person.activity='Va vers l’escalier';
+    const top=house.stairs.at(-1);
+    if(move(person,top.x,top.z,speed)<.075){sleep.phase='down';sleep.stair=house.stairs.length-1;}
   }else if(sleep.phase==='up'||sleep.phase==='down'){
     person.activity=sleep.phase==='up'?'Monte l’escalier':'Descend l’escalier';
     traverseStairs(person,sleep,sleep.phase==='up'?1:-1);
+    if(sleep.phase==='finished'&&bed.floor===0)sleep.phase='bed';
   }else if(sleep.phase==='bed'){
     person.activity=carrier?'Est porté vers son lit':'Va se coucher';
     if(carrier)carrier.activity='Porte Néo vers son lit';
