@@ -164,3 +164,5 @@ dialog p{margin-top:9px;font-size:13px;color:var(--muted)}
 [data-page=monde] .scene-bottom{bottom:12px}
 [data-page=monde] .camera-tools{top:12px}
 @media(max-width:690px){.masthead-actions{grid-column:2;grid-row:1;align-items:center}.masthead-actions .live{display:none}[data-page=monde] #world-layout .scene{height:calc(100dvh - 132px);min-height:calc(100dvh - 132px)}.neo-perception{left:8px;right:8px;top:8px}}
+
+.food-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:12px;max-height:340px;overflow:auto}.food-item{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:7px 8px;background:#22332b;border:1px solid #405449;border-radius:7px;font-size:11px}.food-item strong{font-size:11px;font-weight:650}.food-item small{font-size:10px;white-space:nowrap}@media(min-width:760px){.food-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
