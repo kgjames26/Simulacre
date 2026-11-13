@@ -23,3 +23,4 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 
 ## v2.6
 - Un ordinateur à l'étage (seul Néo y accède, aucune explication). Ce que Néo y écrit vient de ce qu'il sait et arrive dans une boîte aux lettres mise en évidence ; ce que l'utilisateur y écrit, Néo le lit à l'écran.
+- Néo ne sait pas si on lit ses messages ni à qui ils vont. Quand, seul, il écrit après une surprise, sous un besoin fort ou en se répétant, le message est signalé (« créateur ») avec son contexte : jour, heure, âge, dernier événement, mots connus.

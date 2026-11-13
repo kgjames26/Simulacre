@@ -197,3 +197,4 @@ dialog p{margin-top:9px;font-size:14px;color:var(--muted)}
 #boite form{display:flex;gap:6px}#boite input{flex:1;padding:6px 8px;border:1px solid #bdb59a;border-radius:8px}
 #boite form button{border:0;border-radius:8px;background:#28443a;color:#fff;padding:0 12px;cursor:pointer}
 @keyframes boitePulse{50%{box-shadow:0 0 0 12px rgba(255,200,60,0)}}
+#boite li.createur{border-left:4px solid #8e5bd0}#boite li small{display:block;white-space:pre-line;margin-top:4px;font-weight:400;color:#5c5648;font-size:12px}

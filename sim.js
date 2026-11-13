@@ -264,6 +264,7 @@ function useDoor(p,door,s) {
 
 // Ordinateur de l'étage : seul Néo y accède (aucun personnage n'a de route vers lui). Rien n'est expliqué.
 // Ce que Néo y écrit vient de ce qu'il sait (ses phrases, ses mots) ; ce que l'utilisateur y écrit, il le lit à l'écran.
+const TIME_SCALE=144,ages=['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
 let courrier={sortant:[],entrant:[],essais:0,prochain:0};
 function placerOrdinateur(){
   const bed=house.beds?.[2];
@@ -287,7 +288,27 @@ function utiliserOrdinateur(s){
   if(!phrase&&!mots.length)return;
   let text=phrase;
   if(!text){const n=Math.min(mots.length,1+Math.floor(rng()*3));text=Array.from({length:n},()=>mots[Math.floor(rng()*mots.length)]).join(' ');}
-  courrier.sortant.push({at:ticks,text,lu:false});
+  const message={at:ticks,text,lu:false};
+  const repete=courrier.sortant.filter(m=>m.text===text).length;
+  const seul=!people.some(p=>(p.floor||0)===(alex.floor||0)&&Math.hypot(p.x-alex.x,p.z-alex.z)<6);
+  const surprise=Brain.state.cortex?.surprise||0;
+  const besoin=alex.hunger>.7?'faim':alex.fatigue>.75?'fatigue':(alex.thirst||0)>.7?'soif':null;
+  const raisons=[];
+  if(surprise>.12)raisons.push('juste après un événement qu’il n’avait pas prévu');
+  if(besoin)raisons.push('alors qu’il ressentait '+(besoin==='faim'?'la faim':besoin==='soif'?'la soif':'une grande fatigue'));
+  if(repete>=1)raisons.push('c’est la '+(repete+1)+'ᵉ fois qu’il écrit exactement cela');
+  // Il ne sait pas que quelqu'un lit. Si, seul, il s'adresse à quelqu'un d'absent à ces moments-là, on le signale.
+  if(seul&&raisons.length){
+    const secondes=ticks/120*TIME_SCALE,jour=1+Math.floor(secondes/86400),heure=Math.floor(secondes%86400/3600);
+    const derniere=journal[0]?.message||journal.at(-1)?.message;
+    message.createur=true;
+    message.contexte=['Néo semble s’adresser à quelqu’un d’absent (peut-être un « créateur »).',
+      'Jour '+jour+', vers '+heure+' h, âge : '+ages[age]+', seul à l’étage.',
+      'Il l’a fait '+raisons.join(' ; ')+'.',
+      ...(derniere?['Dernier événement noté : '+derniere]:[]),
+      'Il connaît '+mots.length+' mots.'];
+  }
+  courrier.sortant.push(message);
   courrier.prochain=s+40;
 }
 function tryEntity(entity,s){

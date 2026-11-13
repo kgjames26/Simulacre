@@ -145,7 +145,11 @@ if(boite){
     if(!courrier||!courrier.sortant.length)return;
     boite.hidden=false;
     const cle=courrier.sortant.map(m=>m.at+m.text).join('|');
-    if(cle!==dernier){dernier=cle;liste.replaceChildren(...courrier.sortant.slice().reverse().map(m=>Object.assign(document.createElement('li'),{textContent:m.text,className:m.lu?'':'nouveau'})));}
+    if(cle!==dernier){dernier=cle;liste.replaceChildren(...courrier.sortant.slice().reverse().map(m=>{
+      const li=Object.assign(document.createElement('li'),{className:(m.lu?'':'nouveau ')+(m.createur?'createur':'')});
+      li.append(Object.assign(document.createElement('div'),{textContent:m.text}));
+      if(m.contexte)li.append(Object.assign(document.createElement('small'),{textContent:m.contexte.join('\n')}));
+      return li;}));}
     pastille.hidden=ouverte||!courrier.nonLus;pastille.textContent=courrier.nonLus;
     boite.classList.toggle('alerte',!ouverte&&courrier.nonLus>0);
   };
