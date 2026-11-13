@@ -41,7 +41,7 @@ let counts = {life:0,cognition:0,play:0,social:0};
 let journal = [];
 let interactions = [];
 let ticks=0, trials=0, pecm=0, skill=0, age=0, score=0, mode='human';
-let nextParentCare=0;
+let nextParentCare=0,nextParentHug=95,parentEmbrace=null;
 let records=goals.map(emptyRecord);
 let alex={x:-8,z:-2,heading:0,phase:0,pose:0,tilt:0,effort:0,hunger:.1,fatigue:.05,activity:'Découvre le salon'};
 const ball=playItems.football;
@@ -68,9 +68,9 @@ let trampolineCooldown=0;
 let membrane=0;
 let contact=null;
 const rope={angle:0,angular:0};
-const parkMemory={slide:0,rope:0,trampoline:0};
-const equipmentSeen={slide:0,rope:0,trampoline:0};
-const parkCooldown={slide:0,rope:0,trampoline:0};
+const parkMemory={slide:0,rope:0,trampoline:0,swing:0,bars:0,wall:0};
+const equipmentSeen={slide:0,rope:0,trampoline:0,swing:0,bars:0,wall:0};
+const parkCooldown={slide:0,rope:0,trampoline:0,swing:0,bars:0,wall:0};
 let explorationTarget=null;
 let nextChoice=0;
 let progressAt=0, closestGoal=Infinity;
@@ -325,6 +325,76 @@ function move(p,x,z,speed) {
   }
   return distance;
 }
+function moveViaStairs(person,targetFloor,targetX,targetZ,s){
+  if(!house?.stairs?.length)return Infinity;
+  let journey=person.stairJourney;
+  if(!journey&&Number(person.floor||0)!==targetFloor){
+    const direction=targetFloor===1?1:-1;
+    const endpoint=direction===1?house.stairs[0]:house.stairs.at(-1);
+    if(move(person,endpoint.x,endpoint.z,.86)<.085)person.stairJourney=journey={direction,index:direction===1?0:house.stairs.length-1};
+    return .1;
+  }
+  if(journey){
+    const point=house.stairs[journey.index],dx=point.x-person.x,dz=point.z-person.z,d=Math.hypot(dx,dz);
+    if(d<.012){
+      person.x=point.x;person.z=point.z;person.y=point.y;journey.index+=journey.direction;
+      if(journey.index<0||journey.index>=house.stairs.length){person.floor=journey.direction===1?1:0;person.y=person.floor?floorHeight:0;delete person.stairJourney;}
+    }else{
+      const amount=Math.min(1,DT*.68/d);person.x+=dx*amount;person.z+=dz*amount;person.y+=(point.y-person.y)*amount;
+      person.heading=Math.atan2(dx,dz);person.phase+=DT*5;person.moving=true;
+    }
+    person.activity=journey.direction===1?'Monte l’escalier':'Descend l’escalier';return .1;
+  }
+  return move(person,targetX,targetZ,.78);
+}
+function stepParentUpstairs(person,index,s){
+  if(!house||index>2||index===2&&age<3)return false;
+  if(!person.upstairsVisit&&s>=(person.nextUpstairs??(145+index*35))&&(person.floor||0)===0){
+    const bed=house.beds[index===0?1:2]||house.beds[1];
+    person.upstairsVisit={phase:'up',until:0,x:bed.approach.x,z:bed.approach.z};
+  }
+  const visit=person.upstairsVisit;if(!visit)return false;
+  if(visit.phase==='up'){
+    moveViaStairs(person,1,visit.x,visit.z,s);
+    if(person.floor===1&&Math.hypot(person.x-visit.x,person.z-visit.z)<.2){visit.phase='observe';visit.until=s+7;}
+  }else if(visit.phase==='observe'){
+    person.activity='Observe les pièces de l’étage';if(s>=visit.until)visit.phase='down';
+  }else{
+    moveViaStairs(person,0,person.homeX,person.homeZ,s);
+    if((person.floor||0)===0&&!person.stairJourney&&Math.hypot(person.x-person.homeX,person.z-person.homeZ)<.35){delete person.upstairsVisit;person.nextUpstairs=s+260+index*30;}
+  }
+  return true;
+}
+function stepParentOuting(person,index,s){
+  if(!house||index>1)return false;
+  if(!person.outing&&s>=(person.nextOuting??(220+index*55)))person.outing={phase:'walk'};
+  const outing=person.outing;if(!outing)return false;
+  if(outing.phase==='walk'){
+    person.activity='Se promène vers la plaine de jeux';
+    const target=park?.approaches?.slide||navigation.point(Math.max(0,navigation.nearest(8,5,0,null,1.5)));
+    if(target&&move(person,target.x,target.z,.86)<.65){outing.phase='observe';outing.until=s+13;}
+  }else if(outing.phase==='observe'){
+    person.activity='Observe les enfants jouer à la plaine de jeux';if(s>=outing.until)outing.phase='return';
+  }else{
+    person.activity='Rentre à la maison';
+    if(move(person,person.homeX,person.homeZ,.86)<.45){delete person.outing;person.nextOuting=s+230+index*45;}
+  }
+  return true;
+}
+function stepParentsEmbrace(s){
+  const [joseph,marie]=people;
+  if(!parentEmbrace&&s>=nextParentHug&&(joseph.floor||0)===0&&(marie.floor||0)===0)parentEmbrace={phase:'approach'};
+  if(!parentEmbrace)return;
+  if(parentEmbrace.phase==='approach'){
+    move(joseph,-5.67,1.65,.68);move(marie,-5.23,1.65,.68);
+    if(Math.hypot(joseph.x-marie.x,joseph.z-marie.z)<.72){parentEmbrace.phase='embrace';parentEmbrace.until=s+3.4;note('Joseph et Marie s’enlacent quelques instants.','social');}
+  }else if(s<parentEmbrace.until){
+    joseph.x=-5.65;marie.x=-5.25;joseph.z=marie.z=1.65;joseph.heading=Math.PI/2;marie.heading=-Math.PI/2;
+    joseph.hug=true;marie.hug=true;joseph.activity='Enlace Marie';marie.activity='Enlace Joseph';
+  }else{
+    delete joseph.hug;delete marie.hug;parentEmbrace=null;nextParentHug=s+155;
+  }
+}
 function slideSurface(x) {
   const points=park.slide;
   const i=points.findIndex(point=>point.x>=x);
@@ -342,7 +412,7 @@ function parkObservation(id,message) {
   counts.play++;
   if(parkMemory[id]===1) {
     counts.cognition++;
-    knowledge[{slide:'toboggan',rope:'corde',trampoline:'trampoline'}[id]]={visits:1,senses:['vision','contact','mouvement'],type:'jeu'};
+    knowledge[{slide:'toboggan',rope:'corde',trampoline:'trampoline',swing:'balançoire',bars:'barres de grimpe',wall:'mur d’escalade'}[id]]={visits:1,senses:['vision','contact','mouvement','effort'],type:'jeu'};
     note(message,'play');
   }
 }
@@ -395,6 +465,20 @@ function leaveTrampoline(){
   return true;
 }
 function stepPark(s) {
+  if(contact?.kind==='swing'){
+    contact.time+=DT;const angle=Math.sin(contact.time*2.7)*.42*Math.min(1,contact.time*.65);
+    alex.x=contact.x+Math.sin(angle)*.55;alex.z=contact.z;alex.y=contact.seat+Math.cos(angle)*.04;
+    alex.activity='Se balance sur la balançoire';alex.pose=.24;alex.effort=.05;
+    if(contact.time>8){parkObservation('swing','Néo découvre le mouvement de va-et-vient de la balançoire.');parkCooldown.swing=s+35;contact=null;alex.y=0;}return true;
+  }
+  if(contact?.kind==='climb-bars'||contact?.kind==='climb-wall'){
+    contact.time+=DT;const kind=contact.kind==='climb-bars'?'bars':'wall';
+    if(!contact.success&&contact.time<2.8){alex.activity=kind==='bars'?'Essaie de se hisser aux barres':'Cherche une prise sur le mur d’escalade';alex.pose=.42;alex.effort=.7;}
+    else if(!contact.success){alex.strength=clamp((alex.strength||0)+.13,0,1);alex.endurance=clamp((alex.endurance||0)+.12,0,1);note('Néo manque encore de force et d’endurance pour terminer l’escalade.','play');parkCooldown[kind]=s+18;contact={kind:'park-exit',destination:park.approaches[kind]||{x:alex.x,z:alex.z}};}
+    else{const progress=clamp((contact.time-2.8)/5,0,1);alex.x=contact.x+progress*.36;alex.y=kind==='bars'?.75+progress*.75:progress*1.35;alex.activity=kind==='bars'?'Progresse le long des barres':'Grimpe en utilisant les prises du mur';alex.pose=.34;alex.effort=.62;
+      if(progress>=1){parkObservation(kind,kind==='bars'?'Néo réussit à progresser le long des barres de grimpe.':'Néo réussit à escalader le mur grâce aux prises.');parkCooldown[kind]=s+45;contact={kind:'park-exit',destination:park.approaches[kind]||{x:alex.x,z:alex.z}};}}
+    return true;
+  }
   if(contact?.kind==='trampoline-exit')return leaveTrampoline();
   if(contact?.kind==='park-exit'){
     const destination=contact.destination;
@@ -487,6 +571,7 @@ function tryEquipment(s) {
     for(const [id,name] of [['slide','toboggan'],['rope','corde']]){
       if(park.approaches[id])items.push({id,name,...park.approaches[id]});
     }
+    for(const [id,name] of [['swing','balançoire'],['bars','barres de grimpe'],['wall','mur d’escalade']])if(park.equipment?.[id])items.push({id,name,...park.equipment[id]});
   }
   if(house&&s>=trampolineCooldown){
     const bed=house.trampoline;
@@ -499,7 +584,7 @@ function tryEquipment(s) {
     if(distance>4||s<parkCooldown[item.id])continue;
     if(equipmentSeen[item.id]===0){
       equipmentSeen[item.id]=1;
-      note('Néo remarque '+({slide:'le toboggan.',rope:'la corde.',trampoline:'le trampoline.'}[item.id]));
+      note('Néo remarque '+({slide:'le toboggan.',rope:'la corde.',trampoline:'le trampoline.',swing:'la balançoire.',bars:'les barres pour grimper.',wall:'les prises du mur d’escalade.'}[item.id]));
     }
     const value=(1+.25*Math.log1p(parkMemory[item.id]))/(1+distance*distance);
     if(value>bestScore){bestScore=value;best=item;}
@@ -507,7 +592,12 @@ function tryEquipment(s) {
   return best;
 }
 function beginEquipment(item,s){
-  if(item.id==='trampoline'){
+  if(item.id==='swing'){contact={kind:'swing',time:0,x:item.x,z:item.z,seat:.48};alex.x=item.x;alex.z=item.z;alex.y=.48;}
+  else if(item.id==='bars'||item.id==='wall'){
+    const capacity=(alex.strength||0)+(alex.endurance||0);const success=capacity>=.88;
+    alex.strength=clamp((alex.strength||0)+.13,0,1);alex.endurance=clamp((alex.endurance||0)+.12,0,1);
+    contact={kind:item.id==='bars'?'climb-bars':'climb-wall',time:0,x:item.x,z:item.z,success};
+  }else if(item.id==='trampoline'){
     contact={kind:'trampoline',mount:true,time:0,velocity:0,landings:0,touching:false};
     alex.z=house.trampoline.entryZ;
     alex.heading=0;
@@ -685,6 +775,8 @@ function experience() {
       if(carrying?.carrier===p&&['pickup','bed','settle'].includes(carrying.phase))continue;
       if(i<2&&assistAtDoor(p,s))continue;
       if(sleeping(p,s))continue;
+      if(i<3&&stepParentUpstairs(p,i,s))continue;
+      if(i<2&&stepParentOuting(p,i,s))continue;
       if(i<2&&cookMeal(p,s))continue;
       if(p.hunger>.62&&house?.kitchen&&kitchen.meals){
         const table=house.kitchen.table;
@@ -707,7 +799,10 @@ function experience() {
     }
     const child=i===0?alex:people[2];
     if(i<2&&age<7&&s%54<34){goalX=child.x+(i===0?-.72:.72);goalZ=child.z+(i===0?.55:-.55);p.activity='Va voir '+(i===0?'Néo':'Juliette');}
-    if(i>=3){
+    if(i===2){
+      const first=people[3],second=people[4];goalX=(first.x+second.x)/2;goalZ=(first.z+second.z)/2;p.activity='Joue avec Timéo et Nathan';move(p,goalX,goalZ,.92);
+      if(Math.hypot(p.x-goalX,p.z-goalZ)<.9&&s>=(p.nextPlayWithKids||0)){p.nextPlayWithKids=s+22;counts.play++;counts.social++;note('Juliette joue avec les enfants à la plaine de jeux.','play');}
+    }else if(i>=3){
       p.age=age;
       if(records[4].mastered){
         const style=socialStyle[p.id];
@@ -744,6 +839,7 @@ function experience() {
       if(Math.hypot(p.x-item.x,p.z-item.z)<.49)tryPlayObject(p,id,s);
     }
   }
+  stepParentsEmbrace(s);
   if(ticks%12===0){
     dialogue.step(s,alex,people,languageScene);
     updateRelationships(alex,people,s,age);
@@ -780,10 +876,10 @@ function snapshot() {
       knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};
     nextActivitySnapshot=ticks+36;
   }
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),activityData};
+  return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
 }
 function save() {
-  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,dialogue:dialogue.save()};
+  return {motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -807,7 +903,7 @@ onmessage=({data})=>{
   if(data.type==='park'&&data.geometry.slide.length>1){
     park=data.geometry;
     park.approaches={};
-    for(const [id,target] of [['slide',park.slide.at(-1)],['rope',park.rope]]){
+    for(const [id,target] of [['slide',park.slide.at(-1)],['rope',park.rope],...Object.entries(park.equipment||{})]){
       const safe=navigation.nearest(target.x,target.z,0,null,1.25);
       if(safe>=0)park.approaches[id]=navigation.point(safe);
     }
@@ -819,7 +915,7 @@ onmessage=({data})=>{
     const s=data.state;
     if(!s)return;
     if(!Array.isArray(s.records)||s.records.length!==5||!Number.isFinite(s.ticks))return;
-    ({ticks,trials,pecm,skill,age,score,counts,journal,records,knowledge,eventClock}=s);
+    ({ticks,trials,pecm,skill,age,score,counts,journal,records,knowledge,eventClock,nextParentCare,nextParentHug,parentEmbrace}=s);
     if(s.motorVersion!==MOTOR_VERSION)records=goals.map(emptyRecord);
     if(s.motorVersion!==MOTOR_VERSION){
       skill=0;score=0;trials=0;pecm=0;
@@ -853,9 +949,9 @@ let lastPost=0,lastSave=0;
 function run(){
   const now=performance.now();
   if(!readyToRun){lastWall=now;setTimeout(run,16);return;}
-  accumulator+=Math.min(.1,(now-lastWall)/1000);
+  accumulator+=Math.min(.1,(now-lastWall)/1000)*(mode==='slow'?.45:1);
   lastWall=now;
-  if(mode==='human'){
+  if(mode==='human'||mode==='slow'){
     while(accumulator>=DT){ticks++;if(!sleeps.has(alex))motorStep();experience();accumulator-=DT;}
   }else{
     accumulator=0;
@@ -871,6 +967,6 @@ function run(){
     postMessage({type:'state',state:snapshot(),lines});lastPost=now;
   }
   if(now-lastSave>4500){postMessage({type:'save',state:save()});lastSave=now;}
-  setTimeout(run,mode==='human'?8:0);
+  setTimeout(run,mode==='turbo'?0:8);
 }
 run();
