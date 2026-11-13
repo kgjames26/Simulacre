@@ -9,10 +9,7 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   event.respondWith(caches.open(CACHE).then(async cache => {
-    if (event.request.mode !== 'navigate') {
-      const hit = await cache.match(event.request);
-      if (hit) return hit;
-    }
+    // Réseau d'abord : on ne sert jamais un vieux fichier mélangé à une nouvelle page.
     try {
       const response = await fetch(event.request);
       if (response.ok || response.type === 'opaque') await cache.put(event.request, response.clone()).catch(() => {});

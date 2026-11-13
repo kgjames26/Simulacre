@@ -1,5 +1,6 @@
 import {bindPlayViews} from '/play-view.js';
 import {setupDashboard} from '/dashboard.js';
+document.getElementById('enter-simulacre')?.addEventListener('click',()=>{document.getElementById('welcome-screen').hidden=true;try{sessionStorage.setItem('simulacre-intro-seen','1');}catch{}});
 const ui = id => document.getElementById(id);
 const ages = ['Nourrisson','Bébé','Petit enfant','Enfant','Grand enfant','Jeune ado','Ado','Jeune homme','Homme'];
 const stages = ['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
