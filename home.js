@@ -75,8 +75,10 @@ function stepKitchen(s){
   if(!house?.kitchen)return;
   ensureFoodStock();
   if(s>=nextRefill){
-    const restock=kitchen.pantry.filter(food=>food.stock<3);
-    if(restock.length)restock[Math.abs(Math.floor(s/19))%restock.length].stock++;
+    for(let count=0;count<2;count++){
+      const restock=kitchen.pantry.filter(food=>food.stock<3);
+      if(restock.length)restock[Math.abs(Math.floor(s/19)+count*7)%restock.length].stock++;
+    }
     ensureFoodStock();
     nextRefill=s+19;
   }
