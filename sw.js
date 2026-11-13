@@ -1,4 +1,4 @@
-const CACHE = 'neo-shell-neo-v6';
+const CACHE = 'neo-shell-neo-v7';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/styles.css', '/app.js', '/sim.js', '/dialogue.js', '/collision-map.js', '/navigation.js', '/home.js', '/dashboard.js', '/motor.js', '/social.js', '/play.js', '/french-words.js', '/play-view.js', '/toy-rails.js'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
