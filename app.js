@@ -6,7 +6,7 @@ const stages = ['Se redresser','Ramper','Tenir debout','Premiers pas','Marche'];
 const format = new Intl.NumberFormat('fr-BE');
 const saveKey = 'neo-simulacre-v4';
 const worker = new Worker('/sim.js');
-let snapshot, human = true, lastJournal = '', resetting=false, initialized=false;
+let snapshot, human = true, speedMode='human', upperFloorView=false, lastJournal = '', resetting=false, initialized=false;
 const personNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Lyra',rose:'Rose'};
 let lastDialogueId=0, lastDialoguePaint=0, voiceEnabled=false, conversationRows=[];
 const dashboard=setupDashboard(personNames);
@@ -112,6 +112,13 @@ worker.onmessage = ({data}) => {
   ui('hunger').textContent=Math.round(alex.hunger*100)+' %';
   ui('fatigue').textContent=Math.round(alex.fatigue*100)+' %';
   ui('pleasure').textContent=Math.round((alex.pleasure||0)*100)+' %';
+  const feelings=[];
+  if(alex.hunger>.65)feelings.push('la faim');
+  if(alex.fatigue>.7)feelings.push('la fatigue');
+  if((alex.thirst||0)>.65)feelings.push('la soif');
+  if((alex.pleasure||0)>.65)feelings.push('du plaisir');
+  if(!feelings.length)feelings.push('un état calme et confortable');
+  ui('neo-perception').lastElementChild.textContent='Il remarque : '+(alex.activity||'son environnement')+'. Il ressent : '+feelings.join(', ')+'.';
   const journalKey=journal.map(event=>event.ticks+' '+event.message).join('|');
   if(journalKey!==lastJournal){
     lastJournal=journalKey;
@@ -119,14 +126,22 @@ worker.onmessage = ({data}) => {
   }
 };
 worker.onerror=()=>{ui('mode').textContent='Simulation interrompue';};
-ui('speed').onclick=()=>{
-  human=!human;
+function setSpeedMode(next){
+  speedMode=next;
+  human=speedMode!=='turbo';
   if(!human&&voiceEnabled)speechSynthesis.cancel();
-  worker.postMessage({type:'mode',mode:human?'human':'turbo'});
-  ui('speed').setAttribute('aria-pressed',String(!human));
-  ui('speed').textContent=human?'Accélérer':'Revenir à vitesse normale';
-  ui('mode').textContent=human?'Vitesse normale · ×1':'Simulation accélérée';
-};
+  worker.postMessage({type:'mode',mode:speedMode});
+  const labels={human:'Ralentir',slow:'Accélérer',turbo:'Vitesse normale'};
+  const status={human:'Vitesse normale · ×1',slow:'Vitesse réduite · ×0,45',turbo:'Simulation accélérée'};
+  for(const button of [ui('speed'),ui('speed-global')]){
+    button.textContent=labels[speedMode];
+    button.setAttribute('aria-pressed',String(speedMode!=='human'));
+  }
+  ui('mode').textContent=status[speedMode];
+}
+function cycleSpeed(){setSpeedMode(speedMode==='human'?'slow':speedMode==='slow'?'turbo':'human');}
+ui('speed').onclick=cycleSpeed;
+ui('speed-global').onclick=cycleSpeed;
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);
 
 const welcome=ui('welcome-screen');
@@ -207,7 +222,9 @@ function softwareRenderer(T){
         const count=Math.floor((index?.count||position.count)/3);
         const stride=Math.max(1,Math.ceil(count/1100));
         const material=Array.isArray(mesh.material)?mesh.material[0]:mesh.material;
-        const cut=material.clippingPlanes?.[0]?.constant??Infinity;
+        const plane=material.clippingPlanes?.[0];
+        const cut=plane?(plane.normal.y>0?-plane.constant:plane.constant):Infinity;
+        const upper=Boolean(plane&&plane.normal.y>0);
         const color=material.color||new T.Color('#b5b28a');
         const style=color.getStyle();
         for(let i=0;i<count;i+=stride){
@@ -215,8 +232,8 @@ function softwareRenderer(T){
           for(let j=0;j<3;j++){
             const k=index?index.getX(i*3+j):i*3+j;
             point.fromBufferAttribute(position,k).applyMatrix4(mesh.matrixWorld);
-            visible||=point.y<cut;
-            point.y=Math.min(point.y,cut);
+            visible||=upper?point.y>cut:point.y<cut;
+            point.y=upper?Math.max(point.y,cut):Math.min(point.y,cut);
             vertices.push(project(screen.copy(point).project(camera),camera));
           }
           if(visible)triangles.push({vertices,style,depth:vertices.reduce((sum,p)=>sum+p[2],0)});
@@ -531,6 +548,7 @@ async function showWorld(){
   const offset=baseOffset.clone();
   let cameraQuarter=0;
   ui('rotate-camera').onclick=()=>{cameraQuarter=(cameraQuarter+1)%4;offset.copy(baseOffset).applyAxisAngle(new T.Vector3(0,1,0),cameraQuarter*Math.PI/2);};
+  ui('floor-view').onclick=()=>{upperFloorView=!upperFloorView;ui('floor-view').textContent=upperFloorView?'Voir le rez-de-chaussée':'Voir l’étage';ui('floor-view').setAttribute('aria-pressed',String(upperFloorView));};
   const center=new T.Vector3();
   const manualCenter=new T.Vector3();
   const desiredCenter=new T.Vector3();
@@ -668,6 +686,14 @@ async function showWorld(){
         }else if(/wall|mur|brick|brique|enduit|stucco/.test(name)){
           m.color.lerp(new T.Color(/brick|brique/.test(name)?'#b5816c':'#e2d7c3'),.28);
           if(!m.map&&o.geometry.attributes.uv)m.map=plaster;
+        }else if(/roof|toit|tile|tuile/.test(name)){
+          m.color.set(/roof|toit/.test(name)?'#a96f57':'#c78b68');
+        }else if(/glass|vitre|window|fenetre/.test(name)){
+          m.color.set('#9bc6ce');m.transparent=true;m.opacity=.68;
+        }else if(/metal|steel|acier|handle|poignee/.test(name)){
+          m.color.set('#8b9694');
+        }else if(!m.map&&m.color&&m.color.getHex()===0xffffff){
+          m.color.set(/fabric|tissu|sofa|cushion/.test(name)?'#a9a18b':/ceramic|sink|bath|sanitaire/.test(name)?'#e8e8df':'#d4c7ae');
         }
       }
     });
@@ -935,8 +961,8 @@ async function showWorld(){
     camera.updateMatrixWorld(true);
     if(snapshot){
       const tracked=focus&&(focus.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===focus.id));
-      const upstairs=Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier'));
-      if(houseCut)houseCut.constant=scene.userData.floorCut=upstairs?3.42:1.45;
+      const upstairs=upperFloorView||Boolean(tracked?.floor||tracked?.y>1.1&&tracked?.activity.includes('escalier'));
+      if(houseCut){houseCut.normal.set(0,upstairs?1:-1,0);houseCut.constant=upstairs?-1.8:1.45;scene.userData.floorCut=upstairs?'upper':'ground';}
       play.update(snapshot.playItems);
       for(const door of houseDoors){
         door.root.visible=!door.floor||upstairs;
@@ -984,19 +1010,23 @@ async function showWorld(){
         const p=actor.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===actor.id);
         const main=actor.id==='alex';
         const grows=main||['juliette','timeo','nathan','francoise','rose'].includes(actor.id);
-        const size=(grows?actors[0].ageProfiles[snapshot.age].scale:actor.profile.scale)*1.85;
+        const ageIndex=Math.min(8,snapshot.age+(actor.id==='juliette'?2:0));
+        const size=(grows?actors[0].ageProfiles[ageIndex].scale:actor.profile.scale)*1.85;
         actor.root.scale.setScalar(size);
         actor.root.position.lerp(point.set(p.x,p.y||0,p.z),1-Math.exp(-dt*(human?22:12)));
         const gesture=p.languageGesture;
         const lying=p.lie||0;
         actor.root.rotation.y=gesture&&!lying?gesture.heading:p.heading;
-        actor.root.visible=!p.floor||upstairs;
+        actor.root.visible=upperFloorView?Boolean(p.floor):(!p.floor||upstairs);
         actor.root.rotation.order='YXZ';
         actor.root.rotation.x=lying*Math.PI/2+Math.max(-1.38,Math.min(1.38,p.tilt||0))*(1-lying);
         const gait=lying?0:main?p.effort:p.moving?Math.sin(p.phase)*.6:0;
         const crouch=p.pose||0;
         const pointing=gesture?.kind==='point'&&!lying;
         posePopo(actor.rig,p.joints,crouch,gait,1-Math.exp(-dt*14),p.tilt||0);
+        if(p.hug){
+          for(const side of actor.rig.sides){side.shoulder.rotation.x=-.82;side.shoulder.rotation.z=Math.sign(side.shoulder.position.x||1)*.58;side.elbow.rotation.x=-1.02;side.wrist.rotation.x=.12;}
+        }
         if(pointing){
           const arm=actor.rig.sides[1];
           arm.shoulder.rotation.z*=.7;
