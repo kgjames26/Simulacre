@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#f4f1ea">
+<meta name="theme-color" content="#f3f1ec">
 <meta name="description" content="Simulacre : suivez Néo, une intelligence qui apprend tout par elle-même.">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -21,9 +21,34 @@
     <p class="lead">Néo naît sans rien savoir. Personne ne lui explique rien.</p>
     <p>Il a seulement quelques gestes de base, les besoins de tout humain et une envie immense d’explorer, d’essayer et de s’améliorer. Tout le reste, il le découvre seul : son corps, les objets, les mots, les autres.</p>
     <p>Vous observez. Ses parents veillent sur lui et élargissent peu à peu l’espace où il a le droit d’aller.</p>
-    <button id="enter-simulacre" type="button" class="primary">Observer Néo</button>
+    <button id="enter-simulacre" type="button" class="btn btn-primary btn-large">Observer Néo</button>
   </div>
 </section>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-brain" viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3 2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3 2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></symbol>
+    <symbol id="i-body" viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2"/><path d="M5 9l7 1 7-1M12 10v5M12 15l-4 6M12 15l4 6"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.4 5 2.7 5 5.8"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 10v10h14V10"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+    <symbol id="i-sprout" viewBox="0 0 24 24"><path d="M12 21v-9M12 12c0-4 3-7 8-7 0 5-3 7-8 7zM12 14c0-3-2-5-7-5 0 4 2 5 7 5z"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/></symbol>
+    <symbol id="i-steps" viewBox="0 0 24 24"><path d="M7 20c-2 0-3-2-2.5-5S7 11 8 12s0 8-1 8zM16 13c-2 0-3-2-2.5-5S16 4 17 5s0 8-1 8z"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></symbol>
+    <symbol id="i-word" viewBox="0 0 24 24"><path d="M4 19l5-14h2l5 14M6.5 13h7M17 9h4M17 13h4"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5h.01"/></symbol>
+  </defs>
+</svg>
 
 <header class="top">
   <div class="top-in">
@@ -37,7 +62,7 @@
     </nav>
     <div class="top-right">
       <span class="clock" id="clock">Jour 1</span>
-      <button id="speed-global" type="button" class="ghost" aria-pressed="false">Ralentir</button>
+      <button id="speed-global" type="button" class="btn btn-dark" aria-pressed="false">Accélérer</button>
     </div>
   </div>
 </header>
@@ -51,13 +76,17 @@
       <div id="view"></div>
       <div id="labels"></div>
       <p id="scene-status" class="scene-status" role="status">Chargement du monde…</p>
-      <div class="toolbar" role="group" aria-label="Caméra">
-        <button id="follow" type="button" class="tool" aria-pressed="false">Suivre</button>
-        <button id="choose-person" type="button" class="tool" aria-controls="person-dialog">Néo ▾</button>
-        <button id="rotate-camera" type="button" class="tool icon" aria-label="Pivoter la vue" title="Pivoter la vue">↻</button>
-        <button id="floor-view" type="button" class="tool" aria-pressed="false">Étage</button>
-        <button id="play-open" type="button" class="tool" title="Faire bouger les jouets">Jouets</button>
-        <button id="fullscreen" type="button" class="tool icon" aria-label="Plein écran" aria-pressed="false" title="Plein écran">⛶</button>
+      <div class="toolbar" role="toolbar" aria-label="Caméra">
+        <div class="seg">
+          <button id="follow" type="button" class="tool" aria-pressed="false">Suivre</button>
+          <button id="choose-person" type="button" class="tool" aria-controls="person-dialog">Néo ▾</button>
+        </div>
+        <div class="seg">
+          <button id="floor-view" type="button" class="tool" aria-pressed="false">Étage</button>
+          <button id="rotate-camera" type="button" class="tool icon" aria-label="Pivoter la vue" title="Pivoter la vue">↻</button>
+          <button id="play-open" type="button" class="tool" title="Faire bouger les jouets">Jouets</button>
+          <button id="fullscreen" type="button" class="tool icon" aria-label="Plein écran" aria-pressed="false" title="Plein écran">⛶</button>
+        </div>
       </div>
       <div class="now" aria-live="polite">
         <small id="activity-person">Néo</small>
@@ -65,127 +94,164 @@
       </div>
     </div>
 
-    <aside class="panel" aria-label="Néo en ce moment">
-      <article class="card hero">
-        <div class="hero-top">
-          <div><p class="eyebrow">Néo</p><p class="display" id="age">Nourrisson</p></div>
-          <span class="chip" id="zone-chip" title="Où ses parents le laissent aller">La maison</span>
-        </div>
-        <div class="meters" id="neo-meters"></div>
-      </article>
-      <article class="card">
-        <div class="card-head"><h2>Il vient de comprendre</h2><a href="#cerveau">Son cerveau →</a></div>
-        <ul class="list" id="latest-understood"><li class="muted">Rien encore : il observe et essaie.</li></ul>
-      </article>
-      <article class="card">
-        <div class="card-head"><h2>Ce qui se passe</h2></div>
-        <ul class="list feed-compact" id="journal"></ul>
-      </article>
-      <article class="card">
-        <div class="card-head"><h2>Dernière parole entendue</h2><a href="#entourage">Tout →</a></div>
-        <p class="quote" id="latest-line">Personne n’a encore parlé.</p>
-      </article>
+    <aside class="panel accs" aria-label="Néo en ce moment">
+      <details class="acc" data-id="m-neo" open>
+        <summary><svg class="ico"><use href="#i-pulse"/></svg><span class="acc-t"><strong>Néo en ce moment</strong><small id="age">Nourrisson</small></span><span class="meta" id="zone-chip">La maison</span></summary>
+        <div class="acc-body"><div class="meters" id="neo-meters"></div></div>
+      </details>
+      <details class="acc" data-id="m-compris" open>
+        <summary><svg class="ico"><use href="#i-bulb"/></svg><span class="acc-t"><strong>Il vient de comprendre</strong><small>Ses dernières découvertes</small></span><span class="meta" id="meta-compris">0</span></summary>
+        <div class="acc-body"><ul class="list" id="latest-understood"></ul></div>
+      </details>
+      <details class="acc" data-id="m-journal">
+        <summary><svg class="ico"><use href="#i-list"/></svg><span class="acc-t"><strong>Ce qui se passe</strong><small>Les derniers événements</small></span><span class="meta" id="meta-journal"></span></summary>
+        <div class="acc-body"><ul class="list feed-compact" id="journal"></ul></div>
+      </details>
+      <details class="acc" data-id="m-parole">
+        <summary><svg class="ico"><use href="#i-chat"/></svg><span class="acc-t"><strong>Dernière parole</strong><small>Ce qui vient d’être dit</small></span></summary>
+        <div class="acc-body"><p class="quote" id="latest-line">Personne n’a encore parlé.</p></div>
+      </details>
     </aside>
   </section>
 
   <!-- SON CERVEAU -->
   <section id="page-cerveau" class="page" hidden>
-    <header class="intro">
-      <h2>Son cerveau</h2>
-      <p>Chaque région garde sa propre mémoire. Le carrefour des associations les croise en permanence : plus Néo vit de choses, plus il peut en déduire, anticiper et imaginer. Les noms affichés sont les nôtres ; lui ne connaît que ce qu’il a vécu.</p>
-    </header>
-    <div class="regions" id="regions"></div>
-    <div class="grid two">
-      <article class="card"><h3>Ce qu’il a compris</h3><p class="hint">« Si je fais ceci à cela, il se passe ça. »</p><div id="brain-causes" class="stack"></div></article>
-      <article class="card"><h3>Ses idées</h3><p class="hint">Déduites en croisant ses régions, puis vérifiées en essayant.</p><div id="brain-ideas" class="stack"></div></article>
+    <header class="intro"><h2>Son cerveau</h2><p>Chaque région garde sa propre mémoire ; le carrefour des associations les croise en permanence. Les noms affichés sont les nôtres : lui ne connaît que ce qu’il a vécu.</p></header>
+    <div class="accs">
+      <details class="acc" data-id="c-regions" open>
+        <summary><svg class="ico"><use href="#i-brain"/></svg><span class="acc-t"><strong>Les régions</strong><small>Ce que chaque partie retient</small></span></summary>
+        <div class="acc-body"><div class="regions" id="regions"></div></div>
+      </details>
+      <details class="acc" data-id="c-comprend">
+        <summary><svg class="ico"><use href="#i-bulb"/></svg><span class="acc-t"><strong>Ce qu’il comprend</strong><small>Causes, idées, familles, choses remarquées</small></span><span class="meta" id="meta-comprend"></span></summary>
+        <div class="acc-body accs">
+          <details class="acc sub" data-id="c-causes" open><summary><span class="acc-t"><strong>Ce qu’il a compris</strong><small>« Si je fais ceci à cela, il se passe ça »</small></span><span class="meta" id="meta-causes"></span></summary><div class="acc-body"><div id="brain-causes" class="stack"></div></div></details>
+          <details class="acc sub" data-id="c-idees"><summary><span class="acc-t"><strong>Ses idées</strong><small>Déduites en croisant ses régions, vérifiées en essayant</small></span><span class="meta" id="meta-idees"></span></summary><div class="acc-body"><div id="brain-ideas" class="stack"></div></div></details>
+          <details class="acc sub" data-id="c-familles"><summary><span class="acc-t"><strong>Les familles de choses</strong><small>Ce qui se ressemble à ses yeux</small></span><span class="meta" id="meta-familles"></span></summary><div class="acc-body"><div id="brain-families" class="stack"></div></div></details>
+          <details class="acc sub" data-id="c-choses"><summary><span class="acc-t"><strong>Les choses remarquées</strong><small>Vues, touchées, nommées</small></span><span class="meta" id="meta-choses"></span></summary><div class="acc-body"><div class="things" id="brain-things"></div></div></details>
+        </div>
+      </details>
+      <details class="acc" data-id="c-corps">
+        <summary><svg class="ico"><use href="#i-body"/></svg><span class="acc-t"><strong>Son corps</strong><small>Gestes, capacités, défis</small></span><span class="meta" id="meta-corps"></span></summary>
+        <div class="acc-body accs">
+          <details class="acc sub" data-id="c-gestes" open><summary><span class="acc-t"><strong>Ses gestes</strong><small>Innés, appris, en cours</small></span></summary><div class="acc-body"><div class="chips" id="brain-gestures"></div></div></details>
+          <details class="acc sub" data-id="c-capacites"><summary><span class="acc-t"><strong>Ses capacités</strong><small>Elles grandissent avec l’entraînement</small></span></summary><div class="acc-body"><div id="brain-capacities" class="bars"></div></div></details>
+          <details class="acc sub" data-id="c-defis"><summary><span class="acc-t"><strong>Ses défis</strong><small>Ce que son corps peut ou ne peut pas encore</small></span></summary><div class="acc-body"><div id="brain-challenges" class="stack"></div></div></details>
+        </div>
+      </details>
+      <details class="acc" data-id="c-perso">
+        <summary><svg class="ico"><use href="#i-heart"/></svg><span class="acc-t"><strong>Son caractère et son humeur</strong><small>Ce qui se forge en vivant</small></span></summary>
+        <div class="acc-body accs">
+          <details class="acc sub" data-id="c-caractere" open><summary><span class="acc-t"><strong>Son caractère</strong><small>Réussir après des échecs rend persévérant, se faire mal rend prudent…</small></span></summary><div class="acc-body"><div id="brain-traits" class="bars"></div></div></details>
+          <details class="acc sub" data-id="c-humeur"><summary><span class="acc-t"><strong>Son humeur</strong><small>En ce moment</small></span></summary><div class="acc-body"><div id="brain-mood" class="bars"></div></div></details>
+        </div>
+      </details>
+      <details class="acc" data-id="c-envies">
+        <summary><svg class="ico"><use href="#i-star"/></svg><span class="acc-t"><strong>Ses envies</strong><small>Questions, projets, habitudes</small></span><span class="meta" id="meta-envies"></span></summary>
+        <div class="acc-body"><div id="brain-wishes" class="stack"></div></div>
+      </details>
+      <details class="acc" data-id="c-mots">
+        <summary><svg class="ico"><use href="#i-word"/></svg><span class="acc-t"><strong>Les mots qu’il a compris</strong><small>Il devine le sens en comparant les situations</small></span><span class="meta" id="vocabulary-count"></span></summary>
+        <div class="acc-body"><input type="search" id="vocabulary-search" class="field-input" placeholder="Chercher un mot" aria-label="Chercher un mot"><ul id="vocabulary-list" class="words"></ul></div>
+      </details>
     </div>
-    <div class="grid two">
-      <article class="card"><h3>Son corps</h3><div class="chips" id="brain-gestures"></div><div id="brain-capacities" class="bars"></div><div id="brain-challenges" class="stack"></div></article>
-      <article class="card"><h3>Son caractère</h3><p class="hint">Il se forge avec ce qu’il vit : réussir après des échecs le rend persévérant, se faire mal le rend prudent, entraîner les autres lui donne du leadership…</p><div id="brain-traits" class="bars"></div></article>
-    </div>
-    <div class="grid two">
-      <article class="card"><h3>Ses envies</h3><div id="brain-wishes" class="stack"></div></article>
-      <article class="card"><h3>Son humeur</h3><div id="brain-mood" class="bars"></div></article>
-    </div>
-    <article class="card">
-      <div class="card-head"><h3>Les mots qu’il a compris <span class="muted" id="vocabulary-count"></span></h3>
-        <input type="search" id="vocabulary-search" placeholder="Chercher un mot" aria-label="Chercher un mot"></div>
-      <p class="hint">Il devine le sens d’un mot en comparant les situations où il l’entend.</p>
-      <ul id="vocabulary-list" class="words"></ul>
-    </article>
-    <article class="card"><h3>Les choses qu’il a remarquées</h3><div class="things" id="brain-things"></div></article>
   </section>
 
   <!-- SA CROISSANCE -->
   <section id="page-croissance" class="page" hidden>
-    <header class="intro">
-      <h2>Sa croissance</h2>
-      <p>Néo passe à l’étape suivante quand il a acquis ce qu’un enfant de cet âge sait faire : avec son corps, et dans sa tête. À chaque étape, ses parents lui laissent un peu plus d’espace.</p>
-    </header>
-    <ol class="timeline" id="age-timeline"></ol>
-    <div class="grid two">
-      <article class="card"><h3>Les étapes de sa vie</h3><p class="hint">Ce qui est prévu à chaque étape, ce qu’il fait en ce moment, et ce qu’il a accompli.</p><div id="stage-goals" class="stack"></div></article>
-      <article class="card"><h3>Où il a le droit d’aller</h3><p class="hint">Les interdits des parents. Personne ne les lui explique : il les découvre en étant retenu.</p><ol class="zones" id="zones"></ol></article>
-    </div>
-    <div class="grid two">
-      <article class="card"><h3>Apprendre à marcher</h3><p class="hint">Son corps articulé essaie des milliers de combinaisons de mouvements et garde ce qui marche.</p><div class="steps" id="motor-steps"></div></article>
-      <article class="card"><h3>Ses premières phrases</h3><div id="language-stats" class="stack"></div><ol class="list" id="composed-phrases"></ol></article>
+    <header class="intro"><h2>Sa croissance</h2><p>Néo passe à l’étape suivante quand il a acquis ce qu’un enfant de cet âge sait faire, avec son corps et dans sa tête. À chaque étape, ses parents lui laissent un peu plus d’espace.</p></header>
+    <div class="accs">
+      <details class="acc" data-id="g-ou" open>
+        <summary><svg class="ico"><use href="#i-sprout"/></svg><span class="acc-t"><strong>Où il en est</strong><small>Les neuf étapes de la vie</small></span><span class="meta" id="meta-age"></span></summary>
+        <div class="acc-body"><ol class="timeline" id="age-timeline"></ol></div>
+      </details>
+      <details class="acc" data-id="g-etapes">
+        <summary><svg class="ico"><use href="#i-flag"/></svg><span class="acc-t"><strong>Les étapes de sa vie</strong><small>Prévu, en cours, accompli</small></span></summary>
+        <div class="acc-body accs" id="stage-goals"></div>
+      </details>
+      <details class="acc" data-id="g-zones">
+        <summary><svg class="ico"><use href="#i-map"/></svg><span class="acc-t"><strong>Où il a le droit d’aller</strong><small>Les interdits des parents, levés peu à peu</small></span><span class="meta" id="meta-zones"></span></summary>
+        <div class="acc-body"><p class="hint">Personne ne les lui explique : il les découvre en étant retenu.</p><ol class="zones" id="zones"></ol></div>
+      </details>
+      <details class="acc" data-id="g-marche">
+        <summary><svg class="ico"><use href="#i-steps"/></svg><span class="acc-t"><strong>Apprendre à marcher</strong><small>Son corps articulé essaie et garde ce qui marche</small></span><span class="meta" id="meta-marche"></span></summary>
+        <div class="acc-body"><div class="steps" id="motor-steps"></div></div>
+      </details>
+      <details class="acc" data-id="g-langage">
+        <summary><svg class="ico"><use href="#i-chat"/></svg><span class="acc-t"><strong>Son langage</strong><small>Ce qu’il entend, comprend et dit</small></span><span class="meta" id="meta-langage"></span></summary>
+        <div class="acc-body accs">
+          <details class="acc sub" data-id="g-lstats" open><summary><span class="acc-t"><strong>En chiffres</strong></span></summary><div class="acc-body"><div id="language-stats" class="stack"></div></div></details>
+          <details class="acc sub" data-id="g-phrases"><summary><span class="acc-t"><strong>Ses premières phrases</strong></span></summary><div class="acc-body"><ol class="list" id="composed-phrases"></ol></div></details>
+        </div>
+      </details>
     </div>
   </section>
 
   <!-- SES NUITS -->
   <section id="page-nuits" class="page" hidden>
-    <header class="intro">
-      <h2>Ses nuits</h2>
-      <p>Quand Néo dort, son cerveau fait le tri : il rejoue sa journée et renforce ce qui allait ensemble, efface ce qui est faible ou inutile, fusionne les souvenirs qui se répètent. Puis il rêve de choses qu’il a vues sans les explorer, et au réveil il a envie d’aller les voir.</p>
-    </header>
-    <div class="regions" id="nuits-total"></div>
-    <div id="nuits" class="stack"></div>
+    <header class="intro"><h2>Ses nuits</h2><p>Quand Néo dort, son cerveau fait le tri : il renforce ce qui allait ensemble, efface ce qui est faible ou inutile, fusionne les souvenirs qui se répètent, puis rêve de choses vues sans les explorer, qui lui donnent envie d’y aller au réveil.</p></header>
+    <div class="accs">
+      <details class="acc" data-id="n-bilan" open>
+        <summary><svg class="ico"><use href="#i-chart"/></svg><span class="acc-t"><strong>Bilan</strong><small>Sur les dernières nuits</small></span></summary>
+        <div class="acc-body"><div class="regions" id="nuits-total"></div></div>
+      </details>
+      <details class="acc" data-id="n-liste" open>
+        <summary><svg class="ico"><use href="#i-moon"/></svg><span class="acc-t"><strong>Nuit après nuit</strong><small>Ce qui a été trié et ce dont il a rêvé</small></span><span class="meta" id="meta-nuits"></span></summary>
+        <div class="acc-body accs" id="nuits"></div>
+      </details>
+    </div>
   </section>
 
   <!-- SON ENTOURAGE -->
   <section id="page-entourage" class="page" hidden>
-    <header class="intro">
-      <h2>Son entourage</h2>
-      <p>Les autres n’apprennent rien par eux-mêmes. Ce que Néo découvre passe d’abord à ses amis du parc, puis à sa famille quand il en sait plus qu’elle.</p>
-    </header>
-    <div class="people" id="people"></div>
-    <div class="grid two">
-      <article class="card">
-        <div class="card-head"><h3>Ce qui se dit</h3>
-          <select id="speaker-filter" aria-label="Qui parle"><option value="">Tout le monde</option></select></div>
-        <p class="hint" id="listening-summary"></p>
-        <ol id="conversation-lines" class="feed"></ol>
-        <div class="feed-actions"><button class="ghost" id="older-lines" type="button" hidden>Plus ancien</button><button class="ghost" id="live-lines" type="button" hidden>Revenir au direct</button><button id="voice-toggle" class="ghost" type="button" aria-pressed="false" hidden>Écouter les voix</button></div>
-      </article>
-      <article class="card">
-        <div class="card-head"><h3>Les liens</h3><select id="relationship-filter" aria-label="Relation à afficher"></select></div>
-        <div id="relationship-summary" class="stack"></div>
-        <ol class="feed" id="relationship-history"></ol>
-      </article>
-    </div>
-    <div class="grid two">
-      <article class="card">
-        <div class="card-head"><h3>Ce qu’il s’est passé</h3>
-          <select id="interaction-filter" aria-label="Type d’événement"><option value="">Tout</option><option value="social">Relations</option><option value="limite">Limites</option><option value="play">Jeu</option><option value="food">Repas</option><option value="sleep">Sommeil</option><option value="object">Objets</option><option value="care">Soins</option></select></div>
-        <ol id="interaction-lines" class="feed"></ol>
-      </article>
-      <article class="card"><h3>La maison et le commerce</h3><p class="hint">Pas d’argent : chacun a droit à une quantité par jour au commerce, seule source de nourriture.</p><div id="household" class="stack"></div></article>
+    <header class="intro"><h2>Son entourage</h2><p>Les autres n’apprennent rien par eux-mêmes. Ce que Néo découvre passe d’abord à ses amis du parc, puis à sa famille quand il en sait plus qu’elle.</p></header>
+    <div class="accs">
+      <details class="acc" data-id="e-personnes" open>
+        <summary><svg class="ico"><use href="#i-users"/></svg><span class="acc-t"><strong>Les personnes</strong><small>Ce qu’elles font, leur caractère, ce qu’elles reçoivent</small></span><span class="meta" id="meta-personnes"></span></summary>
+        <div class="acc-body accs" id="people"></div>
+      </details>
+      <details class="acc" data-id="e-dit">
+        <summary><svg class="ico"><use href="#i-chat"/></svg><span class="acc-t"><strong>Ce qui se dit</strong><small id="listening-summary"></small></span></summary>
+        <div class="acc-body">
+          <div class="filters"><select id="speaker-filter" class="field-input" aria-label="Qui parle"><option value="">Tout le monde</option></select></div>
+          <ol id="conversation-lines" class="feed"></ol>
+          <div class="feed-actions"><button class="btn" id="older-lines" type="button" hidden>Plus ancien</button><button class="btn" id="live-lines" type="button" hidden>Revenir au direct</button><button id="voice-toggle" class="btn" type="button" aria-pressed="false" hidden>Écouter les voix</button></div>
+        </div>
+      </details>
+      <details class="acc" data-id="e-liens">
+        <summary><svg class="ico"><use href="#i-link"/></svg><span class="acc-t"><strong>Les liens</strong><small>Amitiés, couples, histoire de chaque relation</small></span></summary>
+        <div class="acc-body">
+          <div class="filters"><select id="relationship-filter" class="field-input" aria-label="Relation à afficher"></select></div>
+          <div id="relationship-summary" class="bars"></div>
+          <details class="acc sub" data-id="e-histoire"><summary><span class="acc-t"><strong>Histoire de ce lien</strong></span></summary><div class="acc-body"><ol class="feed" id="relationship-history"></ol></div></details>
+        </div>
+      </details>
+      <details class="acc" data-id="e-evenements">
+        <summary><svg class="ico"><use href="#i-list"/></svg><span class="acc-t"><strong>Ce qu’il s’est passé</strong><small>Relations, limites, jeux, repas, soins…</small></span></summary>
+        <div class="acc-body">
+          <div class="filters"><select id="interaction-filter" class="field-input" aria-label="Type d’événement"><option value="">Tout</option><option value="social">Relations</option><option value="limite">Limites</option><option value="play">Jeu</option><option value="food">Repas</option><option value="sleep">Sommeil</option><option value="object">Objets</option><option value="care">Soins</option></select></div>
+          <ol id="interaction-lines" class="feed"></ol>
+        </div>
+      </details>
+      <details class="acc" data-id="e-maison">
+        <summary><svg class="ico"><use href="#i-home"/></svg><span class="acc-t"><strong>La maison et le commerce</strong><small>Pas d’argent : un droit par personne et par jour</small></span></summary>
+        <div class="acc-body"><div id="household" class="stack"></div></div>
+      </details>
     </div>
   </section>
 </main>
 
-<footer class="foot"><span>Modèles : Kenney (CC0), Cyprus · astroarch, RPSebb, assetfactory</span><span><span id="version">v__NÉO_VERSION__</span> · <button class="link" id="reset" type="button">Recommencer</button></span></footer>
+<footer class="foot"><span>Modèles : Kenney (CC0), Cyprus · astroarch, RPSebb, assetfactory</span><span><span id="version">v__NÉO_VERSION__</span> · <button class="btn btn-small" id="reset" type="button">Recommencer</button></span></footer>
 
-<dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><h2 id="reset-title">Recommencer depuis le début ?</h2><p>Néo repartira avec un cerveau vierge. Toute la progression et les conversations seront effacées.</p><div class="dialog-actions"><button value="cancel" class="ghost" autofocus>Annuler</button><button value="reset" class="danger">Recommencer</button></div></form></dialog>
-<dialog id="person-dialog" aria-labelledby="person-title"><form method="dialog"><h2 id="person-title">Qui suivre ?</h2><div id="person-list" class="person-list"></div><div class="dialog-actions"><button value="cancel" class="ghost">Fermer</button></div></form></dialog>
+<dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><h2 id="reset-title">Recommencer depuis le début ?</h2><p>Néo repartira avec un cerveau vierge. Toute la progression et les conversations seront effacées.</p><div class="dialog-actions"><button value="cancel" class="btn" autofocus>Annuler</button><button value="reset" class="btn btn-danger">Recommencer</button></div></form></dialog>
+<dialog id="person-dialog" aria-labelledby="person-title"><form method="dialog"><h2 id="person-title">Qui suivre ?</h2><div id="person-list" class="person-list"></div><div class="dialog-actions"><button value="cancel" class="btn">Fermer</button></div></form></dialog>
 <dialog id="play-dialog" aria-labelledby="play-title"><form method="dialog">
   <h2 id="play-title">Faire bouger un jouet</h2>
   <label class="field">Jouet<select id="play-select"><option value="football">Ballon du parc</option><option value="softBall">Petit ballon du salon</option><option value="bikePark">Tricycle du parc</option><option value="bikeHome">Tricycle de la maison</option><option value="toy">Jeu de perles</option></select></label>
   <div id="ball-controls"><button type="button" id="ball-push">Pousser le ballon</button></div>
   <div id="bike-controls" hidden><label class="field">Guidon<input type="range" id="bike-steer" min="-.56" max=".56" value="0" step=".01"></label><button type="button" id="bike-pedal">Pédaler</button></div>
   <div id="toy-controls" hidden><label class="field">Perle<select id="bead-select"></select></label><label class="field">Position<input type="range" id="bead-position" min="0" max="1" value=".5" step=".01"></label></div>
-  <div class="dialog-actions"><button value="cancel" class="ghost">Fermer</button></div>
+  <div class="dialog-actions"><button value="cancel" class="btn">Fermer</button></div>
 </form></dialog>
 <aside id="boite" hidden>
   <button class="ouvrir" type="button" aria-label="Boîte aux lettres"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 6h18v12H3z M3 6l9 7 9-7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="pastille" hidden></span></button>

@@ -42,6 +42,22 @@ function paint(id,key,build){const box=ui(id);if(!box||box.dataset.key===key)ret
 
 let names={},page='monde',current=null;
 
+// ---------- panneaux dépliables : leur état ouvert/fermé est retenu ----------
+let ouverts={};
+try{ouverts=JSON.parse(localStorage.getItem('simulacre-panneaux'))||{};}catch{}
+const retenir=()=>{try{localStorage.setItem('simulacre-panneaux',JSON.stringify(ouverts));}catch{}};
+document.addEventListener('toggle',e=>{const id=e.target?.dataset?.id;if(id){ouverts[id]=e.target.open;retenir();}},true);
+function restaurer(racine=document){for(const det of racine.querySelectorAll('details[data-id]'))if(det.dataset.id in ouverts)det.open=ouverts[det.dataset.id];}
+// Fabrique un panneau (niveau 2 ou 3) : titre, sous-titre, pastille, contenu.
+function panneau(id,{titre,sous,meta,metaKind='',etat,ouvert=false},...contenu){
+  const det=el('details',{className:'acc',dataset:{id,...(etat?{etat}:{})}});
+  det.open=id in ouverts?ouverts[id]:ouvert;
+  det.append(el('summary',{},el('span',{className:'acc-t'},el('strong',{textContent:titre}),sous?el('small',{textContent:sous}):null),
+    meta!=null?el('span',{className:'meta '+metaKind,textContent:meta}):null),el('div',{className:'acc-body'},...contenu));
+  return det;
+}
+const setMeta=(id,text,kind='')=>{const m=ui(id);if(m){m.textContent=text??'';m.className='meta '+kind;}};
+
 // ---------- archive des conversations (IndexedDB) ----------
 let archive=null,latestArchived=0,archiveStatus='ouverture';
 const recent=new Map();
@@ -103,7 +119,7 @@ const resetTranscript=()=>{before=Infinity;stack=[];renderTranscript();};
 function renderMonde(s){
   const a=s.alex,b=s.brain,z=s.activityData?.zone;
   ui('age').textContent=AGES[s.age];
-  if(z)ui('zone-chip').textContent='Permis : '+z.liste[z.niveau].nom;
+  if(z)setMeta('zone-chip',cap(z.liste[z.niveau].nom),'good');
   paint('neo-meters',[a.hunger,a.fatigue,a.thirst,a.pleasure,b?.emotions.confiance].map(v=>Math.round((v||0)*20)).join(),()=>[
     humeurJauge('Rassasié',1-a.hunger),humeurJauge('Reposé',1-a.fatigue),humeurJauge('Désaltéré',1-(a.thirst??0)),
     humeurJauge('Bien-être',a.pleasure||0),humeurJauge('Confiance',b?.emotions.confiance??.4)]);
@@ -111,6 +127,8 @@ function renderMonde(s){
     const sure=b.savoir.filter(c=>c.statut==='confirme').slice(0,4);
     paint('latest-understood',sure.map(c=>c.action+c.cible).join(),()=>sure.length?sure.map(c=>el('li',{textContent:(VERBES[c.action]||cap(c.action))+' '+c.cible+' : '+effets(c.effet)})):[el('li',{className:'muted',textContent:'Rien encore : il observe et essaie.'})]);
   }
+  setMeta('meta-compris',fmt(b?.compris||0)+' compris',b?.compris?'good':'');
+  if(s.journal[0])setMeta('meta-journal',stamp(s.journal[0].ticks/120).replace(/^.*, /,''));
   paint('journal',s.journal.map(j=>j.ticks).join(),()=>s.journal.length?s.journal.map(j=>el('li',{textContent:j.message})):[el('li',{className:'muted',textContent:'Il découvre ses mouvements.'})]);
 }
 
@@ -132,6 +150,10 @@ function renderCerveau(s){
     ['Social',b.personnes,'personnes connues · leadership '+pct(b.leadership)],['Émotions',Math.round(b.emotions.confiance*100)+' %','confiance en lui'],['Envies',b.envies,'questions et projets'],
     ['Associations',c.liens,c.deductions+' idées · '+c.confirmees+' vérifiées',true]];
   paint('regions',JSON.stringify(regions),()=>regions.map(([nom,n,desc,hub])=>el('div',{className:'region'+(hub?' hub':''),dataset:{empty:String(!n||n==='0 %')}},el('strong',{textContent:typeof n==='number'?fmt(n):n}),el('span',{textContent:nom}),el('small',{textContent:desc}))));
+  setMeta('meta-comprend',fmt(b.compris)+' compris · '+fmt(c.confirmees)+' idées vérifiées');
+  setMeta('meta-causes',fmt(b.savoir.length));setMeta('meta-idees',fmt(c.idees.length));setMeta('meta-familles',fmt(b.concepts.length));setMeta('meta-choses',fmt(b.nbObjets));
+  setMeta('meta-corps',fmt(b.gestes.innes.length+b.gestes.appris.length)+' gestes');setMeta('meta-envies',fmt(b.envies));
+  paint('brain-families',JSON.stringify(b.concepts),()=>b.concepts.length?b.concepts.map(k=>item(k.membres.join(', '),k.usages.length?'il sait : '+k.usages.map(u=>VERBES[u]||u).join(', '):'il ne sait pas encore quoi en faire',badge(k.membres.length+' choses'))):[empty('Pas encore : il faut d’abord voir plusieurs fois des choses qui se ressemblent.')]);
   paint('brain-causes',JSON.stringify(b.savoir.slice(0,12)),()=>b.savoir.length?b.savoir.slice(0,12).map(k=>{
     const [t,kind]=STATUTS[k.statut]||[k.statut,''];
     return item((VERBES[k.action]||cap(k.action))+' '+k.cible,'→ '+effets(k.effet)+' · '+k.reussites+' sur '+k.essais+' essais',badge(t,kind));
@@ -158,7 +180,7 @@ function renderCerveau(s){
 const norm=v=>v.toLocaleLowerCase('fr').normalize('NFD').replace(/\p{M}/gu,'');
 function renderVocabulary(d){
   const words=d.vocabulary||[],q=norm(ui('vocabulary-search').value.trim());
-  ui('vocabulary-count').textContent='· '+fmt(words.length);
+  setMeta('vocabulary-count',fmt(words.length)+(words.length>1?' mots':' mot'));
   const vis=words.filter(w=>norm(w.word).includes(q)).sort((a,b)=>a.word.localeCompare(b.word,'fr'));
   paint('vocabulary-list',q+'|'+vis.map(w=>w.word+w.heard).join(),()=>vis.length?vis.map(w=>el('li',{},el('strong',{textContent:w.word}),el('small',{textContent:w.context+' · entendu '+w.heard+' fois'}))):[el('li',{textContent:words.length?'Aucun mot ne correspond.':'Aucun mot compris pour l’instant.'})]);
 }
@@ -167,24 +189,27 @@ function renderVocabulary(d){
 function renderCroissance(s){
   paint('age-timeline',String(s.age),()=>AGES.map((n,i)=>el('li',{dataset:{state:i<s.age?'done':i===s.age?'active':'later'}},n,el('small',{textContent:i<s.age?'franchi':i===s.age?'maintenant':'à venir'}))));
   const etapes=s.brain?.etapes||[];
+  setMeta('meta-age',AGES[s.age],'warm');
   paint('stage-goals',JSON.stringify(etapes),()=>etapes.length?etapes.map(e=>{
-    const box=el('details',{className:'etape',open:e.etat==='en cours',dataset:{etat:e.etat}});
     const titre=e.etat==='fini'?'accompli'+(e.fin!=null?' · '+stamp(e.fin).replace(/, .*/,''):''):e.etat;
-    box.append(el('summary',{},el('strong',{textContent:e.nom}),badge(titre,e.etat==='fini'?'good':e.etat==='en cours'?'warm':'')));
+    const faits=e.objectifs.filter(g=>g.done).length;
+    const contenu=[];
     for(const [type,nom] of [['physique','Son corps'],['mental','Sa tête']]){
       const liste=e.objectifs.filter(g=>g.type===type);
-      if(!liste.length)continue;
-      box.append(el('p',{className:'eyebrow',textContent:nom}),...liste.map(g=>item(g.label,null,badge(g.done?'✓ acquis':e.etat==='à venir'?'prévu':'pas encore',g.done?'good':''))));
+      if(liste.length)contenu.push(el('p',{className:'eyebrow',textContent:nom}),...liste.map(g=>item(g.label,null,badge(g.done?'✓ acquis':e.etat==='à venir'?'prévu':'pas encore',g.done?'good':''))));
     }
-    if(!e.objectifs.length)box.append(empty('Adulte : il continue d’apprendre sans fin.'));
-    return box;
+    if(!contenu.length)contenu.push(empty('Adulte : il continue d’apprendre sans fin.'));
+    return panneau('etape-'+e.age,{titre:e.nom,sous:titre,meta:e.objectifs.length?faits+' / '+e.objectifs.length:null,metaKind:e.etat==='fini'?'good':e.etat==='en cours'?'warm':'',etat:e.etat,ouvert:e.etat==='en cours'},...contenu);
   }):[empty('Évaluation en cours…')]);
   const z=s.activityData?.zone;
+  if(z)setMeta('meta-zones',cap(z.liste[z.niveau].nom),'good');
   if(z)paint('zones',JSON.stringify(z),()=>z.liste.map(x=>el('li',{dataset:{open:String(x.ouvert)}},el('span',{textContent:cap(x.nom)}),badge(x.ouvert?'permis':'dès '+(AGES[x.age]||'plus tard').toLowerCase(),x.ouvert?'good':''))));
   const m=s.activityData?.motor||[];
   paint('motor-steps',JSON.stringify(m)+s.skill,()=>m.map((r,i)=>el('div',{className:'step',dataset:{state:r.mastered?'done':i===s.skill?'active':'later'}},
     el('strong',{textContent:MARCHE[i]}),el('small',{textContent:r.mastered?'acquis':i===s.skill?r.recent+'/6 réussites récentes':'à venir'}),el('small',{textContent:fmt(r.attempts)+' essais'}))));
+  setMeta('meta-marche',m.filter(r=>r.mastered).length+' / 5');
   const d=s.dialogue;
+  setMeta('meta-langage',fmt(d.known)+' mots');
   paint('language-stats',[d.audible,d.known,d.spoken,d.composed].join(),()=>[row('Phrases entendues',fmt(d.audible)),row('Mots compris',fmt(d.known)),row('Mots répétés',fmt(d.spoken)),row('Phrases formées',fmt(d.composed))]);
   const ph=d.phrases||[];
   paint('composed-phrases',ph.map(p=>p.at).join(),()=>ph.length?ph.map(p=>el('li',{},el('strong',{textContent:'« '+p.text+' »'}),el('small',{textContent:stamp(p.at)}))):[el('li',{className:'muted',textContent:'Aucune phrase encore.'})]);
@@ -194,13 +219,31 @@ function renderCroissance(s){
 function humeur(p){if(p.lie>.8)return 'dort';if(p.fatigue>.7)return 'fatigué';if(p.hunger>.65)return 'a faim';if((p.pleasure||0)>.2)return 'content';return 'calme';}
 function renderEntourage(s){
   const people=[{...s.alex,id:'alex'},...s.people];
-  paint('people',people.map(p=>[p.id,p.activity,humeur(p),p.partage,p.vieux,Object.values(p.caractere||{}).map(v=>Math.round(v*40)).join('')].join()).join('|'),()=>people.map(p=>{
-    const info=p.id==='alex'?badge(AGES[s.age]):p.partage?badge('reçoit ses découvertes','good'):badge('ne reçoit rien encore');
-    return el('article',{className:'person'},el('header',{},el('h3',{textContent:names[p.id]+(p.vieux?' · âgé':'')}),badge(humeur(p),'')),
-      el('p',{textContent:p.activity||'—'}),meter('Leadership',p.leadership||0),
-      p.caractere?el('div',{className:'chips'},...Object.entries(p.caractere).filter(([k])=>k!=='leadership').sort((x,y)=>y[1]-x[1]).slice(0,3).map(([k])=>el('span',{className:'chip off',textContent:TRAITS[k]}))):null,
-      p.caractere?el('details',{className:'traits'},el('summary',{textContent:'Caractère'}),...Object.entries(TRAITS).map(([k,l])=>meter(l,p.caractere[k]||0))):null,info);
-  }));
+  setMeta('meta-personnes',fmt(people.length));
+  const box=ui('people');
+  for(const p of people){
+    let f=fiches.get(p.id);
+    if(!f){
+      f={act:el('small'),meta:el('span',{className:'meta'}),corps:el('div',{className:'stack'}),traits:el('div',{className:'bars'})};
+      f.det=el('details',{className:'acc',dataset:{id:'p-'+p.id}});
+      f.det.open=ouverts['p-'+p.id]??p.id==='alex';
+      f.det.append(el('summary',{},el('span',{className:'acc-t'},el('strong',{textContent:names[p.id]}),f.act),f.meta),
+        el('div',{className:'acc-body accs'},el('div',{className:'acc-body'},f.corps),panneau('pc-'+p.id,{titre:'Caractère',sous:'Évolue avec ce qu’il vit'},f.traits)));
+      box.append(f.det);fiches.set(p.id,f);
+    }
+    f.act.textContent=(p.vieux?'Âgé · ':'')+(p.activity||'—');
+    f.meta.textContent=humeur(p);f.meta.className='meta '+(humeur(p)==='a faim'||humeur(p)==='fatigué'?'warm':humeur(p)==='content'?'good':'');
+    const cle=[p.partage,Math.round((p.leadership||0)*50),p.baseWords,s.age].join();
+    if(f.cle!==cle){
+      f.cle=cle;
+      const top=p.caractere?Object.entries(p.caractere).filter(([k])=>k!=='leadership').sort((x,y)=>y[1]-x[1]).slice(0,3).map(([k])=>el('span',{className:'chip off',textContent:TRAITS[k]})):[];
+      f.corps.replaceChildren(meter('Leadership',p.leadership||0),el('div',{className:'chips'},...top),
+        p.id==='alex'?row('Étape de vie',AGES[s.age]):row('Ce que Néo découvre',p.partage?'il le reçoit':'pas encore'),
+        ...(p.baseWords?[row('Mots connus',fmt(p.baseWords))]:[]));
+    }
+    const ct=JSON.stringify(Object.values(p.caractere||{}).map(v=>Math.round(v*50)));
+    if(f.ct!==ct){f.ct=ct;f.traits.replaceChildren(...Object.entries(TRAITS).map(([k,l])=>meter(l,p.caractere?.[k]||0)));}
+  }
   renderRelation(s);
   const kind=ui('interaction-filter').value,events=(s.activityData?.events||[]).filter(e=>!kind||e.kind===kind).slice(0,40);
   paint('interaction-lines',kind+events.map(e=>e.ticks).join(),()=>events.length?events.map(e=>el('li',{},document.createTextNode(e.message),el('small',{textContent:(GENRES[e.kind]||'')+' · '+stamp(e.ticks/120)}))):[el('li',{textContent:'Rien pour ce filtre.'})]);
@@ -209,8 +252,9 @@ function renderEntourage(s){
     ...(c?[row('Stock du commerce aujourd’hui',fmt(c.stock)),row('Droit par personne et par jour',fmt(c.quota)),row('Courses rapportées',fmt(c.visites))]:[]),
     row('Amis à la maison',s.acces?.amisAccompagnes?'seulement accompagnés ('+fmt(s.acces.visites)+' visites)':'pas encore')]);
   const d=s.dialogue;
-  ui('listening-summary').textContent=fmt(d.audible)+' phrases entendues par Néo · '+fmt(d.known)+' mots compris'+(archiveStatus==='indisponible'?' · historique local indisponible':'');
+  ui('listening-summary').textContent=fmt(d.audible)+' phrases entendues par Néo · '+fmt(d.known)+(d.known>1?' mots compris':' mot compris')+(archiveStatus==='indisponible'?' · historique local indisponible':'');
 }
+const fiches=new Map();
 let relationKeys='';
 function renderRelation(s){
   const pairs=Object.entries(s.relationships||{}).sort(([,a],[,b])=>Number(b.couple)-Number(a.couple)||b.bond-a.bond);
@@ -233,10 +277,9 @@ function renderNuits(s){
   const totals=[['Nuits',n.length,'derniers sommeils gardés'],['Liens renforcés',tot('renforces'),'ce qui allait ensemble'],['Liens effacés',tot('effaces'),'trop faibles pour compter'],
     ['Souvenirs fusionnés',tot('fusionnes'),'redondances retirées'],['Choses oubliées',tot('oublies'),'essais ratés, causes inutiles'],['Rêves',n.reduce((a,x)=>a+x.reves.length,0),'devenus des envies']];
   paint('nuits-total',JSON.stringify(totals),()=>totals.map(([nom,v,desc])=>el('div',{className:'region'},el('strong',{textContent:fmt(v)}),el('span',{textContent:nom}),el('small',{textContent:desc}))));
-  paint('nuits',n.map(x=>x.t).join(),()=>n.length?n.map(x=>el('article',{className:'card night'},
-    el('div',{className:'card-head'},el('h3',{textContent:'Nuit du '+stamp(x.t).replace(/, .*/,'')}),el('small',{textContent:'endormi vers '+stamp(x.t).replace(/^.*, /,'')})),
-    el('div',{className:'chips'},el('span',{className:'chip',textContent:fmt(x.renforces)+' liens renforcés'}),el('span',{className:'chip off',textContent:fmt(x.effaces)+' effacés'}),
-      el('span',{className:'chip off',textContent:fmt(x.fusionnes)+' souvenirs fusionnés'}),el('span',{className:'chip off',textContent:fmt(x.oublies)+' oubliés'})),
+  setMeta('meta-nuits',fmt(n.length));
+  paint('nuits',n.map(x=>x.t).join(),()=>n.length?n.map(x=>panneau('nuit-'+x.t,{titre:'Nuit du '+stamp(x.t).replace(/, .*/,''),sous:'endormi vers '+stamp(x.t).replace(/^.*, /,'')+' · '+x.reves.length+' rêve'+(x.reves.length>1?'s':''),meta:fmt(x.renforces)+' renforcés',metaKind:'good'},
+    el('div',{className:'stack'},row('Liens renforcés',fmt(x.renforces)),row('Liens effacés',fmt(x.effaces)),row('Souvenirs fusionnés',fmt(x.fusionnes)),row('Choses oubliées',fmt(x.oublies))),
     ...x.reves.map(r=>el('p',{className:'dream',textContent:'Il rêve de '+r.elements.join(', puis de ')+'.'+(r.envie?' Au réveil, il a envie d’aller voir '+r.envie+'.':'')})))):[empty('Néo n’a pas encore dormi.')]);
 }
 
@@ -281,6 +324,7 @@ export function setupDashboard(personNames){
   ui('relationship-filter').onchange=()=>current&&renderRelation(current);
   ui('older-lines').onclick=()=>{const b=Number(ui('older-lines').dataset.before);if(b){stack.push(before);before=b;renderTranscript();}};
   ui('live-lines').onclick=resetTranscript;
+  restaurer();
   addEventListener('hashchange',()=>showPage(true));
   showPage(false);
   return {capture,clearHistory,archiveReady,update};

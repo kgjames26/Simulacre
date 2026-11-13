@@ -76,3 +76,9 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 - Joseph et Marie : 6 000 mots (dont 3 000 pluriels et conjugaisons) et 2 000 phrases d'échange (au lieu de 1 000).
 - Commerce : droit de 14 par personne et par jour (au lieu de 8) : toute la famille avait faim.
 - Correction : « Regardu » dans d'anciennes phrases.
+
+## v3.4 — affichage en panneaux
+- Toutes les pages utilisent le même système : des boutons qui ouvrent des panneaux, avec des sous-panneaux (plusieurs niveaux). Chaque panneau a une icône, un titre, un sous-titre et une pastille de résumé ; leur état ouvert/fermé est retenu.
+- Plus de contraste (texte plus sombre, barre du haut foncée, bordures et pastilles plus marquées).
+- Boutons refaits (hauteur, bordures, survol, appui, focus) ; outils de la carte en groupes.
+- Nouveau : les familles de choses (ressemblances) dans « Ce qu’il comprend ».
