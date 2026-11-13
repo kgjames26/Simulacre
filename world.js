@@ -103,6 +103,11 @@ function entities(){
       if(spot)add('equip:'+id,'equipement',label,spot.x,spot.z,shapes[id],{equipId:id});
     }
   }
+  if(typeof atelier!=='undefined'){
+    for(const o of atelier.outils)add('objet:outil-'+o.id,'objet',o.nom,o.x,o.z,[.3,.4,0,0,0,0],{outilId:o.id,dynamic:o});
+    add('objet:arbre','objet','arbre',ARBRE_POS.x,ARBRE_POS.z,[3,1,0,0,1,0]);
+    atelier.fleurs.forEach((f,i)=>add('objet:fleur-'+i,'objet','fleur',f.x,f.z,[.3,.1,.8,0,1,0],{plante:true}));
+  }
   for(const person of people)add('personne:'+person.id,'personne',characterNames[person.id],0,0,PERSON_TRAITS,{dynamic:person});
   for(const id of Object.keys(playItems))
     add('jeu:'+id,'jeu',playNames[id],0,0,id==='toy'?[.3,.4,0,0,0,0]:id.startsWith('bike')?[.4,.5,0,0,0,0]:[.1,.2,.5,0,0,0],{dynamic:playItems[id],playId:id});
@@ -135,6 +140,14 @@ function respond(entity,prim,s){
     return {flags:effect.flags,contact:{id:entity.houseId,until:s+effect.duration},
       besoins:effect.besoin?.(alex)??{},plaisir:effect.plaisir||0};
   }
+  if(entity.outilId){
+    if(prim!=='saisir')return hit(entity,prim);
+    const o=outil(entity.outilId);
+    if(o.etat.startsWith('porte'))return none;
+    neoToucheOutil(o,s);
+    return {flags:['objet_bouge','outil'],plaisir:.04};
+  }
+  if(entity.plante){return prim==='saisir'?{flags:['vivant','doux'],plaisir:.05}:none;}
   if(entity.computerId){
     if(prim!=='pousser')return hit(entity,prim);
     utiliserOrdinateur(s);

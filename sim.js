@@ -1,4 +1,4 @@
-importScripts('/brain.js','/cortex.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js','/famille-phrases.js');
+importScripts('/brain.js','/cortex.js','/world.js','/dialogue.js','/collision-map.js','/navigation.js','/motor.js','/play.js','/social.js','/french-words.js','/famille-phrases.js','/bricolage.js');
 const dialogue=createDialogue();
 const languageScene={points:{},visible:languageVisibility, invitations:[Object.assign(playItems.toy,{id:'toy'}),Object.assign(playItems.bikeHome,{id:'bikeHome'})]};
 const DT = 1 / 120;
@@ -395,6 +395,7 @@ function walkStep(p,x,z){
   return true;
 }
 function move(p,x,z,speed) {
+  if(p.vieux)speed*=.6;
   x=clamp(x,-bounds.x+.5,bounds.x-.5);
   z=clamp(z,-bounds.z+.5,bounds.z-.5);
   const distance=Math.hypot(x-p.x,z-p.z);
@@ -910,7 +911,7 @@ function experience() {
   for(let i=0;i<people.length;i++){
     const p=people[i];
     if(i<3){
-      p.fatigue=clamp((p.fatigue??(.14+i*.06))+DT*.0023,0,1);
+      p.fatigue=clamp((p.fatigue??(.14+i*.06))+DT*.0023*(p.vieux?1.8:1),0,1);
       p.hunger=clamp((p.hunger??.42)+DT*.0021,0,1);
       const carrying=sleeps.get(alex);
       if(carrying?.carrier===p&&['pickup','bed','settle'].includes(carrying.phase))continue;
@@ -919,6 +920,7 @@ function experience() {
       if(i<3&&stepParentUpstairs(p,i,s))continue;
       if(i<2&&stepParentOuting(p,i,s))continue;
       if(i<2&&cookMeal(p,s))continue;
+      if(i<2&&stepBricolage(p,i,s))continue;
       if(p.hunger>.62&&house?.kitchen&&kitchen.meals){
         const table=house.kitchen.table;
         p.activity='Va prendre un repas';
@@ -981,6 +983,7 @@ function experience() {
     }
   }
   stepParentsEmbrace(s);
+  stepAtelier(s);
   if(ticks%12===0){
     dialogue.step(s,alex,people,languageScene);
     updateRelationships(alex,people,s,age);
@@ -1060,10 +1063,10 @@ function snapshot() {
     brainView.cortex=Cortex.view(observerLabel,brainView.tailles);
     nextActivitySnapshot=ticks+36;
   }
-  return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
+  return {atelier:{outils:atelier.outils.map(o=>({...o})),arbre:{...atelier.arbre},bois:{...atelier.bois},fleurs:atelier.fleurs.map(f=>({...f})),neo:{fabrications:atelier.neo.fabrications}},ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};
 }
 function save() {
-  return {courrier,brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
+  return {atelier,courrier,brain:Brain.save(),motorVersion:MOTOR_VERSION,ticks,trials,pecm,skill,age,score,alex,people,ball,counts,journal,records,knowledge,eventClock,playItems,playTrials,relationships,parkMemory,equipmentSeen,doorKnowledge,kitchen,objectLearning,nextRefill,curiosity,interactions,nextParentCare,nextParentHug,parentEmbrace,dialogue:dialogue.save()};
 }
 onmessage=({data})=>{
   if(data.type==='house'){
@@ -1122,6 +1125,7 @@ onmessage=({data})=>{
     if(!s.kitchen?.servings)kitchen.servings=Array(kitchen.meals).fill(.62);
     Object.assign(objectLearning,s.objectLearning);
     if(s.courrier)courrier=s.courrier;
+    if(s.atelier?.outils&&s.atelier.fleurs)atelier=s.atelier;
     nextRefill=Number.isFinite(s.nextRefill)?s.nextRefill:0;
     Object.assign(equipmentSeen,s.equipmentSeen);
     if(s.motorVersion===MOTOR_VERSION)Object.assign(ball,s.ball);

@@ -251,7 +251,15 @@ function renderRelationshipHistory(state){
   }
   const label=pair.couple?'Couple établi':pair.romance?'Rapprochement affectif':pair.bond>=45?'Lien proche':'Connaissance';
   const meter=node('meter');meter.min=0;meter.max=100;meter.value=pair.bond;meter.setAttribute('aria-label','Solidité du lien');
-  ui('relationship-summary').replaceChildren(row(label,pair.bond+' / 100'),meter);
+  const amour=pair.tendresse||pair.attirance||pair.complicite||pair.separations;
+  const rows=[row(label,pair.bond+' / 100'),meter];
+  if(amour){
+    rows.push(row('Tendresse',(pair.tendresse||0)+' / 100'),row('Attirance',(pair.attirance||0)+' / 100'),row('Complicité',(pair.complicite||0)+' / 100'));
+    const actes=Object.entries(pair.actes||{}).map(([n,v])=>n+' ×'+v).join(', ');
+    if(actes)rows.push(row('Gestes d’amour',actes));
+    if(pair.separations)rows.push(row('Séparations',String(pair.separations)));
+  }
+  ui('relationship-summary').replaceChildren(...rows);
   const events=pair.history.slice().reverse();
   ui('relationship-history').replaceChildren(...(events.length?events.map(event=>{
     const item=node('li',event.event);
@@ -267,10 +275,11 @@ function renderRelations(state){
     item.append(node('h3',names[person.id]),node('small',mood(person,person.id==='alex')),
       node('p',person.activity||'Observe', 'activity'));
     if(person.hunger!=null)item.append(row('Faim',percent(person.hunger)),row('Fatigue',percent(person.fatigue)),
-      row('Bien-être',percent(person.pleasure??0)));
+      row('Bien-être',percent(person.pleasure??0)),row('Confiance en soi',percent(person.confiance??.4)));
     if(person.id==='alex')item.append(row('Soif',percent(person.thirst)),row('Hygiène',percent(person.hygiene)));
     else{
       if(person.age!=null)item.append(row('Stade',ageNames[person.age]));
+      if(person.vieux)item.append(row('État','Âgé'));
       item.append(row('Connaissances reçues de Néo',person.partage?fmt(person.inherited):'pas encore (niveau '+person.niveau+')'));
       if(person.aideRecue)item.append(row('Visites de Néo (quand ça ne va pas)',fmt(person.aideRecue)+' fois'));
       if(person.baseWords)item.append(row('Mots connus en plus',fmt(person.baseWords)));

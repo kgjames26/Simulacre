@@ -24,3 +24,11 @@ Pour publier : modifier `VERSION`, committer, puis `git tag vX.Y`.
 ## v2.6
 - Un ordinateur à l'étage (seul Néo y accède, aucune explication). Ce que Néo y écrit vient de ce qu'il sait et arrive dans une boîte aux lettres mise en évidence ; ce que l'utilisateur y écrit, Néo le lit à l'écran.
 - Néo ne sait pas si on lit ses messages ni à qui ils vont. Quand, seul, il écrit après une surprise, sous un besoin fort ou en se répétant, le message est signalé (« créateur ») avec son contexte : jour, heure, âge, dernier événement, mots connus.
+
+## v2.7
+- Joseph et Marie vieillissent quand Néo est adulte : cheveux gris, déplacements plus lents (×0,6), fatigue plus rapide donc davantage de sommeil. Marie n'arrose plus quand elle est âgée.
+- Un arbre dans le jardin : Joseph le scie, le débite, empile le bois contre le mur de la maison et recharge le chauffage à bois quand il fait froid (saisons et nuits simulées). L'arbre repousse vite.
+- Mur d'outils extérieur (scie, marteau, clous, colle à bois, vis, tournevis, arrosoir, tuyau d'eau, robinet) : seuls la scie, l'arrosoir et le tuyau sont utilisés par les adultes ; Néo peut toucher les autres ou assembler quelque chose de lui-même (plaisir et confiance, jamais demandé).
+- 4 fleurs près de la maison, arrosées par Marie (arrosoir déposé, tuyau, remplissage, arrosage) : plaisir et confiance.
+- Sentiments amoureux : tendresse, attirance, complicité ; actes (regard, main, cadeau, câlin, baiser, dispute) avec effets individuels ; une seule relation, sexe opposé, jamais la famille ; séparations possibles ; jamais un objectif.
+- Confiance en soi ajoutée aux personnages. Tous les nouveaux objets sont modélisés en 3D (atelier-view.js).

@@ -1,5 +1,6 @@
 import {bindPlayViews} from '/play-view.js';
 import {dessinerPanneau} from '/panneaux.js';
+import {creerAtelier} from '/atelier-view.js';
 import {setupDashboard,TIME_SCALE} from '/dashboard.js';
 document.getElementById('enter-simulacre')?.addEventListener('click',()=>{document.getElementById('welcome-screen').hidden=true;try{sessionStorage.setItem('simulacre-intro-seen','1');}catch{}});
 const ui = id => document.getElementById(id);
@@ -436,7 +437,7 @@ function buildFace(T,rig,id,skin){
     }
     oval(frame,0,.011,.109,.012,.0036,.0032);
   }
-  return {head,mouth,eyes,profile};
+  return {head,mouth,eyes,profile,hairMaterial};
 }
 
 function buildPopoRig(T,root,gloveMaterial){
@@ -703,6 +704,7 @@ async function showWorld(){
     const panneau=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:texture}));
     panneau.position.set(x,base+h/2-.2,z+.06);scene.add(panneau);
   }
+  const atelier3d=creerAtelier(T,scene,mat,{murX:-.46,arbre:{x:5,z:-4.2},tas:{x:.12,z:1.4},fleurs:[[1.4,6.9],[2.2,6.9],[3.0,6.9],[3.8,6.9]]});
   const play=bindPlayViews(T,scene,worker,mat,id=>{
     const item=snapshot?.playItems?.[id];
     if(!item)return;
@@ -1102,6 +1104,7 @@ async function showWorld(){
         physicalRope.scale.y=direction.length();
         physicalRope.quaternion.setFromUnitVectors(ropeUp,direction.normalize());
       }
+      atelier3d.update(snapshot.atelier);
       for(const actor of actors){
         const p=actor.id==='alex'?snapshot.alex:snapshot.people.find(person=>person.id===actor.id);
         const main=actor.id==='alex';
@@ -1129,6 +1132,8 @@ async function showWorld(){
           arm.shoulder.rotation.y=-Math.PI/3;
           arm.elbow.rotation.y*=.6;
         }
+        atelier3d.porteur(actor,p.carry||null);
+        if(actor.face.hairMaterial&&actor.gris!==!!p.vieux){actor.gris=!!p.vieux;actor.face.hairMaterial.color.set(p.vieux?'#b9b6b2':faceProfiles[actor.id].hair);}
         actor.root.userData.crouch=crouch;
         const line=conversationRows.at(-1);
         for(const eye of actor.face.eyes){
