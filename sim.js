@@ -239,6 +239,7 @@ function tryEntity(entity,s){
   const result=Brain.essai({t:s,cible:entity.id,prim,succes,effet:out.flags,besoins:out.besoins||{},
     plaisir:out.plaisir||0,douleur:out.douleur||0});
   if(out.contact){objectContact=out.contact;household[out.contact.id]=1;}
+  Brain.atteint(entity.id,s);
   if(out.start)beginEquipment(out.start,s);
   if(result.geste)note('Néo apprend un nouveau geste : '+result.geste+'.','object');
   if(out.douleur)alex.pleasure=Math.max(0,(alex.pleasure||0)-out.douleur*2);
@@ -894,9 +895,12 @@ function experience() {
     if(age>=2)Brain.publier(s);
     if(age>=5)Brain.synchroniser?.('parents');
   }
-  const gate=milestones[age];
-  if(gate&&skill===4&&pecm>=gate.motor&&Object.keys(counts).every(key=>counts[key]>=gate[key])&&Brain.signature(age)){
-    age++;note('Nouveau stade de développement · '+(age+1));
+  if(ticks%600===0){
+    stageGoals=evaluateStageGoals();
+    if(age<8&&stageGoals.length&&stageGoals.every(goal=>goal.done)){
+      age++;note('Nouveau stade de développement · '+(age+1));
+      stageGoals=evaluateStageGoals();
+    }
   }
 }
 const characterNames={alex:'Néo',joseph:'Joseph',marie:'Marie',juliette:'Juliette',timeo:'Timéo',nathan:'Nathan',francoise:'Lyra',rose:'Rose'};
@@ -905,6 +909,30 @@ function recordBallPlay(id,s){
   if(s<(nextBallEvent[id]||0))return;
   nextBallEvent[id]=s+9;
   note(characterNames[id]+' joue avec la balle.','play');
+}
+// Compétences attendues pour quitter chaque stade, comme pour un enfant : le corps (physique) et la compréhension (mental).
+// Elles se lisent dans l'état du corps et dans les fichiers du cerveau ; rien n'est donné à Néo.
+let stageGoals=[];
+function evaluateStageGoals(){
+  const B=Brain.state;
+  const mots=dialogue.view().vocabulary.length,phrases=dialogue.view().composed||0;
+  const sure=Brain.confirmees();
+  const gestes=Brain.APPRENABLES.filter(g=>B.gestes[g]?.appris).length;
+  const proches=Object.values(B.personnes).filter(p=>p.vu>=3).length;
+  const parc=new Set(sure.filter(c=>entityById(c.enonce.cible)?.kind==='equipement').map(c=>c.enonce.cible)).size;
+  const besoins=new Set(sure.flatMap(c=>Object.keys(c.besoins).filter(k=>c.besoins[k]>.08))).size;
+  const P='physique',M='mental';
+  const table=[
+    [[P,'Se redresser et ramper',records[0].mastered&&records[1].mastered],[M,'Reconnaître ses proches',proches>=2],[M,'Comprendre un premier mot',mots>=1]],
+    [[P,'Tenir debout et faire ses premiers pas',records[2].mastered&&records[3].mastered],[M,'Voir que ses gestes ont des effets (2 choses comprises)',sure.length>=2],[M,'Comprendre 3 mots',mots>=3]],
+    [[P,'Marcher seul',records[4].mastered],[P,'Apprendre un nouveau geste',gestes>=1],[M,'Comprendre 6 mots',mots>=6]],
+    [[P,'Maîtriser tous ses gestes',gestes>=4],[M,'Regrouper les choses par famille',B.concepts.length>=1],[M,'Dire sa première phrase',phrases>=1],[M,'Comprendre 4 choses',sure.length>=4]],
+    [[P,'Jouer avec 2 équipements du parc',parc>=2],[M,'Atteindre 3 envies',Brain.nbAtteints()>=3],[M,'Comprendre 12 mots',mots>=12]],
+    [[M,'Se débrouiller seul pour ses besoins',besoins>=2],[M,'Partager ses découvertes avec ses parents',!!B.synchro.parents],[M,'Comprendre 8 choses',sure.length>=8]],
+    [[M,'Acquérir une habitude',B.savoirFaire.length>=1],[M,'Former 5 phrases',phrases>=5],[M,'Comprendre 25 mots',mots>=25]],
+    [[M,'Atteindre 6 envies',Brain.nbAtteints()>=6],[M,'Avoir 3 habitudes',B.savoirFaire.length>=3],[M,'Comprendre 15 choses',sure.length>=15]]
+  ];
+  return (table[age]||[]).map(([type,label,done])=>({type,label,done:!!done}));
 }
 let activityData, nextActivitySnapshot=0, brainView=null;
 function snapshot() {
@@ -924,7 +952,7 @@ function snapshot() {
       motor:records.map(({attempts,confirmed,recent,mastered})=>({attempts,confirmed,recent:recent.filter(Boolean).length,mastered})),
       knowledgeCount:names.length,discoveries:names.slice(-8).reverse()};
     brainView=Brain.view(observerLabel);
-    brainView.signature=Brain.signature(age);
+    brainView.etape=stageGoals;
     nextActivitySnapshot=ticks+36;
   }
   return {ticks,trials,pecm,skill,age,score,alex,people,ball,playItems,relationships,counts,journal,mode,ropeEnd:park?ropeEnd():null,doors:doorStates,membrane,kitchen,household,validated:records[4].confirmed,dialogue:dialogue.view(),brain:brainView,activityData,playgroundMotion:contact?.kind==='swing'?{swingAngle:Math.sin(contact.time*2.7)*.42}:null};

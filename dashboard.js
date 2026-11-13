@@ -200,14 +200,15 @@ function renderDevelopment(state){
     if(i===state.skill&&!record.mastered)item.append(row('Réussites récentes',record.recent+' sur 6 nécessaires'));
     return item;
   }));
-  const gate=state.activityData.gate;
-  const gates=gate?[
-    ['Points de progrès',fmt(state.pecm)+' / '+fmt(gate.motor)],
-    ...Object.entries(countLabels).filter(([key])=>gate[key]>0).map(([key,label])=>[label,fmt(state.counts[key])+' / '+fmt(gate[key])])
-  ]:[['Stade final','Atteint']];
-  const need=SIGNATURE[state.age];
-  if(need&&state.brain)gates.push(['Compréhension : '+need,state.brain.signature?'Acquis ✓':'Pas encore']);
-  ui('age-gates').replaceChildren(...gates.map(([label,value])=>row(label,value)));
+  const goals=state.brain?.etape||[];
+  const part=(type,title)=>{
+    const list=goals.filter(g=>g.type===type);
+    if(!list.length)return [];
+    return [el('p',{className:'eyebrow spaced-sm',textContent:title}),...list.map(g=>row(g.label,g.done?'Acquis ✓':'Pas encore'))];
+  };
+  ui('age-gates').replaceChildren(...(state.age>=8?[row('Stade final','Atteint')]:
+    goals.length?[...part('physique','Ce que son corps doit savoir faire'),...part('mental','Ce qu’il doit avoir compris')]:
+    [el('p',{className:'muted',textContent:'En cours d’évaluation…'})]));
   ui('language-stats').replaceChildren(row('Phrases entendues',fmt(state.dialogue.audible)),
     row('Mots compris',fmt(state.dialogue.known)),row('Mots répétés',fmt(state.dialogue.spoken)),
     row('Phrases formées',fmt(state.dialogue.composed)),
